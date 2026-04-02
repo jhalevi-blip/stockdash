@@ -176,7 +176,7 @@ export default function FinancialsPage() {
       <div style={{ marginBottom: 20 }}>
         <div className="section-title" style={{ marginBottom: 12 }}>Select Stock</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {TICKERS.map(t => (
+          {tickers.map(t => (
             <button key={t} onClick={() => loadFinancials(t)} style={{
               background: selected === t ? '#1f6feb' : '#21262d',
               color:      selected === t ? '#fff'    : '#c9d1d9',

@@ -213,8 +213,7 @@ export default function InstitutionalPage() {
                       return (
                         <tr key={i}>
                           <td className="left" style={{ color: '#484f58', fontSize: 12 }}>{i + 1}</td>
-                          <td className="left" style={{ color: '#c9d1d9', fontSize: 13 }}>
-                            {h.name}
+                          <td className="left" style={{ color: '#c9d1d9', fontSize: 13 }}>{h.name}</td>
                           <td className="neutral">{h.shares?.toLocaleString() ?? '—'}</td>
                           <td style={{ fontWeight: 600, color: '#e6edf3' }}>{fmt(h.value)}</td>
                           <td>{pct(h.pctPortfolio)}</td>

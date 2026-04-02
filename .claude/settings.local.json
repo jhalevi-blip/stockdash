@@ -8,7 +8,8 @@
       "Bash(cp:*)",
       "Bash(vercel --prod)",
       "Bash(curl -s \"https://efts.sec.gov/LATEST/search-index?q=%22Coatue+Management%22&dateRange=custom&startdt=2024-01-01&forms=13F-HR\" -H \"User-Agent: PortfolioIntel/1.0 contact@portfoliointel.app\")",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(npm run:*)"
     ]
   }
 }
