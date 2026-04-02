@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vercel:*)",
+      "Bash(curl -s -H \"User-Agent: Mozilla/5.0\" -H \"Accept: application/json\" \"https://query1.finance.yahoo.com/v10/finance/quoteSummary/OXY?modules=financialData\")",
+      "Read(//c/Users/jhale/**)",
+      "Bash(xcopy /E /I portfolio-intel stockdash)",
+      "Bash(cp:*)",
+      "Bash(vercel --prod)"
+    ]
+  }
+}
