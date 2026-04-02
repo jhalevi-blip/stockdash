@@ -6,6 +6,7 @@ const pct = n => n == null ? '—' : (n * 100).toFixed(1) + '%';
 const fmt  = n => n == null ? '—' : n >= 1e9 ? '$' + (n/1e9).toFixed(2) + 'B' : n >= 1e6 ? '$' + (n/1e6).toFixed(1) + 'M' : '$' + f(n, 0);
 // fmtK: input is in thousands USD (SEC 13F format) — 1e6 thousands = $1B, 1e3 thousands = $1M
 const fmtK = n => n == null ? '—' : n >= 1e6 ? '$' + (n/1e6).toFixed(2) + 'B' : n >= 1e3 ? '$' + (n/1e3).toFixed(1) + 'M' : '$' + f(n, 0);
+const fmtSEC = n => n == null ? '—' : n >= 1e6 ? '$' + (n/1e6).toFixed(2) + 'B' : n >= 1e3 ? '$' + (n/1e3).toFixed(1) + 'M' : '$' + n.toFixed(0);
 
 // Build portfolio keywords dynamically from localStorage ticker names
 function getPortfolioKeywords() {
@@ -189,7 +190,7 @@ export default function InstitutionalPage() {
             <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12, display: 'flex', gap: 16 }}>
               <span style={{ fontWeight: 600, color: '#e6edf3' }}>{activeFund.name}</span>
               {activeFund.filingDate && <span>Latest 13F: {activeFund.filingDate}</span>}
-              {activeFund.totalValue && <span>Portfolio: {fmt(activeFund.totalValue)}</span>}
+              {activeFund.totalValue && <span>Portfolio: {fmtSEC(activeFund.totalValue)}</span>}
               {activeFund.holdings?.length === 0 && <span style={{ color: '#f85149' }}>No data available</span>}
             </div>
 
@@ -217,7 +218,7 @@ export default function InstitutionalPage() {
                             {overlap && <span style={{ marginLeft: 8, fontSize: 10, color: '#3fb950', background: 'rgba(63,185,80,0.15)', padding: '1px 5px', borderRadius: 3 }}>IN PORTFOLIO</span>}
                           </td>
                           <td className="neutral">{h.shares?.toLocaleString() ?? '—'}</td>
-                          <td style={{ fontWeight: 600, color: '#e6edf3' }}>{fmt(h.value)}</td>
+                          <td style={{ fontWeight: 600, color: '#e6edf3' }}>{fmtSEC(h.value)}</td>
                           <td>{pct(h.pctPortfolio)}</td>
                         </tr>
                       );
