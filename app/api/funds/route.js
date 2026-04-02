@@ -3,7 +3,7 @@ export const revalidate = 0;
 
 const FUNDS = [
   { name: 'Pershing Square',        manager: 'Bill Ackman',           cik: '0001336528' },
-  { name: 'Berkshire Hathaway',     manager: 'Warren Buffett',        cik: '0001067294' },
+  { name: 'Coatue Management',       manager: 'Philippe Laffont',      cik: '0001135730' },
   { name: 'Greenlight Capital',     manager: 'David Einhorn',         cik: '0001079114' },
   { name: 'Appaloosa Management',   manager: 'David Tepper',          cik: '0001006438' },
   { name: 'Duquesne Family Office', manager: 'Stan Druckenmiller',    cik: '0001536411' },
