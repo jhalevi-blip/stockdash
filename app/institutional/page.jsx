@@ -207,15 +207,14 @@ export default function InstitutionalPage() {
                   </thead>
                   <tbody>
                     {activeFund.holdings.map((h, i) => {
-                      const nameUp = (h.name ?? '').toUpperCase();
-                      const overlap = tickers.some(t => nameUp.includes(t));
+                      // TODO: overlap detection removed — ticker substring matching caused false positives
+                      // (e.g. "NNE" matching "BRIGHTHOUSE FINL INC"). Needs proper ticker-to-CUSIP or
+                      // ticker-to-company-name mapping before re-enabling.
                       return (
-                        <tr key={i} style={{ background: overlap ? 'rgba(63,185,80,0.06)' : undefined }}>
+                        <tr key={i}>
                           <td className="left" style={{ color: '#484f58', fontSize: 12 }}>{i + 1}</td>
-                          <td className="left" style={{ fontWeight: overlap ? 700 : 400, color: overlap ? '#3fb950' : '#c9d1d9', fontSize: 13 }}>
+                          <td className="left" style={{ color: '#c9d1d9', fontSize: 13 }}>
                             {h.name}
-                            {overlap && <span style={{ marginLeft: 8, fontSize: 10, color: '#3fb950', background: 'rgba(63,185,80,0.15)', padding: '1px 5px', borderRadius: 3 }}>IN PORTFOLIO</span>}
-                          </td>
                           <td className="neutral">{h.shares?.toLocaleString() ?? '—'}</td>
                           <td style={{ fontWeight: 600, color: '#e6edf3' }}>{fmt(h.value)}</td>
                           <td>{pct(h.pctPortfolio)}</td>
@@ -229,7 +228,7 @@ export default function InstitutionalPage() {
           </>
         )}
         <div style={{ fontSize: 11, color: '#484f58', marginTop: 8 }}>
-          Source: SEC EDGAR 13F-HR filings. Values in USD. Green rows = overlap with your portfolio.
+          Source: SEC EDGAR 13F-HR filings. Values in USD.
         </div>
       </section>
     </main>

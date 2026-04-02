@@ -10,13 +10,17 @@ export default function RootLayout({ children }) {
   return (
     <ClerkProvider appearance={{
       variables: {
-        colorBackground: '#161b22',
+        colorBackground: '#1c2128',
         colorText: '#e6edf3',
         colorPrimary: '#58a6ff',
-        colorInputBackground: '#0d1117',
+        colorInputBackground: '#1c2128',
         colorInputText: '#e6edf3',
-        colorNeutral: '#8b949e',
+        colorNeutral: '#c9d1d9',
         borderRadius: '6px',
+      },
+      elements: {
+        card: { backgroundColor: '#1c2128' },
+        modalContent: { backgroundColor: '#1c2128' },
       },
     }}>
       <html lang="en">
