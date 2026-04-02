@@ -2,7 +2,6 @@ import './globals.css';
 import Script from 'next/script';
 import NavBar from '@/components/NavBar';
 import { ClerkProvider } from '@clerk/nextjs';
-import { dark } from '@clerk/themes';
 import { Analytics } from '@vercel/analytics/react';
 
 export const metadata = { title: 'StockDash' };
@@ -10,21 +9,14 @@ export const metadata = { title: 'StockDash' };
 export default function RootLayout({ children }) {
   return (
     <ClerkProvider appearance={{
-      baseTheme: dark,
       variables: {
-        colorBackground: '#1c2128',
-        colorText: '#e6edf3',
+        colorBackground: '#ffffff',
+        colorText: '#1a1a1a',
         colorPrimary: '#58a6ff',
-        colorInputBackground: '#22272e',
-        colorInputText: '#e6edf3',
-        colorNeutral: '#c9d1d9',
-        borderRadius: '6px',
-      },
-      elements: {
-        rootBox: { backgroundColor: '#1c2128' },
-        card: { backgroundColor: '#1c2128', boxShadow: 'none', border: '1px solid #30363d' },
-        modalContent: { backgroundColor: '#1c2128' },
-        modalBackdrop: { backgroundColor: 'rgba(0,0,0,0.7)' },
+        colorInputBackground: '#f5f5f5',
+        colorInputText: '#1a1a1a',
+        colorNeutral: '#444444',
+        borderRadius: '8px',
       },
     }}>
       <html lang="en">
