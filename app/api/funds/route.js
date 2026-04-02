@@ -62,7 +62,7 @@ function parseInfoTable(xml) {
     if (name && type === 'SH' && shares > 0) raw.push({ name, value, shares });
   }
 
-  return raw.map(h => ({ name: h.name, value: h.value, shares: h.shares }));
+  return raw.map(h => ({ name: h.name, value: h.value * 1000, shares: h.shares }));
 }
 
 async function fetchFundHoldings(fund) {
@@ -90,7 +90,7 @@ async function fetchFundHoldings(fund) {
       .slice(0, 15)
       .map(h => ({ ...h, pctPortfolio: totalValue > 0 ? h.value / totalValue : null }));
 
-    return { ...fund, holdings: top15, filingDate: latest.date, totalValue };
+    return { ...fund, holdings: top15, filingDate: latest.date, totalValue: totalValue * 1000 };
   } catch (err) {
     console.error(`[funds] Error fetching ${fund.name}:`, err.message);
     return { ...fund, holdings: [], filingDate: null };
