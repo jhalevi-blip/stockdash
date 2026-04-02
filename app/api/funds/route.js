@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 const FUNDS = [
   { name: 'Pershing Square',        manager: 'Bill Ackman',           cik: '0001336528' },
@@ -99,6 +100,6 @@ async function fetchFundHoldings(fund) {
 export async function GET() {
   const results = await Promise.all(FUNDS.map(fetchFundHoldings));
   return Response.json(results, {
-    headers: { 'Cache-Control': 'no-store' },
+    headers: { 'Cache-Control': 'no-store, no-cache' },
   });
 }
