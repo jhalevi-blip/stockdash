@@ -18,6 +18,9 @@ export default function RootLayout({ children }) {
         colorNeutral: '#444444',
         borderRadius: '8px',
       },
+      elements: {
+        cardBox: { background: '#ffffff' },
+      },
     }}>
       <html lang="en">
         <Script id="theme-init" strategy="beforeInteractive">{`try{if(localStorage.getItem('theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}`}</Script>
