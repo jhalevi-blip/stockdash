@@ -3,23 +3,16 @@
 
 export const revalidate = 86400; // cache entire route for 24 hours
 
-const TICKER_TO_CIK = {
-  AMD:  '0000002488',
-  AMZN: '0001018724',
-  SOFI: '0001818874',
-  RIG:  '0001451505',
-  CELH: '0001341766',
-  ADBE: '0000796343',
-  OXY:  '0000797468',
-  PHM:  '0000822416',
-  LEN:  '0000920760',
-  HNST: '0001530979',
-  NNE:  '0001923891',
-  AAPL: '0000320193',
-  MSFT: '0000789019',
-  NVDA: '0001045810',
-  TSLA: '0001318605',
-};
+async function lookupCIK(ticker) {
+  const res = await fetch('https://www.sec.gov/files/company_tickers.json', {
+    headers: { 'User-Agent': 'PortfolioIntel/1.0 contact@portfoliointel.app' },
+    next: { revalidate: 86400 },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const entry = Object.values(data).find(e => e.ticker === ticker);
+  return entry ? String(entry.cik_str).padStart(10, '0') : null;
+}
 
 // Primary and fallback EDGAR us-gaap concept tags
 const CONCEPTS = {
@@ -101,12 +94,10 @@ export async function GET(request) {
     );
   }
 
-  const cik = TICKER_TO_CIK[ticker];
+  const cik = await lookupCIK(ticker);
   if (!cik) {
     return Response.json(
-      {
-        error: `CIK not mapped for ticker: ${ticker}. Add it to TICKER_TO_CIK in route.js.`,
-      },
+      { error: `CIK not found for ticker: ${ticker}` },
       { status: 404 }
     );
   }

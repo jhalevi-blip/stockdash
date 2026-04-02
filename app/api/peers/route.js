@@ -20,13 +20,7 @@ export async function GET(request) {
     // Finnhub returns an array of tickers including the queried one
     // Limit to 6 peers max to avoid rate limits
     const allTickers = Array.isArray(peersRaw) ? peersRaw : [];
-const PEER_OVERRIDES = {
-  SOFI: ['SOFI', 'SLM', 'LC', 'NAVI', 'JPM', 'AFRM'],
-  AMZN: ['AMZN', 'SHOP', 'EBAY', 'WMT', 'TGT', 'COST'],
-};
-
-const peers = PEER_OVERRIDES[ticker]
-  ?? [ticker, ...allTickers.filter(t => t !== ticker).slice(0, 5)];
+    const peers = [ticker, ...allTickers.filter(t => t !== ticker).slice(0, 5)];
 
     // Step 2: fetch metrics for each peer in parallel
     const results = await Promise.all(

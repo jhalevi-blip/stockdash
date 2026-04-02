@@ -1,8 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
-const TICKERS = ['AMD','ETOR','SOFI','RIG','AMZN','CELH','ADBE','OXY','PHM','LEN','HNST','NNE'];
 
 const fmt = (n) => {
   if (n == null) return '—';
@@ -121,10 +120,18 @@ function buildTable(transformed, rowDefs) {
 }
 
 export default function FinancialsPage() {
+  const [tickers,  setTickers]  = useState([]);
   const [selected, setSelected] = useState(null);
   const [data,     setData]     = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [tab,      setTab]      = useState('income');
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('stockdash_holdings');
+      setTickers(stored ? JSON.parse(stored).map(h => h.t) : []);
+    } catch { setTickers([]); }
+  }, []);
 
   const loadFinancials = async (ticker) => {
     setSelected(ticker);
@@ -182,7 +189,10 @@ export default function FinancialsPage() {
       </div>
 
       {/* States */}
-      {!selected && (
+      {tickers.length === 0 && (
+        <div className="chart-placeholder">Add stocks to your portfolio to view financial statements</div>
+      )}
+      {tickers.length > 0 && !selected && (
         <div className="chart-placeholder">Select a stock to view financial statements</div>
       )}
       {loading && (

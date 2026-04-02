@@ -1,16 +1,13 @@
-const TICKER_TO_CIK = {
-  AMD:  '0000002488',
-  AMZN: '0001018724',
-  SOFI: '0001818874',
-  RIG:  '0001451505',
-  CELH: '0001341766',
-  ADBE: '0000796343',
-  OXY:  '0000797468',
-  PHM:  '0000822416',
-  LEN:  '0000920760',
-  HNST: '0001530979',
-  NNE:  '0001923891',
-};
+async function lookupCIK(ticker) {
+  const res = await fetch('https://www.sec.gov/files/company_tickers.json', {
+    headers: { 'User-Agent': 'PortfolioIntel/1.0 contact@portfoliointel.app' },
+    next: { revalidate: 86400 },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const entry = Object.values(data).find(e => e.ticker === ticker);
+  return entry ? String(entry.cik_str).padStart(10, '0') : null;
+}
 
 async function fetchEdgar(cik) {
   try {
@@ -77,13 +74,12 @@ export async function GET(request) {
 
   if (!symbol) return Response.json({ error: 'Missing symbol param' }, { status: 400 });
 
-  const cik = TICKER_TO_CIK[symbol];
+  const cik = await lookupCIK(symbol);
 
   const [edgarRows, finnhubRows] = await Promise.all([
     cik ? fetchEdgar(cik) : Promise.resolve([]),
     fetchFinnhub(symbol),
   ]);
-  if (symbol === 'SOFI') console.log('[earnings-history] Finnhub raw for SOFI:', JSON.stringify(finnhubRows));
 
   // Merge: start with EDGAR, overlay Finnhub (which has estimates) for matching periods
   const merged = new Map();

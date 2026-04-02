@@ -1,17 +1,13 @@
-const CIK_MAP = {
-  AMD:  '0000002488',
-  AMZN: '0001018724',
-  SOFI: '0001818201',
-  RIG:  '0001451505',
-  CELH: '0001370109',
-  ADBE: '0000796343',
-  OXY:  '0000797468',
-  PHM:  '0000822416',
-  LEN:  '0000760760',
-  HNST: '0001631574',
-  NNE:  '0001978040',
-  ETOR: '0001975264',
-};
+async function lookupCIK(ticker) {
+  const res = await fetch('https://www.sec.gov/files/company_tickers.json', {
+    headers: { 'User-Agent': 'PortfolioIntel/1.0 contact@portfoliointel.app' },
+    next: { revalidate: 86400 },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const entry = Object.values(data).find(e => e.ticker === ticker);
+  return entry ? String(entry.cik_str).padStart(10, '0') : null;
+}
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -23,7 +19,7 @@ export async function GET(request) {
 
   try {
     if (type === 'filings') {
-      const cik = CIK_MAP[symbol];
+      const cik = await lookupCIK(symbol);
       if (!cik) return Response.json([]);
       const res = await fetch(
         `https://data.sec.gov/submissions/CIK${cik}.json`,
