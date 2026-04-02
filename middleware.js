@@ -1,4 +1,4 @@
-import { clerkMiddleware } from '@clerk/nextjs/server';
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
 // In-memory rate limit store: ip -> { count, windowStart }
@@ -19,7 +19,13 @@ function isRateLimited(ip) {
   return entry.count > MAX_REQUESTS;
 }
 
-const clerkHandler = clerkMiddleware();
+const isPublicRoute = createRouteMatcher(['/']);
+
+const clerkHandler = clerkMiddleware((auth, req) => {
+  if (!isPublicRoute(req)) {
+    auth.protect();
+  }
+});
 
 export default function middleware(req, ev) {
   if (req.nextUrl.pathname.startsWith('/api/')) {
