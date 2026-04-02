@@ -2,6 +2,7 @@ import './globals.css';
 import Script from 'next/script';
 import NavBar from '@/components/NavBar';
 import { ClerkProvider } from '@clerk/nextjs';
+import { Analytics } from '@vercel/analytics/react';
 
 export const metadata = { title: 'StockDash' };
 
@@ -28,6 +29,7 @@ export default function RootLayout({ children }) {
           </div>
           <NavBar />
           {children}
+          <Analytics />
         </body>
       </html>
     </ClerkProvider>

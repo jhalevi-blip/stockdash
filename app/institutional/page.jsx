@@ -189,7 +189,7 @@ export default function InstitutionalPage() {
             <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 12, display: 'flex', gap: 16 }}>
               <span style={{ fontWeight: 600, color: '#e6edf3' }}>{activeFund.name}</span>
               {activeFund.filingDate && <span>Latest 13F: {activeFund.filingDate}</span>}
-              {activeFund.totalValue && <span>Portfolio: {fmt(activeFund.totalValue)}</span>}
+              {activeFund.totalValue && <span>Portfolio: {fmtK(activeFund.totalValue)}</span>}
               {activeFund.holdings?.length === 0 && <span style={{ color: '#f85149' }}>No data available</span>}
             </div>
 
