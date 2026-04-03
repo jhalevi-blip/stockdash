@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import DemoPrompt from '@/components/DemoPrompt';
 
 const f = (n, d=2) => n?.toLocaleString('en-US', { minimumFractionDigits:d, maximumFractionDigits:d }) ?? '—';
 const pct = n => n == null ? '—' : n.toFixed(1) + '%';
@@ -65,7 +66,9 @@ export default function ValuationPage() {
 
       {loading && <div className="chart-placeholder">Loading valuation metrics…</div>}
 
-      {!loading && (
+      {!loading && data.length === 0 && <DemoPrompt message="No holdings to display" />}
+
+      {!loading && data.length > 0 && (
         <div className="table-wrap">
           <table>
             <thead>

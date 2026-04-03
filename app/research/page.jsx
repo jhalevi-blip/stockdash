@@ -1,4 +1,5 @@
 'use client';
+import DemoPrompt from '@/components/DemoPrompt';
 import { useState, useEffect } from 'react';
 
 const FILING_TYPES = {
@@ -73,7 +74,7 @@ export default function ResearchPage() {
       <div style={{ marginBottom: 20 }}>
         <div className="section-title" style={{ marginBottom: 12 }}>Select Stock</div>
         {tickers.length === 0 ? (
-          <div className="chart-placeholder">Add stocks to your portfolio to view research</div>
+          <DemoPrompt message="Add stocks to your portfolio to view research" />
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {tickers.map(t => (

@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import DashboardSummary from '@/components/DashboardSummary';
 import StockIntelSummary from '@/components/StockIntelSummary';
+import DemoPrompt from '@/components/DemoPrompt';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
@@ -155,9 +156,7 @@ export default function DashboardPage() {
 
   if (!holdings.length) return (
     <main style={{ padding: '20px 24px' }}>
-      <div className="chart-placeholder">
-        No holdings found. Add your tickers via the portfolio setup to get started.
-      </div>
+      <DemoPrompt message="No holdings found" />
     </main>
   );
 

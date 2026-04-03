@@ -1,4 +1,5 @@
 'use client';
+import DemoPrompt from '@/components/DemoPrompt';
 import { useState, useEffect } from 'react';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -121,7 +122,7 @@ export default function PeersPage() {
       <div style={{ marginBottom: 20 }}>
         <div className="section-title" style={{ marginBottom: 12 }}>Peer Comparison</div>
         {tickers.length === 0 ? (
-          <div className="chart-placeholder">Add stocks to your portfolio to use peer comparison</div>
+          <DemoPrompt message="Add stocks to your portfolio to use peer comparison" />
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {tickers.map(t => (

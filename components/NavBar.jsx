@@ -1,9 +1,10 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useUser, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
 import PortfolioModal from './PortfolioModal';
+import { startDemo } from '@/lib/startDemo';
 
 const links = [
   { href: '/dashboard',      label: 'Dashboard',   icon: '📊' },
@@ -18,7 +19,8 @@ const links = [
 ];
 
 export default function NavBar() {
-  const path = usePathname();
+  const path   = usePathname();
+  const router = useRouter();
   const [open,         setOpen]         = useState(false);
   const [dark,         setDark]         = useState(false);
   const [modalOpen,    setModalOpen]    = useState(false);
@@ -88,6 +90,16 @@ export default function NavBar() {
       <UserButton afterSignOutUrl="/" />
     ) : (
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <button onClick={() => startDemo()} style={{
+          background: '#0d1117', border: '1px solid #58a6ff',
+          borderRadius: 6, color: '#e6edf3',
+          fontSize: 12, fontWeight: 600, cursor: 'pointer',
+          padding: '4px 12px', whiteSpace: 'nowrap',
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+        }}>
+          <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
+          Try Demo
+        </button>
         <SignInButton mode="modal">
           <button style={{
             background: 'none', border: `1px solid ${border}`,
@@ -224,21 +236,32 @@ export default function NavBar() {
               </Link>
             ))}
             {isLoaded && !isSignedIn && (
-              <div style={{ padding: '14px 20px', display: 'flex', gap: 8, borderTop: `1px solid ${border}` }}>
-                <SignInButton mode="modal">
-                  <button style={{
-                    flex: 1, background: 'none', border: `1px solid ${border}`,
-                    borderRadius: 6, color: mobileTextColor,
-                    fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '8px',
-                  }}>Sign In</button>
-                </SignInButton>
-                <SignUpButton mode="modal">
-                  <button style={{
-                    flex: 1, background: '#2563eb', border: '1px solid #2563eb',
-                    borderRadius: 6, color: '#fff',
-                    fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '8px',
-                  }}>Sign Up</button>
-                </SignUpButton>
+              <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8, borderTop: `1px solid ${border}` }}>
+                <button onClick={() => { setOpen(false); startDemo(); }} style={{
+                  background: '#0d1117', border: '1px solid #58a6ff',
+                  borderRadius: 6, color: '#e6edf3',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '8px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}>
+                  <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#22c55e' }} />
+                  Try Demo
+                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <SignInButton mode="modal">
+                    <button style={{
+                      flex: 1, background: 'none', border: `1px solid ${border}`,
+                      borderRadius: 6, color: mobileTextColor,
+                      fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '8px',
+                    }}>Sign In</button>
+                  </SignInButton>
+                  <SignUpButton mode="modal">
+                    <button style={{
+                      flex: 1, background: '#2563eb', border: '1px solid #2563eb',
+                      borderRadius: 6, color: '#fff',
+                      fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '8px',
+                    }}>Sign Up</button>
+                  </SignUpButton>
+                </div>
               </div>
             )}
           </div>

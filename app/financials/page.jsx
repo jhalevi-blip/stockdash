@@ -1,4 +1,5 @@
 'use client';
+import DemoPrompt from '@/components/DemoPrompt';
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
@@ -190,7 +191,7 @@ export default function FinancialsPage() {
 
       {/* States */}
       {tickers.length === 0 && (
-        <div className="chart-placeholder">Add stocks to your portfolio to view financial statements</div>
+        <DemoPrompt message="Add stocks to your portfolio to view financial statements" />
       )}
       {tickers.length > 0 && !selected && (
         <div className="chart-placeholder">Select a stock to view financial statements</div>
