@@ -3,9 +3,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useUser, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
+import PortfolioModal from './PortfolioModal';
 
 const links = [
-  { href: '/',               label: 'Dashboard',   icon: '📊' },
+  { href: '/dashboard',      label: 'Dashboard',   icon: '📊' },
   { href: '/macro',          label: 'Macro',       icon: '🌍' },
   { href: '/insider',        label: 'Insider',     icon: '🦅' },
   { href: '/institutional',  label: 'Ownership',   icon: '🏦' },
@@ -18,8 +19,10 @@ const links = [
 
 export default function NavBar() {
   const path = usePathname();
-  const [open, setOpen] = useState(false);
-  const [dark, setDark] = useState(false);
+  const [open,         setOpen]         = useState(false);
+  const [dark,         setDark]         = useState(false);
+  const [modalOpen,    setModalOpen]    = useState(false);
+  const [savedHoldings, setSavedHoldings] = useState([]);
   const { isLoaded, isSignedIn } = useUser();
 
   useEffect(() => {
@@ -28,6 +31,39 @@ export default function NavBar() {
     setDark(isDark);
     document.documentElement.classList.toggle('dark', isDark);
   }, []);
+
+  // Sync portfolio from Supabase → localStorage when user signs in
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    fetch('/api/portfolio')
+      .then(r => r.json())
+      .then(data => {
+        if (data.signedIn && data.holdings?.length) {
+          localStorage.setItem('stockdash_holdings', JSON.stringify(data.holdings));
+          setSavedHoldings(data.holdings);
+        } else {
+          // No Supabase record yet — load from localStorage if present
+          try {
+            const stored = localStorage.getItem('stockdash_holdings');
+            if (stored) setSavedHoldings(JSON.parse(stored));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, [isLoaded, isSignedIn]);
+
+  async function savePortfolio(holdings) {
+    localStorage.setItem('stockdash_holdings', JSON.stringify(holdings));
+    setSavedHoldings(holdings);
+    const res = await fetch('/api/portfolio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ holdings }),
+    });
+    if (!res.ok) throw new Error('Save failed');
+    // Notify pages already mounted (e.g. dashboard) to re-fetch
+    window.dispatchEvent(new CustomEvent('portfolio-saved'));
+  }
 
   function toggleTheme() {
     const next = !dark;
@@ -96,6 +132,14 @@ export default function NavBar() {
           }}>{l.label}</Link>
         ))}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {isLoaded && isSignedIn && (
+            <button onClick={() => setModalOpen(true)} style={{
+              background: 'none', border: '1px solid #58a6ff',
+              borderRadius: 6, color: '#58a6ff',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              padding: '4px 12px', whiteSpace: 'nowrap',
+            }}>✏ Edit Portfolio</button>
+          )}
           <button onClick={toggleTheme} style={{
             background: 'none',
             border: `1px solid ${border}`,
@@ -129,6 +173,14 @@ export default function NavBar() {
             {links.find(l => l.href === path)?.label || 'Menu'}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {isLoaded && isSignedIn && (
+              <button onClick={() => setModalOpen(true)} style={{
+                background: 'none', border: '1px solid #58a6ff',
+                borderRadius: 6, color: '#58a6ff',
+                fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                padding: '3px 10px', whiteSpace: 'nowrap',
+              }}>✏ Edit Portfolio</button>
+            )}
             {isLoaded && isSignedIn && <UserButton afterSignOutUrl="/" />}
             <button onClick={toggleTheme} style={{
               background: 'none', border: 'none', color: inactiveColor,
@@ -190,6 +242,13 @@ export default function NavBar() {
           </div>
         )}
       </div>
+      {modalOpen && (
+        <PortfolioModal
+          holdings={savedHoldings}
+          onSave={savePortfolio}
+          onClose={() => setModalOpen(false)}
+        />
+      )}
     </>
   );
 }

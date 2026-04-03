@@ -1,6 +1,7 @@
 import './globals.css';
 import Script from 'next/script';
 import NavBar from '@/components/NavBar';
+import UsageBanner from '@/components/UsageBanner';
 import { ClerkProvider } from '@clerk/nextjs';
 import { Analytics } from '@vercel/analytics/react';
 
@@ -31,6 +32,7 @@ export default function RootLayout({ children }) {
             </div>
           </div>
           <NavBar />
+          <UsageBanner />
           {children}
           <Analytics />
         </body>

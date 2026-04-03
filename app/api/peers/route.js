@@ -1,6 +1,8 @@
 // app/api/peers/route.js
 // Fetches peer tickers from Finnhub, then pulls metrics for each peer
 
+import { trackFinnhub } from '@/lib/apiUsage';
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const ticker = searchParams.get('ticker')?.toUpperCase();
@@ -21,6 +23,9 @@ export async function GET(request) {
     // Limit to 6 peers max to avoid rate limits
     const allTickers = Array.isArray(peersRaw) ? peersRaw : [];
     const peers = [ticker, ...allTickers.filter(t => t !== ticker).slice(0, 5)];
+
+    // 1 call for peers list + 2 per peer (metric + profile)
+    trackFinnhub(1 + peers.length * 2);
 
     // Step 2: fetch metrics for each peer in parallel
     const results = await Promise.all(

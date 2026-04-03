@@ -1,32 +1,10 @@
 "use client";
 
+import MostTradedWidget from "./MostTradedWidget";
+
 export default function LandingPage() {
   return (
     <div style={{ background: "#0d1117", color: "#e2e8f0", minHeight: "100vh", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
-
-      {/* NAV */}
-      <nav style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        padding: "0 2rem", height: "52px",
-        background: "#0d1117", borderBottom: "1px solid #1e2530",
-        position: "sticky", top: 0, zIndex: 100,
-      }}>
-        <div style={{ fontSize: "17px", fontWeight: 700, letterSpacing: "0.04em", color: "#fff" }}>
-          STOCK<span style={{ color: "#38bdf8" }}>DASH</span>
-        </div>
-        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          <a href="/sign-in" style={{
-            background: "none", border: "1px solid #2d3748", color: "#94a3b8",
-            padding: "6px 16px", borderRadius: "4px", fontSize: "13px", cursor: "pointer",
-            textDecoration: "none", display: "inline-block",
-          }}>Sign In</a>
-          <a href="/sign-up" style={{
-            background: "#3b82f6", border: "none", color: "#fff",
-            padding: "6px 18px", borderRadius: "4px", fontSize: "13px", fontWeight: 500,
-            cursor: "pointer", textDecoration: "none", display: "inline-block",
-          }}>Sign Up</a>
-        </div>
-      </nav>
 
       {/* HERO */}
       <section style={{ textAlign: "center", padding: "5rem 2rem 4rem", maxWidth: "760px", margin: "0 auto" }}>
@@ -86,6 +64,8 @@ export default function LandingPage() {
           ))}
         </div>
       </div>
+
+      <MostTradedWidget />
 
       {/* FEATURES */}
       <section style={{ padding: "3.5rem 2rem", maxWidth: "1100px", margin: "0 auto" }}>
@@ -168,37 +148,50 @@ export default function LandingPage() {
             </div>
 
             {/* Holdings table */}
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "64px" }} />  {/* Ticker */}
+                <col style={{ width: "80px" }} />  {/* Name */}
+                <col style={{ width: "60px" }} />  {/* Shares */}
+                <col style={{ width: "80px" }} />  {/* Price */}
+                <col style={{ width: "62px" }} />  {/* Chg % */}
+                <col style={{ width: "84px" }} />  {/* Cost Basis */}
+                <col style={{ width: "84px" }} />  {/* Mkt Value */}
+                <col style={{ width: "84px" }} />  {/* P&L $ */}
+                <col />                            {/* P&L % — fills remainder */}
+              </colgroup>
               <thead>
                 <tr>
-                  {["Ticker", "Name", "Shares", "Price", "Chg %", "Cost Basis", "Mkt Value", "P&L $", "P&L %"].map((h) => (
+                  {(["Ticker", "Name", "Shares", "Price", "Chg %", "Cost Basis", "Mkt Value", "P&L $", "P&L %"] as const).map((h, i) => (
                     <th key={h} style={{
-                      textAlign: "left", color: "#4b5563", fontWeight: 500, fontSize: "10px",
+                      textAlign: i < 2 ? "left" : "right",
+                      color: "#4b5563", fontWeight: 500, fontSize: "10px",
                       letterSpacing: "0.06em", textTransform: "uppercase",
                       padding: "6px 8px", borderBottom: "1px solid #1e2530",
+                      overflow: "hidden", whiteSpace: "nowrap",
                     }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {[
-                  { ticker: "NVDA", name: "Nvidia", shares: "200", price: "$177.39", chg: "+0.93%", basis: "$10,000", mkt: "$35,478", pnl: "+$25,478", pnlp: "+254.78%", pos: true },
-                  { ticker: "ASML", name: "ASML", shares: "200", price: "$1,317.23", chg: "-3.13%", basis: "$80,000", mkt: "$263,446", pnl: "+$183,446", pnlp: "+229.31%", pos: true },
-                  { ticker: "AMD", name: "AMD", shares: "50", price: "$217.50", chg: "+3.47%", basis: "$5,000", mkt: "$10,875", pnl: "+$5,875", pnlp: "+117.50%", pos: true },
-                  { ticker: "SOFI", name: "SoFi", shares: "4,000", price: "$15.85", chg: "+1.41%", basis: "$60,000", mkt: "$63,400", pnl: "+$3,400", pnlp: "+5.67%", pos: true },
-                  { ticker: "AMZN", name: "Amazon", shares: "100", price: "$209.77", chg: "-0.38%", basis: "$10,000", mkt: "$20,977", pnl: "+$10,977", pnlp: "+109.77%", pos: true },
-                  { ticker: "NKE", name: "Nike", shares: "100", price: "$44.19", chg: "-0.99%", basis: "$5,000", mkt: "$4,419", pnl: "-$581", pnlp: "-11.62%", pos: false },
+                  { ticker: "NVDA", name: "Nvidia",  shares: "200",   price: "$177.39",   chg: "+0.93%", basis: "$10,000", mkt: "$35,478",  pnl: "+$25,478",  pnlp: "+254.78%", pos: true },
+                  { ticker: "ASML", name: "ASML",    shares: "200",   price: "$1,317.23", chg: "-3.13%", basis: "$80,000", mkt: "$263,446", pnl: "+$183,446", pnlp: "+229.31%", pos: true },
+                  { ticker: "AMD",  name: "AMD",     shares: "50",    price: "$217.50",   chg: "+3.47%", basis: "$5,000",  mkt: "$10,875",  pnl: "+$5,875",   pnlp: "+117.50%", pos: true },
+                  { ticker: "SOFI", name: "SoFi",    shares: "4,000", price: "$15.85",    chg: "+1.41%", basis: "$60,000", mkt: "$63,400",  pnl: "+$3,400",   pnlp: "+5.67%",   pos: true },
+                  { ticker: "AMZN", name: "Amazon",  shares: "100",   price: "$209.77",   chg: "-0.38%", basis: "$10,000", mkt: "$20,977",  pnl: "+$10,977",  pnlp: "+109.77%", pos: true },
+                  { ticker: "NKE",  name: "Nike",    shares: "100",   price: "$44.19",    chg: "-0.99%", basis: "$5,000",  mkt: "$4,419",   pnl: "-$581",     pnlp: "-11.62%",  pos: false },
                 ].map((row) => (
                   <tr key={row.ticker} style={{ borderBottom: "1px solid #141920" }}>
-                    <td style={{ padding: "8px", color: "#38bdf8", fontWeight: 600 }}>{row.ticker}</td>
-                    <td style={{ padding: "8px", color: "#94a3b8" }}>{row.name}</td>
-                    <td style={{ padding: "8px", color: "#94a3b8" }}>{row.shares}</td>
-                    <td style={{ padding: "8px", color: "#f1f5f9" }}>{row.price}</td>
-                    <td style={{ padding: "8px", color: row.chg.startsWith("+") ? "#22c55e" : "#ef4444" }}>{row.chg}</td>
-                    <td style={{ padding: "8px", color: "#94a3b8" }}>{row.basis}</td>
-                    <td style={{ padding: "8px", color: "#94a3b8" }}>{row.mkt}</td>
-                    <td style={{ padding: "8px", color: row.pos ? "#22c55e" : "#ef4444" }}>{row.pnl}</td>
-                    <td style={{ padding: "8px", color: row.pos ? "#22c55e" : "#ef4444" }}>{row.pnlp}</td>
+                    <td style={{ padding: "8px", color: "#38bdf8", fontWeight: 600, overflow: "hidden" }}>{row.ticker}</td>
+                    <td style={{ padding: "8px", color: "#94a3b8", overflow: "hidden" }}>{row.name}</td>
+                    <td style={{ padding: "8px", color: "#94a3b8", textAlign: "right" }}>{row.shares}</td>
+                    <td style={{ padding: "8px", color: "#f1f5f9", textAlign: "right" }}>{row.price}</td>
+                    <td style={{ padding: "8px", color: row.chg.startsWith("+") ? "#22c55e" : "#ef4444", textAlign: "right" }}>{row.chg}</td>
+                    <td style={{ padding: "8px", color: "#94a3b8", textAlign: "right" }}>{row.basis}</td>
+                    <td style={{ padding: "8px", color: "#94a3b8", textAlign: "right" }}>{row.mkt}</td>
+                    <td style={{ padding: "8px", color: row.pos ? "#22c55e" : "#ef4444", textAlign: "right" }}>{row.pnl}</td>
+                    <td style={{ padding: "8px", color: row.pos ? "#22c55e" : "#ef4444", textAlign: "right" }}>{row.pnlp}</td>
                   </tr>
                 ))}
               </tbody>

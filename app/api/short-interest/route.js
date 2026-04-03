@@ -2,6 +2,7 @@
 // Fetches analyst price targets from FMP, falls back to Finnhub, then Yahoo Finance
 
 import { parseTickers } from '@/lib/holdings';
+import { trackFinnhub, trackFMP } from '@/lib/apiUsage';
 
 async function fetchFMP(ticker, fmpKey) {
   try {
@@ -126,8 +127,15 @@ export async function GET(request) {
 
   const results = await Promise.all(
     holdings.map(async h => {
-      let targets = fmpKey ? await fetchFMP(h.t, fmpKey) : null;
-      if (!targets && finnhubKey) targets = await fetchFinnhub(h.t, finnhubKey);
+      let targets = null;
+      if (fmpKey) {
+        trackFMP(1).catch(() => {}); // fire-and-forget; 1 FMP call per ticker
+        targets = await fetchFMP(h.t, fmpKey);
+      }
+      if (!targets && finnhubKey) {
+        trackFinnhub(1); // 1 Finnhub call (fallback path)
+        targets = await fetchFinnhub(h.t, finnhubKey);
+      }
       if (!targets) targets = await fetchYahoo(h.t, yahooAuth);
 
       return {

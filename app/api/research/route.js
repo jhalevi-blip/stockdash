@@ -9,6 +9,8 @@ async function lookupCIK(ticker) {
   return entry ? String(entry.cik_str).padStart(10, '0') : null;
 }
 
+import { trackFinnhub } from '@/lib/apiUsage';
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get('symbol');
@@ -46,6 +48,7 @@ finalLink: `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik
 
 if (type === 'news') {
       if (!fhKey) return Response.json([]);
+      trackFinnhub(1); // 1 company-news call
       const to = Math.floor(Date.now() / 1000);
       const from = to - 7 * 24 * 60 * 60;
       const fromDate = new Date(from*1000).toISOString().split('T')[0];

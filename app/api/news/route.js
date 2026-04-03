@@ -1,4 +1,5 @@
 import { parseTickers } from '@/lib/holdings';
+import { trackFinnhub } from '@/lib/apiUsage';
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -7,6 +8,8 @@ export async function GET(request) {
 
   const key = process.env.FINNHUB_API_KEY;
   if (!key) return Response.json({ error: 'Missing API key' }, { status: 500 });
+
+  trackFinnhub(holdings.length); // 1 company-news call per ticker
 
   const today = new Date();
   const from = new Date(today - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
