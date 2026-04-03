@@ -158,13 +158,20 @@ export default function DashboardSummary({ holdings, rows, earnings, news }) {
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ color: '#58a6ff', fontWeight: 600, fontSize: 15 }}>{recentInsider.ticker}</span>
-              <span style={{
-                fontSize: 11, padding: '2px 7px', borderRadius: 4, fontWeight: 600,
-                background: recentInsider.transactionCode === 'P' ? '#14532d' : '#450a0a',
-                color:      recentInsider.transactionCode === 'P' ? '#4ade80' : '#f87171',
-              }}>
-                {recentInsider.transactionCode === 'P' ? 'BUY' : recentInsider.transactionCode === 'S' ? 'SELL' : recentInsider.transactionCode}
-              </span>
+              {(() => {
+                const CODE_LABEL = { P: 'Purchase', S: 'Sale', M: 'Open Market', A: 'Award', D: 'Disposition' };
+                const isBuy = ['P', 'M', 'A'].includes(recentInsider.transactionCode);
+                const label = CODE_LABEL[recentInsider.transactionCode] ?? recentInsider.transactionCode;
+                return (
+                  <span style={{
+                    fontSize: 11, padding: '2px 7px', borderRadius: 4, fontWeight: 600,
+                    background: isBuy ? '#14532d' : '#450a0a',
+                    color:      isBuy ? '#4ade80' : '#f87171',
+                  }}>
+                    {label}
+                  </span>
+                );
+              })()}
             </div>
             <div style={{ fontSize: 12, color: '#8b949e', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {recentInsider.name}
