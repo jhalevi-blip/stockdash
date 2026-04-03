@@ -35,6 +35,8 @@ export default function NavBar() {
   // Sync portfolio from Supabase → localStorage when user signs in
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
+    // Clear demo mode — real account takes over
+    localStorage.removeItem('stockdash_demo');
     fetch('/api/portfolio')
       .then(r => r.json())
       .then(data => {

@@ -2,6 +2,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+function tryDemo(router) {
+  localStorage.setItem('stockdash_demo', 'true');
+  router.push('/dashboard');
+}
+
 export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
@@ -72,6 +77,18 @@ export default function LoginPage() {
             {loading ? 'Checking…' : 'Enter Dashboard'}
           </button>
         </form>
+
+        <div style={{ marginTop: 20, textAlign: 'center' }}>
+          <button
+            onClick={() => tryDemo(router)}
+            style={{
+              background: 'none', border: 'none', color: '#8b949e',
+              fontSize: 12, cursor: 'pointer', textDecoration: 'underline',
+            }}
+          >
+            Try Demo
+          </button>
+        </div>
       </div>
     </div>
   );

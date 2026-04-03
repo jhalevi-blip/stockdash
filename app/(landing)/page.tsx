@@ -1,8 +1,15 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import MostTradedWidget from "./MostTradedWidget";
 
+function tryDemo(router: ReturnType<typeof useRouter>) {
+  localStorage.setItem("stockdash_demo", "true");
+  router.push("/dashboard");
+}
+
 export default function LandingPage() {
+  const router = useRouter();
   return (
     <div style={{ background: "#0d1117", color: "#e2e8f0", minHeight: "100vh", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
 
@@ -33,13 +40,16 @@ export default function LandingPage() {
           }}>
             Get Started — It&apos;s Free
           </a>
-          <a href="/dashboard" style={{
-            background: "none", color: "#94a3b8", border: "1px solid #2d3748",
+          <button onClick={() => tryDemo(router)} style={{
+            background: "#0d1117", color: "#e6edf3",
+            border: "1px solid #58a6ff",
             padding: "12px 24px", borderRadius: "5px", fontSize: "14px",
-            cursor: "pointer", textDecoration: "none", display: "inline-block",
+            cursor: "pointer", fontFamily: "inherit",
+            display: "inline-flex", alignItems: "center", gap: "8px",
           }}>
-            See the Dashboard
-          </a>
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#22c55e" }} />
+            Try Live Demo
+          </button>
         </div>
         <p style={{ marginTop: "1rem", fontSize: "12px", color: "#4b5563" }}>
           No credit card required &nbsp;·&nbsp; Portfolio stays on your device
@@ -198,6 +208,20 @@ export default function LandingPage() {
             </table>
           </div>
         </div>
+
+        <div style={{ marginTop: "1.5rem", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+          <button onClick={() => tryDemo(router)} style={{
+            background: "#161b22", color: "#e6edf3",
+            border: "1px solid #58a6ff",
+            padding: "11px 26px", borderRadius: "5px", fontSize: "14px", fontWeight: 500,
+            cursor: "pointer", fontFamily: "inherit",
+            display: "inline-flex", alignItems: "center", gap: "8px",
+          }}>
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#22c55e" }} />
+            Open This Dashboard →
+          </button>
+          <span style={{ fontSize: "12px", color: "#4b5563" }}>No account needed · Demo loads in seconds</span>
+        </div>
       </section>
 
       <hr style={{ border: "none", borderTop: "1px solid #1e2530" }} />
@@ -239,13 +263,25 @@ export default function LandingPage() {
         <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "2rem" }}>
           Free forever. No credit card. Your data stays on your device.
         </p>
-        <a href="/sign-up" style={{
-          background: "#3b82f6", color: "#fff", border: "none",
-          padding: "13px 36px", borderRadius: "5px", fontSize: "15px", fontWeight: 500,
-          cursor: "pointer", textDecoration: "none", display: "inline-block",
-        }}>
-          Create Free Account
-        </a>
+        <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
+          <a href="/sign-up" style={{
+            background: "#3b82f6", color: "#fff", border: "none",
+            padding: "13px 36px", borderRadius: "5px", fontSize: "15px", fontWeight: 500,
+            cursor: "pointer", textDecoration: "none", display: "inline-block",
+          }}>
+            Create Free Account
+          </a>
+          <button onClick={() => tryDemo(router)} style={{
+            background: "#0d1117", color: "#e6edf3",
+            border: "1px solid #58a6ff",
+            padding: "13px 28px", borderRadius: "5px", fontSize: "15px", fontWeight: 500,
+            cursor: "pointer", fontFamily: "inherit",
+            display: "inline-flex", alignItems: "center", gap: "8px",
+          }}>
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#22c55e" }} />
+            Try Demo First
+          </button>
+        </div>
       </section>
 
       {/* FOOTER */}

@@ -36,6 +36,57 @@ export default function DashboardPage() {
   }, []);
 
   const fetchDashboard = useCallback(() => {
+    const DEMO_SHARES    = [50, 30, 20, 15, 10];
+    const DEMO_FALLBACK  = ['AAPL', 'NVDA', 'TSLA', 'AMZN', 'MSFT'];
+
+    // Demo mode: build holdings from /api/most-traded
+    if (localStorage.getItem('stockdash_demo') === 'true') {
+      (async () => {
+        try {
+          let h;
+          try {
+            const res  = await fetch('/api/most-traded');
+            const data = await res.json();
+            if (Array.isArray(data) && data.length) {
+              h = data.slice(0, 5).map((e, i) => ({
+                t: e.symbol,
+                s: DEMO_SHARES[i],
+                c: e.price ?? 0,
+              }));
+            }
+          } catch {}
+
+          if (!h) {
+            // Fetch live prices for fallback tickers so cost basis = current price → $0 P&L
+            try {
+              const res    = await fetch(`/api/prices?tickers=${DEMO_FALLBACK.join(',')}`);
+              const prices = await res.json();
+              const pm     = {};
+              if (Array.isArray(prices)) prices.forEach(p => { pm[p.ticker] = p.price ?? 0; });
+              h = DEMO_FALLBACK.map((t, i) => ({ t, s: DEMO_SHARES[i], c: pm[t] ?? 0 }));
+            } catch {
+              h = DEMO_FALLBACK.map((t, i) => ({ t, s: DEMO_SHARES[i], c: 0 }));
+            }
+          }
+
+          setHoldings(h);
+          const tickers = h.map(x => x.t).join(',');
+          const [priceArr, earningsArr, newsArr] = await Promise.all([
+            fetch(`/api/prices?tickers=${tickers}`).then(r => r.json()),
+            fetch(`/api/earnings?tickers=${tickers}`).then(r => r.json()),
+            fetch(`/api/news?tickers=${tickers}`).then(r => r.json()),
+          ]);
+          const priceMap = {};
+          if (Array.isArray(priceArr)) priceArr.forEach(p => { priceMap[p.ticker] = p; });
+          setPrices(priceMap);
+          setEarnings(Array.isArray(earningsArr) ? earningsArr.filter(e => !e.noData) : []);
+          setNews(Array.isArray(newsArr) ? newsArr.slice(0, 8) : []);
+          loadChart(h[0].t);
+        } catch {}
+      })().finally(() => setLoading(false));
+      return;
+    }
+
     // Fetch from Supabase if signed in, fall back to localStorage on any failure
     fetch('/api/portfolio')
       .then(r => r.json())
