@@ -22,6 +22,7 @@ export default function NavBar() {
   const path   = usePathname();
   const router = useRouter();
   const [open,         setOpen]         = useState(false);
+  const [demoHovered,  setDemoHovered]  = useState(false);
   const [dark,         setDark]         = useState(false);
   const [modalOpen,    setModalOpen]    = useState(false);
   const [savedHoldings, setSavedHoldings] = useState([]);
@@ -90,13 +91,19 @@ export default function NavBar() {
       <UserButton afterSignOutUrl="/" />
     ) : (
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <button onClick={() => startDemo()} style={{
-          background: '#0d1117', border: '1px solid #58a6ff',
-          borderRadius: 6, color: '#e6edf3',
-          fontSize: 12, fontWeight: 600, cursor: 'pointer',
-          padding: '4px 12px', whiteSpace: 'nowrap',
-          display: 'inline-flex', alignItems: 'center', gap: 5,
-        }}>
+        <button
+          onClick={() => startDemo()}
+          onMouseEnter={() => setDemoHovered(true)}
+          onMouseLeave={() => setDemoHovered(false)}
+          style={{
+            background: '#0d1117',
+            border: `1px solid ${demoHovered ? '#ffffff' : '#58a6ff'}`,
+            borderRadius: 6, color: '#e6edf3',
+            fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            padding: '4px 12px', whiteSpace: 'nowrap',
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            transition: 'border-color 0.15s',
+          }}>
           <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
           Try Demo
         </button>
@@ -237,12 +244,18 @@ export default function NavBar() {
             ))}
             {isLoaded && !isSignedIn && (
               <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8, borderTop: `1px solid ${border}` }}>
-                <button onClick={() => { setOpen(false); startDemo(); }} style={{
-                  background: '#0d1117', border: '1px solid #58a6ff',
-                  borderRadius: 6, color: '#e6edf3',
-                  fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '8px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                }}>
+                <button
+                  onClick={() => { setOpen(false); startDemo(); }}
+                  onMouseEnter={() => setDemoHovered(true)}
+                  onMouseLeave={() => setDemoHovered(false)}
+                  style={{
+                    background: '#0d1117',
+                    border: `1px solid ${demoHovered ? '#ffffff' : '#58a6ff'}`,
+                    borderRadius: 6, color: '#e6edf3',
+                    fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '8px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    transition: 'border-color 0.15s',
+                  }}>
                   <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#22c55e' }} />
                   Try Demo
                 </button>

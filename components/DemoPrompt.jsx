@@ -4,6 +4,7 @@ import { startDemo } from '@/lib/startDemo';
 
 export default function DemoPrompt({ message }) {
   const [loading, setLoading] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   async function handleClick() {
     setLoading(true);
@@ -45,10 +46,12 @@ export default function DemoPrompt({ message }) {
         <button
           onClick={handleClick}
           disabled={loading}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
           style={{
             background: '#0d1117',
             color: '#e6edf3',
-            border: '1px solid #58a6ff',
+            border: `1px solid ${hovered && !loading ? '#ffffff' : '#58a6ff'}`,
             borderRadius: 6,
             padding: '13px 32px',
             fontSize: 15,
