@@ -1,13 +1,18 @@
 'use client';
 import { useState, useEffect } from 'react';
+import DemoPrompt from '@/components/DemoPrompt';
+import { getDemoTickers } from '@/lib/startDemo';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, LineChart, Line } from 'recharts';
 
 function getStoredTickers() {
   try {
     const stored = localStorage.getItem('stockdash_holdings');
     const holdings = stored ? JSON.parse(stored) : [];
-    return holdings.map(h => h.t);
-  } catch { return []; }
+    const t = holdings.map(h => h.t);
+    if (t.length) return t;
+    if (localStorage.getItem('stockdash_demo') === 'true') return getDemoTickers();
+  } catch {}
+  return [];
 }
 
 const f = (n, d=2) => n?.toLocaleString('en-US', { minimumFractionDigits:d, maximumFractionDigits:d }) ?? '—';
@@ -123,7 +128,8 @@ export default function EarningsPage() {
         </div>
       </div>
 
-      {!selected && <div className="chart-placeholder">Select a stock above to view earnings history</div>}
+      {tickers.length === 0 && <DemoPrompt message="Add stocks to your portfolio to view earnings history" />}
+      {tickers.length > 0 && !selected && <div className="chart-placeholder">Select a stock above to view earnings history</div>}
       {loading  && <div className="chart-placeholder">Loading earnings for {selected}…</div>}
       {!loading && selected && data.length === 0 && <div className="chart-placeholder">No earnings data available for {selected}</div>}
 

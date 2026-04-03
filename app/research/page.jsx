@@ -1,6 +1,7 @@
 'use client';
 import DemoPrompt from '@/components/DemoPrompt';
 import { useState, useEffect } from 'react';
+import { getDemoTickers } from '@/lib/startDemo';
 
 const FILING_TYPES = {
   '10-K': '#2563eb', '10-Q': '#16a34a', '8-K': '#d97706', 'DEF 14A': '#7c3aed',
@@ -20,7 +21,8 @@ export default function ResearchPage() {
     try {
       const stored = localStorage.getItem('stockdash_holdings');
       const holdings = stored ? JSON.parse(stored) : [];
-      setTickers(holdings.map(h => h.t));
+      const t = holdings.map(h => h.t);
+      setTickers(t.length ? t : (localStorage.getItem('stockdash_demo') === 'true' ? getDemoTickers() : []));
     } catch {}
   }, []);
 

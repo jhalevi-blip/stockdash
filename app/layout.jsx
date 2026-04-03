@@ -25,7 +25,7 @@ export default function RootLayout({ children }) {
       },
     }}>
       <html lang="en">
-        <Script id="theme-init" strategy="beforeInteractive">{`try{if(localStorage.getItem('theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}`}</Script>
+        <Script id="theme-init" strategy="beforeInteractive">{`try{if(localStorage.getItem('theme')!=='light')document.documentElement.classList.add('dark')}catch(e){document.documentElement.classList.add('dark')}`}</Script>
         <body>
           <div className="app-header">
             <div className="app-logo">

@@ -1,6 +1,7 @@
 'use client';
 import DemoPrompt from '@/components/DemoPrompt';
 import { useState, useEffect } from 'react';
+import { getDemoTickers } from '@/lib/startDemo';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 const fmtNum  = (n, d = 2) => n != null ? n.toFixed(d) : '—';
@@ -108,7 +109,8 @@ export default function PeersPage() {
     try {
       const stored = localStorage.getItem('stockdash_holdings');
       const holdings = stored ? JSON.parse(stored) : [];
-      const ts = holdings.map(h => h.t);
+      let ts = holdings.map(h => h.t);
+      if (!ts.length && localStorage.getItem('stockdash_demo') === 'true') ts = getDemoTickers();
       setTickers(ts);
       if (ts.length) load(ts[0]);
     } catch {}

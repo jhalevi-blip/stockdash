@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { getDemoTickers } from '@/lib/startDemo';
 
 const f   = (n, d=2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const pct = n => n == null ? '—' : (n * 100).toFixed(1) + '%';
@@ -29,6 +30,9 @@ export default function InstitutionalPage() {
     try {
       const stored = localStorage.getItem('stockdash_holdings');
       storedTickers = stored ? JSON.parse(stored).map(h => h.t) : [];
+      if (!storedTickers.length && localStorage.getItem('stockdash_demo') === 'true') {
+        storedTickers = getDemoTickers();
+      }
     } catch {}
     setTickers(storedTickers);
     const tp = storedTickers.join(',');

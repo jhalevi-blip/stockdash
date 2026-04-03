@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import DemoPrompt from '@/components/DemoPrompt';
+import { getDemoTickers } from '@/lib/startDemo';
 
 const f = (n, d=2) => n?.toLocaleString('en-US', { minimumFractionDigits:d, maximumFractionDigits:d }) ?? '—';
 const pct = n => n == null ? '—' : n.toFixed(1) + '%';
@@ -31,7 +32,9 @@ export default function ValuationPage() {
     try {
       const stored = localStorage.getItem('stockdash_holdings');
       const holdings = stored ? JSON.parse(stored) : [];
-      const tickers = holdings.map(h => h.t).join(',');
+      let ts = holdings.map(h => h.t);
+      if (!ts.length && localStorage.getItem('stockdash_demo') === 'true') ts = getDemoTickers();
+      const tickers = ts.join(',');
       if (!tickers) { setLoading(false); return; }
       fetch(`/api/valuation?tickers=${tickers}`)
         .then(r => r.json())

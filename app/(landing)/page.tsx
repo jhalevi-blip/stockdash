@@ -1,15 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import MostTradedWidget from "./MostTradedWidget";
-
-function tryDemo(router: ReturnType<typeof useRouter>) {
-  localStorage.setItem("stockdash_demo", "true");
-  router.push("/dashboard");
-}
+import { startDemo } from "@/lib/startDemo";
 
 export default function LandingPage() {
-  const router = useRouter();
   return (
     <div style={{ background: "#0d1117", color: "#e2e8f0", minHeight: "100vh", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
 
@@ -40,7 +34,7 @@ export default function LandingPage() {
           }}>
             Get Started — It&apos;s Free
           </a>
-          <button onClick={() => tryDemo(router)} style={{
+          <button onClick={() => startDemo("/dashboard")} style={{
             background: "#0d1117", color: "#e6edf3",
             border: "1px solid #58a6ff",
             padding: "12px 24px", borderRadius: "5px", fontSize: "14px",
@@ -210,7 +204,7 @@ export default function LandingPage() {
         </div>
 
         <div style={{ marginTop: "1.5rem", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-          <button onClick={() => tryDemo(router)} style={{
+          <button onClick={() => startDemo("/dashboard")} style={{
             background: "#161b22", color: "#e6edf3",
             border: "1px solid #58a6ff",
             padding: "11px 26px", borderRadius: "5px", fontSize: "14px", fontWeight: 500,
@@ -271,7 +265,7 @@ export default function LandingPage() {
           }}>
             Create Free Account
           </a>
-          <button onClick={() => tryDemo(router)} style={{
+          <button onClick={() => startDemo("/dashboard")} style={{
             background: "#0d1117", color: "#e6edf3",
             border: "1px solid #58a6ff",
             padding: "13px 28px", borderRadius: "5px", fontSize: "15px", fontWeight: 500,

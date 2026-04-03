@@ -1,5 +1,6 @@
 'use client';
 import DemoPrompt from '@/components/DemoPrompt';
+import { getDemoTickers } from '@/lib/startDemo';
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
@@ -130,7 +131,9 @@ export default function FinancialsPage() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem('stockdash_holdings');
-      setTickers(stored ? JSON.parse(stored).map(h => h.t) : []);
+      let ts = stored ? JSON.parse(stored).map(h => h.t) : [];
+      if (!ts.length && localStorage.getItem('stockdash_demo') === 'true') ts = getDemoTickers();
+      setTickers(ts);
     } catch { setTickers([]); }
   }, []);
 

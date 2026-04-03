@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { getDemoTickers } from '@/lib/startDemo';
 
 const f = (n, d=2) => n?.toLocaleString('en-US', { minimumFractionDigits:d, maximumFractionDigits:d }) ?? '—';
 
@@ -14,7 +15,9 @@ export default function AnalystPage() {
     try {
       const stored = localStorage.getItem('stockdash_holdings');
       const holdings = stored ? JSON.parse(stored) : [];
-      tp = holdings.map(h => h.t).join(',');
+      let ts = holdings.map(h => h.t);
+      if (!ts.length && localStorage.getItem('stockdash_demo') === 'true') ts = getDemoTickers();
+      tp = ts.join(',');
     } catch {}
     Promise.all([
       fetch(tp ? `/api/short-interest?tickers=${tp}` : '/api/short-interest').then(r => r.json()),

@@ -1,11 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-
-function tryDemo(router) {
-  localStorage.setItem('stockdash_demo', 'true');
-  router.push('/dashboard');
-}
+import { startDemo } from '@/lib/startDemo';
 
 export default function LoginPage() {
   const [password, setPassword] = useState('');
@@ -80,7 +76,7 @@ export default function LoginPage() {
 
         <div style={{ marginTop: 20, textAlign: 'center' }}>
           <button
-            onClick={() => tryDemo(router)}
+            onClick={() => startDemo('/dashboard')}
             style={{
               background: 'none', border: 'none', color: '#8b949e',
               fontSize: 12, cursor: 'pointer', textDecoration: 'underline',
