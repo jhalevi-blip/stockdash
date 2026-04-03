@@ -19,10 +19,12 @@ function isRateLimited(ip) {
   return entry.count > MAX_REQUESTS;
 }
 
-const isPublicRoute = createRouteMatcher(['/']);
+// Only the portfolio write endpoint requires a signed-in user.
+// All page routes are public — pages handle their own auth state via useUser()/auth().
+const isProtectedRoute = createRouteMatcher(['/api/portfolio']);
 
 const clerkHandler = clerkMiddleware((auth, req) => {
-  if (!isPublicRoute(req)) {
+  if (isProtectedRoute(req)) {
     auth.protect();
   }
 });
