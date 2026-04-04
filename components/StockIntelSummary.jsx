@@ -34,7 +34,8 @@ function consensusFromUpside(upside) {
 }
 
 function calcFcfMargin(finD) {
-  if (!finD?.operatingCF?.length) return null;
+  // Guard: financials may be an error object {error: '...'} when EDGAR lookup fails
+  if (!finD || finD.error || !finD.operatingCF?.length) return null;
   const years = [...finD.operatingCF].map(r => r.year).sort().reverse();
   for (const yr of years) {
     const ocf = finD.operatingCF.find(r => r.year === yr)?.value;
@@ -80,12 +81,16 @@ function KV({ label, value, valueColor }) {
   );
 }
 
-function AiSnapshotCard({ ticker, row, analystD, valD, finD, snap, aiLoading }) {
+function AiSnapshotCard({ ticker, row, analystD, valD, finD, snap, aiLoading, aiError }) {
   const upside = row?.price && analystD?.lastQuarterTarget
     ? ((analystD.lastQuarterTarget - row.price) / row.price) * 100
     : null;
   const consensus = consensusFromUpside(upside);
-  const fcfMargin = calcFcfMargin(finD);
+  // Guard finD — may be an error object when EDGAR lookup fails
+  const safeFinD = finD?.error ? null : finD;
+  const fcfMargin = calcFcfMargin(safeFinD);
+
+  console.log('[AiSnapshot] valD:', valD, '| finD:', finD, '| fcfMargin:', fcfMargin);
 
   // Price target range bar
   const low    = analystD?.targetLow;
@@ -102,9 +107,8 @@ function AiSnapshotCard({ ticker, row, analystD, valD, finD, snap, aiLoading }) 
   const metrics = [
     { label: 'Gross Margin', value: valD?.grossMargin != null ? `${fmt(valD.grossMargin, 1)}%` : '—' },
     { label: 'P/E (TTM)',    value: valD?.peRatio     != null ? `${fmt(valD.peRatio, 1)}x`     : '—' },
-    { label: 'FCF Margin',  value: fcfMargin          != null ? `${fmt(fcfMargin, 1)}%`         : '—' },
+    { label: 'FCF Margin',   value: fcfMargin         != null ? `${fmt(fcfMargin, 1)}%`         : '—' },
   ];
-  const hasMetrics = valD?.grossMargin != null || valD?.peRatio != null || fcfMargin != null;
 
   return (
     <div style={{
@@ -169,34 +173,40 @@ function AiSnapshotCard({ ticker, row, analystD, valD, finD, snap, aiLoading }) 
         </div>
       )}
 
-      {/* Key metrics strip */}
-      {hasMetrics && (
-        <div style={{
-          display: 'flex',
-          borderTop: '1px solid var(--border-color)',
-          borderBottom: '1px solid var(--border-color)',
-          padding: '10px 0',
-        }}>
-          {metrics.map((m, i) => (
-            <div key={m.label} style={{
-              flex: 1, textAlign: 'center',
-              borderLeft: i > 0 ? '1px solid var(--border-color)' : 'none',
-              padding: '0 8px',
-            }}>
-              <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>{m.value}</div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                {m.label}
-              </div>
+      {/* Key metrics strip — always shown; values fall back to '—' if data unavailable */}
+      <div style={{
+        display: 'flex',
+        width: '100%',
+        borderTop: '1px solid var(--border-color)',
+        borderBottom: '1px solid var(--border-color)',
+        padding: '10px 0',
+      }}>
+        {metrics.map((m, i) => (
+          <div key={m.label} style={{
+            flex: '1 1 0',
+            minWidth: 0,
+            textAlign: 'center',
+            borderLeft: i > 0 ? '1px solid var(--border-color)' : 'none',
+            padding: '0 8px',
+          }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>{m.value}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              {m.label}
             </div>
-          ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Bull/Bear — skeleton while loading, error state, content when ready */}
+      {aiLoading && !snap && <Skeleton height={90} />}
+      {!aiLoading && !snap && aiError && (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>
+          Unable to load analysis.
         </div>
       )}
-
-      {/* Bull/Bear — skeleton while loading, content when ready */}
-      {aiLoading && !snap && <Skeleton height={90} />}
       {snap && !snap.error && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, minWidth: 0 }}>
             {/* Bull */}
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--positive)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
@@ -246,14 +256,16 @@ export default function StockIntelSummary({ holdings, rows }) {
   const [loading,   setLoading]   = useState(false);
   const [aiSnap,    setAiSnap]    = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiError,   setAiError]   = useState(false);
 
   const selectStock = useCallback(async (t) => {
-    if (!t) { setTicker(''); setData(null); setAiSnap(null); setAiLoading(false); return; }
+    if (!t) { setTicker(''); setData(null); setAiSnap(null); setAiLoading(false); setAiError(false); return; }
     setTicker(t);
     setLoading(true);
     setData(null);
     setAiSnap(null);
     setAiLoading(false);
+    setAiError(false);
 
     const [analyst, insider, earningsHist, valuation, peers, financials, news, filings] =
       await Promise.all([
@@ -284,11 +296,15 @@ export default function StockIntelSummary({ holdings, rows }) {
     } catch {}
 
     setAiLoading(true);
+    setAiError(false);
 
     const analystData = data.analyst?.find?.(a => a.ticker === ticker) ?? null;
     const valData     = data.valuation?.find?.(v => v.ticker === ticker) ?? null;
-    const finData     = data.financials ?? null;
+    // Guard: financials may be an error object {error: '...'} instead of null
+    const finData     = data.financials?.error ? null : (data.financials ?? null);
     const currentRow  = rows.find(r => r.t === ticker);
+
+    console.log('[AiSnapshot fetch] ticker:', ticker, '| valData:', valData, '| finData:', finData);
 
     fetch('/api/ai-summary', {
       method: 'POST',
@@ -318,12 +334,20 @@ export default function StockIntelSummary({ holdings, rows }) {
       .then(r => r.json())
       .then(snap => {
         if (cancelled) return;
-        if (!snap.error) {
+        console.log('[AiSnapshot response]', snap);
+        if (snap.error) {
+          setAiError(true);
+        } else {
           try { localStorage.setItem(cacheKey, JSON.stringify(snap)); } catch {}
           setAiSnap(snap);
         }
       })
-      .catch(() => {})
+      .catch(err => {
+        if (!cancelled) {
+          console.error('[AiSnapshot error]', err);
+          setAiError(true);
+        }
+      })
       .finally(() => { if (!cancelled) setAiLoading(false); });
 
     return () => { cancelled = true; };
@@ -405,6 +429,7 @@ export default function StockIntelSummary({ holdings, rows }) {
             finD={finD}
             snap={aiSnap}
             aiLoading={aiLoading}
+            aiError={aiError}
           />
 
           {/* 1 — Position */}
