@@ -333,13 +333,13 @@ export default function PerformancePage() {
               <YAxis tick={{ fontSize: 11, fill: theme.axis }} tickLine={false} axisLine={false} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} width={52} />
               <Tooltip content={<PortTooltip />} />
               <Line type="monotone" dataKey="portfolio" name="Portfolio" stroke="var(--accent)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-              <Line type="monotone" dataKey="spy" name="SPY Mirror" stroke="#f59e0b" strokeWidth={2} dot={false} activeDot={{ r: 4 }} strokeDasharray="4 3" />
+              <Line type="monotone" dataKey="spy" name="SPY Mirror" stroke="#f59e0b" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
             </LineChart>
           </ResponsiveContainer>
         )}
         <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 12 }}>
           <span style={{ color: 'var(--accent)', fontWeight: 600 }}>— Portfolio</span>
-          <span style={{ color: '#f59e0b', fontWeight: 600 }}>- - SPY Mirror</span>
+          <span style={{ color: '#f59e0b', fontWeight: 600 }}>— SPY Mirror</span>
         </div>
       </div>
 

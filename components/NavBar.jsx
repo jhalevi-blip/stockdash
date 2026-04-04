@@ -8,6 +8,7 @@ import { startDemo } from '@/lib/startDemo';
 
 const links = [
   { href: '/dashboard',      label: 'Dashboard',   icon: '📊' },
+  { href: '/performance',   label: 'Performance', icon: '📉' },
   { href: '/macro',          label: 'Macro',       icon: '🌍' },
   { href: '/insider',        label: 'Insider',     icon: '🦅' },
   { href: '/institutional',  label: 'Ownership',   icon: '🏦' },
@@ -16,7 +17,6 @@ const links = [
   { href: '/valuation',      label: 'Valuation',   icon: '🔢' },
   { href: '/earnings',       label: 'Earnings',    icon: '📈' },
   { href: '/short-interest', label: 'Analyst',     icon: '🎯' },
-  { href: '/performance',   label: 'Performance', icon: '📉' },
 ];
 
 export default function NavBar() {

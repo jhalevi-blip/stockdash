@@ -57,33 +57,48 @@ export async function POST(request) {
     }
   }
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 600,
-      messages: [{
-        role: 'user',
-        content: `You are a financial analyst. Provide a brief investment snapshot for ${symbol} based on the following data.
+  const anthropicBody = {
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 600,
+    messages: [{
+      role: 'user',
+      content: `You are a financial analyst. Provide a brief investment snapshot for ${symbol} based on the following data.
 
 ${lines.join('\n')}
 
 Respond with JSON only (no markdown, no extra text). Each bull/bear case should be one concise sentence (10-15 words):
 {"bullCases":["point","point","point"],"bearCases":["point","point","point"],"summary":"One sentence investor thesis."}`,
-      }],
-    }),
-  });
+    }],
+  };
+  console.log('[ai-summary] snapshot request for', symbol, '— context lines:', lines);
 
-  const raw = await res.json();
-  if (!res.ok) return Response.json({ error: raw.error?.message ?? 'API error' }, { status: 500 });
+  let res, raw;
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify(anthropicBody),
+    });
+    raw = await res.json();
+  } catch (e) {
+    console.error('[ai-summary] fetch to Anthropic failed:', e);
+    return Response.json({ error: 'Network error reaching AI service' }, { status: 500 });
+  }
+
+  console.log('[ai-summary] Anthropic response status:', res.status, '— body:', JSON.stringify(raw));
+
+  if (!res.ok) return Response.json({ error: raw.error?.message ?? raw.error?.type ?? 'API error' }, { status: 500 });
 
   const text = raw.content?.[0]?.text ?? '';
   const match = text.match(/\{[\s\S]*\}/);
-  if (!match) return Response.json({ error: 'Parse error' }, { status: 500 });
+  if (!match) {
+    console.error('[ai-summary] parse error — raw text:', text);
+    return Response.json({ error: 'Parse error' }, { status: 500 });
+  }
   try {
     return Response.json(JSON.parse(match[0]));
   } catch {
+    console.error('[ai-summary] JSON.parse failed on:', match[0]);
     return Response.json({ error: 'Parse error' }, { status: 500 });
   }
 }

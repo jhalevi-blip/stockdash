@@ -304,38 +304,43 @@ export default function StockIntelSummary({ holdings, rows }) {
     const finData     = data.financials?.error ? null : (data.financials ?? null);
     const currentRow  = rows.find(r => r.t === ticker);
 
-    console.log('[AiSnapshot fetch] ticker:', ticker, '| valData:', valData, '| finData:', finData);
+    const reqBody = {
+      symbol: ticker,
+      price: currentRow?.price ?? null,
+      valuation: valData ? {
+        peRatio: valData.peRatio, forwardPE: valData.forwardPE,
+        grossMargin: valData.grossMargin, netMargin: valData.netMargin,
+        evEbitda: valData.evEbitda, marketCap: valData.marketCap,
+      } : null,
+      financials: finData ? {
+        revenue:     finData.revenue?.at(-1)     ?? null,
+        netIncome:   finData.netIncome?.at(-1)   ?? null,
+        operatingCF: finData.operatingCF?.at(-1) ?? null,
+        capex:       finData.capex?.at(-1)       ?? null,
+      } : null,
+      analyst: analystData ? {
+        target:     analystData.lastQuarterTarget ?? null,
+        targetHigh: analystData.targetHigh        ?? null,
+        targetLow:  analystData.targetLow         ?? null,
+        count:      analystData.lastQuarterCount  ?? null,
+      } : null,
+    };
+    console.log('[AiSnapshot] request body:', JSON.stringify(reqBody, null, 2));
 
     fetch('/api/ai-summary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        symbol: ticker,
-        price: currentRow?.price ?? null,
-        valuation: valData ? {
-          peRatio: valData.peRatio, forwardPE: valData.forwardPE,
-          grossMargin: valData.grossMargin, netMargin: valData.netMargin,
-          evEbitda: valData.evEbitda, marketCap: valData.marketCap,
-        } : null,
-        financials: finData ? {
-          revenue:    finData.revenue?.at(-1)    ?? null,
-          netIncome:  finData.netIncome?.at(-1)  ?? null,
-          operatingCF: finData.operatingCF?.at(-1) ?? null,
-          capex:      finData.capex?.at(-1)      ?? null,
-        } : null,
-        analyst: analystData ? {
-          target:    analystData.lastQuarterTarget ?? null,
-          targetHigh: analystData.targetHigh ?? null,
-          targetLow:  analystData.targetLow  ?? null,
-          count:      analystData.lastQuarterCount ?? null,
-        } : null,
-      }),
+      body: JSON.stringify(reqBody),
     })
-      .then(r => r.json())
+      .then(async r => {
+        const text = await r.text();
+        console.log('[AiSnapshot] raw response (status', r.status + '):', text);
+        try { return JSON.parse(text); } catch { return { error: 'Non-JSON response: ' + text.slice(0, 200) }; }
+      })
       .then(snap => {
         if (cancelled) return;
-        console.log('[AiSnapshot response]', snap);
         if (snap.error) {
+          console.error('[AiSnapshot] error from server:', snap.error);
           setAiError(true);
         } else {
           try { localStorage.setItem(cacheKey, JSON.stringify(snap)); } catch {}
@@ -344,7 +349,7 @@ export default function StockIntelSummary({ holdings, rows }) {
       })
       .catch(err => {
         if (!cancelled) {
-          console.error('[AiSnapshot error]', err);
+          console.error('[AiSnapshot] fetch error:', err);
           setAiError(true);
         }
       })
