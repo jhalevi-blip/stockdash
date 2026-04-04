@@ -323,7 +323,15 @@ export default function DashboardPage() {
                         axisLine={false}
                         interval="preserveStartEnd"
                       />
-                      <YAxis hide domain={['auto', 'auto']} />
+                      <YAxis
+                        domain={['auto', 'auto']}
+                        tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                        tickLine={false}
+                        axisLine={false}
+                        width={52}
+                        tickCount={5}
+                        tickFormatter={v => '$' + (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v.toFixed(0))}
+                      />
                       <Tooltip
                         contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12 }}
                         labelStyle={{ color: 'var(--text-secondary)' }}
