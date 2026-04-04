@@ -1,5 +1,5 @@
 // app/api/short-interest/route.js
-// Fetches analyst price targets from FMP, falls back to Finnhub, then Yahoo Finance
+// Fetches analyst price targets from Finnhub (free), falls back to FMP, then Yahoo Finance
 
 import { parseTickers } from '@/lib/holdings';
 import { trackFinnhub, trackFMP } from '@/lib/apiUsage';
@@ -128,13 +128,15 @@ export async function GET(request) {
   const results = await Promise.all(
     holdings.map(async h => {
       let targets = null;
-      if (fmpKey) {
-        trackFMP(1).catch(() => {}); // fire-and-forget; 1 FMP call per ticker
-        targets = await fetchFMP(h.t, fmpKey);
-      }
-      if (!targets && finnhubKey) {
-        trackFinnhub(1); // 1 Finnhub call (fallback path)
+      // Try Finnhub first (free, no quota cost)
+      if (finnhubKey) {
+        trackFinnhub(1);
         targets = await fetchFinnhub(h.t, finnhubKey);
+      }
+      // Fall back to FMP if Finnhub returned empty
+      if (!targets && fmpKey) {
+        trackFMP(1).catch(() => {});
+        targets = await fetchFMP(h.t, fmpKey);
       }
       if (!targets) targets = await fetchYahoo(h.t, yahooAuth);
 

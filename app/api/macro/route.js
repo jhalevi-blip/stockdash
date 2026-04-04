@@ -71,6 +71,22 @@ async function fetchFearGreed() {
   return null;
 }
 
+async function fetchYahooYield(encodedTicker) {
+  try {
+    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodedTicker}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json',
+      },
+      cache: 'no-store',
+    });
+    const data = JSON.parse(await r.text());
+    return data?.chart?.result?.[0]?.meta?.regularMarketPrice ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
   const fhKey = process.env.FINNHUB_API_KEY;
   const fmpKey = process.env.FMP_API_KEY;
@@ -100,16 +116,34 @@ export async function GET() {
   ]);
 
   try {
-    const [spyRes, qqqRes, diaRes, dxyRes, treasury, goldRes, oilRes] = await Promise.all([
+    const [spyRes, qqqRes, diaRes, dxyRes, goldRes, oilRes, irx, fvx, tnx, tyx] = await Promise.all([
       fetch(`https://finnhub.io/api/v1/quote?symbol=SPY&token=${fhKey}`, opts).then(r => r.json()),
       fetch(`https://finnhub.io/api/v1/quote?symbol=QQQ&token=${fhKey}`, opts).then(r => r.json()),
       fetch(`https://finnhub.io/api/v1/quote?symbol=DIA&token=${fhKey}`, opts).then(r => r.json()),
       fetch(`https://finnhub.io/api/v1/quote?symbol=UUP&token=${fhKey}`, opts).then(r => r.json()),
-      fmpKey ? fetch(`https://financialmodelingprep.com/stable/treasury-rates?limit=1&apikey=${fmpKey}`, opts)
-        .then(r => r.json()).then(d => Array.isArray(d) ? d[0] : null).catch(() => null) : Promise.resolve(null),
       fetch(`https://finnhub.io/api/v1/quote?symbol=GLD&token=${fhKey}`, opts).then(r => r.json()),
       fetch(`https://finnhub.io/api/v1/quote?symbol=USO&token=${fhKey}`, opts).then(r => r.json()),
+      fetchYahooYield('%5EIRX'),  // 13-week T-bill (~3 month)
+      fetchYahooYield('%5EFVX'),  // 5-year
+      fetchYahooYield('%5ETNX'),  // 10-year
+      fetchYahooYield('%5ETYX'),  // 30-year
     ]);
+
+    // Build treasury from Yahoo Finance yields (free); fall back to FMP only if all four fail
+    let treasury = null;
+    if (irx != null || fvx != null || tnx != null || tyx != null) {
+      treasury = { month3: irx, year5: fvx, year10: tnx, year30: tyx };
+      console.log('[macro] treasury from Yahoo Finance:', JSON.stringify(treasury));
+    } else if (fmpKey) {
+      try {
+        const r = await fetch(`https://financialmodelingprep.com/stable/treasury-rates?limit=1&apikey=${fmpKey}`, opts);
+        const d = await r.json();
+        treasury = Array.isArray(d) ? d[0] : null;
+        console.log('[macro] treasury from FMP fallback:', JSON.stringify(treasury));
+      } catch(e) {
+        console.error('[macro] FMP treasury fallback error:', e.message);
+      }
+    }
 
     const makeIndex = (d, symbol) => ({
       symbol,
@@ -143,7 +177,7 @@ export async function GET() {
         dxy:  makeIndex(dxyRes,  'UUP'),
       },
       fearGreed,
-      treasury,
+      treasury,  // month3, year5, year10, year30 from Yahoo Finance; FMP fallback
       gdp: null,
     }, {
       headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=60' }
