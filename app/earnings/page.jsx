@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import DemoPrompt from '@/components/DemoPrompt';
 import { getDemoTickers } from '@/lib/startDemo';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 
 function getStoredTickers() {
   try {
@@ -143,11 +143,11 @@ export default function EarningsPage() {
             <div className="chart-panel">
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={epsChartData} margin={{ top: 4, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
-                  <XAxis dataKey="period" tick={{ fill: '#8b949e', fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fill: '#8b949e', fontSize: 10 }} tickLine={false} axisLine={false} width={40} />
-                  <Tooltip contentStyle={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 4 }} labelStyle={{ color: '#8b949e', fontSize: 11 }} />
-                  <Legend wrapperStyle={{ fontSize: 11, color: '#8b949e' }} />
+                  <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
+                  <XAxis dataKey="period" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} tickLine={false} axisLine={false} width={52} />
+                  <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 4, fontSize: 12 }} labelStyle={{ color: 'var(--text-muted)', fontSize: 11 }} />
+                  <Legend wrapperStyle={{ fontSize: 11, color: 'var(--text-muted)' }} />
                   <Bar dataKey="EPS Estimate" fill="#58a6ff" radius={[3,3,0,0]} />
                   <Bar dataKey="EPS Actual"   fill="#3fb950" radius={[3,3,0,0]} />
                 </BarChart>
@@ -159,13 +159,19 @@ export default function EarningsPage() {
             <div className="section-title">{selected} — EPS Trend</div>
             <div className="chart-panel">
               <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={epsTrendData} margin={{ top: 4, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
-                  <XAxis dataKey="period" tick={{ fill: '#8b949e', fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fill: '#8b949e', fontSize: 10 }} tickLine={false} axisLine={false} width={40} />
-                  <Tooltip contentStyle={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 4 }} labelStyle={{ color: '#8b949e', fontSize: 11 }} />
-                  <Line type="monotone" dataKey="EPS Actual" stroke="#58a6ff" strokeWidth={2} dot={{ fill: '#58a6ff', r: 4 }} />
-                </LineChart>
+                <AreaChart data={epsTrendData} margin={{ top: 4, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="epsTrendGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#58a6ff" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#58a6ff" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
+                  <XAxis dataKey="period" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} tickLine={false} axisLine={false} width={52} />
+                  <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 4, fontSize: 12 }} labelStyle={{ color: 'var(--text-muted)', fontSize: 11 }} />
+                  <Area type="monotone" dataKey="EPS Actual" stroke="#58a6ff" strokeWidth={2} fill="url(#epsTrendGrad)" dot={false} activeDot={{ r: 4 }} />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>

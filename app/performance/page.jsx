@@ -1,10 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip,
+  AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
 } from 'recharts';
-import { useChartTheme } from '@/lib/useChartTheme';
 import DemoPrompt from '@/components/DemoPrompt';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
@@ -112,7 +111,6 @@ function EurTooltip({ active, payload, label }) {
 }
 
 export default function PerformancePage() {
-  const theme = useChartTheme();
 
   const [holdings,    setHoldings]    = useState(null); // null = loading
   const [chartData,   setChartData]   = useState([]);
@@ -327,14 +325,24 @@ export default function PerformancePage() {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-              <CartesianGrid vertical={false} stroke={theme.grid} />
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: theme.axis }} tickLine={false} axisLine={false} interval={xInterval} />
-              <YAxis tick={{ fontSize: 11, fill: theme.axis }} tickLine={false} axisLine={false} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} width={52} />
+            <AreaChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="perfPortGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#58a6ff" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#58a6ff" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="perfSpyGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} interval={xInterval} />
+              <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} width={52} />
               <Tooltip content={<PortTooltip />} />
-              <Line type="monotone" dataKey="portfolio" name="Portfolio" stroke="var(--accent)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-              <Line type="monotone" dataKey="spy" name="SPY Mirror" stroke="#f59e0b" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-            </LineChart>
+              <Area type="monotone" dataKey="portfolio" name="Portfolio" stroke="#58a6ff" strokeWidth={2} fill="url(#perfPortGrad)" dot={false} activeDot={{ r: 4 }} />
+              <Area type="monotone" dataKey="spy" name="SPY Mirror" stroke="#f59e0b" strokeWidth={2} fill="url(#perfSpyGrad)" dot={false} activeDot={{ r: 4 }} />
+            </AreaChart>
           </ResponsiveContainer>
         )}
         <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 12 }}>
@@ -392,13 +400,19 @@ export default function PerformancePage() {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={eurData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-              <CartesianGrid vertical={false} stroke={theme.grid} />
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: theme.axis }} tickLine={false} axisLine={false} interval={eurXInt} />
-              <YAxis tick={{ fontSize: 11, fill: theme.axis }} tickLine={false} axisLine={false} tickFormatter={v => v.toFixed(3)} width={52} domain={['auto', 'auto']} />
+            <AreaChart data={eurData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="eurGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#a78bfa" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} interval={eurXInt} />
+              <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} tickFormatter={v => v.toFixed(3)} width={52} domain={['auto', 'auto']} />
               <Tooltip content={<EurTooltip />} />
-              <Line type="monotone" dataKey="rate" name="EUR/USD" stroke="#a78bfa" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-            </LineChart>
+              <Area type="monotone" dataKey="rate" name="EUR/USD" stroke="#a78bfa" strokeWidth={2} fill="url(#eurGrad)" dot={false} activeDot={{ r: 4 }} />
+            </AreaChart>
           </ResponsiveContainer>
         )}
       </div>

@@ -1,12 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { useChartTheme } from '@/lib/useChartTheme';
-
 export default function StockChart({ ticker }) {
   const [candles, setCandles] = useState([]);
   const [loading, setLoading] = useState(false);
-  const theme = useChartTheme();
 
   useEffect(() => {
     if (!ticker) return;
@@ -24,7 +21,7 @@ export default function StockChart({ ticker }) {
   const first = candles[0]?.close;
   const last  = candles[candles.length - 1]?.close;
   const isUp  = last >= first;
-  const color = isUp ? '#3fb950' : '#f85149';
+  const color = isUp ? '#58a6ff' : '#f87171';
 
   return (
     <div className="chart-panel">
@@ -37,13 +34,13 @@ export default function StockChart({ ticker }) {
               <stop offset="95%" stopColor={color} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke={theme.grid} />
-          <XAxis dataKey="date" tick={{ fill: theme.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
-          <YAxis domain={['auto','auto']} tick={{ fill: theme.axis, fontSize: 10 }} tickLine={false} axisLine={false}
-            tickFormatter={v => '$' + v.toFixed(0)} width={50} />
+          <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
+          <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} />
+          <YAxis domain={['auto','auto']} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} tickLine={false} axisLine={false}
+            tickFormatter={v => '$' + v.toFixed(0)} width={52} />
           <Tooltip
-            contentStyle={{ background: theme.tooltipBg, border: `1px solid ${theme.tooltipBorder}`, borderRadius: 4 }}
-            labelStyle={{ color: theme.tooltipLabel, fontSize: 11 }}
+            contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 4, fontSize: 12 }}
+            labelStyle={{ color: 'var(--text-muted)', fontSize: 11 }}
             itemStyle={{ color: color }}
             formatter={v => ['$' + v.toFixed(2), 'Close']}
           />
