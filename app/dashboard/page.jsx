@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import DashboardSummary from '@/components/DashboardSummary';
 import StockIntelSummary from '@/components/StockIntelSummary';
 import DemoPrompt from '@/components/DemoPrompt';
@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [news,      setNews]      = useState([]);
   const [candles,   setCandles]   = useState([]);
   const [selected,  setSelected]  = useState(null);
+  const [period,    setPeriod]    = useState('1Y');
   const [loading,   setLoading]   = useState(true);
 
   const loadChart = useCallback(async (ticker) => {
@@ -233,30 +234,118 @@ export default function DashboardPage() {
       </section>
 
       {/* Price chart */}
-      {selected && (
-        <section>
-          <div className="section-title">{selected} — 1-Year Price (Weekly)</div>
-          <div className="chart-panel">
-            {candles.length === 0
-              ? <div className="chart-placeholder">Loading chart…</div>
-              : (
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={candles} margin={{ top: 4, right: 10, left: 0, bottom: 0 }}>
-                    <XAxis dataKey="date" tick={{ fill: '#8b949e', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                    <YAxis hide domain={['auto', 'auto']} />
-                    <Tooltip
-                      contentStyle={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 4, fontSize: 12 }}
-                      labelStyle={{ color: '#8b949e' }}
-                      formatter={v => ['$' + fmt(v), 'Close']}
-                    />
-                    <Line type="monotone" dataKey="close" stroke="#58a6ff" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )
-            }
-          </div>
-        </section>
-      )}
+      {selected && (() => {
+        const PERIODS = ['1M', '3M', '6M', 'YTD', '1Y'];
+        const sliceMap = { '1M': 4, '3M': 13, '6M': 26, '1Y': 9999 };
+        function displayCandles() {
+          if (!candles.length) return [];
+          if (period === 'YTD') {
+            const now = new Date();
+            const weeksYTD = Math.ceil((now - new Date(now.getFullYear(), 0, 1)) / 604800000);
+            return candles.slice(-Math.max(weeksYTD, 1));
+          }
+          return candles.slice(-(sliceMap[period] ?? 9999));
+        }
+        const dc = displayCandles();
+        const firstClose = dc[0]?.close ?? null;
+        const lastClose  = dc[dc.length - 1]?.close ?? null;
+        const periodAmt  = firstClose && lastClose ? lastClose - firstClose : null;
+        const periodPct  = firstClose && periodAmt != null ? (periodAmt / firstClose) * 100 : null;
+        const isPos      = periodAmt == null || periodAmt >= 0;
+        const lineColor  = isPos ? '#58a6ff' : '#f87171';
+
+        return (
+          <section>
+            <div style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 12,
+              padding: '20px 24px 12px',
+              marginBottom: 24,
+              boxShadow: '0 1px 6px rgba(0,0,0,0.08)',
+            }}>
+              {/* Header: ticker + price + return */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>{selected}</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                    <span style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>
+                      {lastClose != null ? `$${fmt(lastClose)}` : '—'}
+                    </span>
+                    {periodAmt != null && (
+                      <span style={{ fontSize: 14, fontWeight: 600, color: isPos ? 'var(--positive)' : 'var(--negative)' }}>
+                        {isPos ? '+' : '−'}${fmt(Math.abs(periodAmt))} {isPos ? '+' : ''}{fmt(periodPct, 2)}% {period}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {/* Period selector */}
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {PERIODS.map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setPeriod(p)}
+                      style={{
+                        background: period === p ? 'var(--accent)' : 'var(--bg-secondary)',
+                        color: period === p ? '#fff' : 'var(--text-secondary)',
+                        border: 'none',
+                        borderRadius: 20,
+                        padding: '4px 10px',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        transition: 'background 0.15s',
+                      }}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Chart */}
+              {candles.length === 0
+                ? <div className="chart-placeholder">Loading chart…</div>
+                : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <AreaChart data={dc} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={lineColor} stopOpacity={0.3} />
+                          <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
+                        tickLine={false}
+                        axisLine={false}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis hide domain={['auto', 'auto']} />
+                      <Tooltip
+                        contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12 }}
+                        labelStyle={{ color: 'var(--text-secondary)' }}
+                        formatter={v => ['$' + fmt(v), 'Close']}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="close"
+                        stroke={lineColor}
+                        strokeWidth={2}
+                        fill="url(#chartGradient)"
+                        dot={false}
+                        activeDot={{ r: 4 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )
+              }
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Stock Intel */}
       <section>
