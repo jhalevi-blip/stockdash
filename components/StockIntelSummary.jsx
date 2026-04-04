@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => n == null ? '—' : (n >= 0 ? '+' : '') + fmt(Math.abs(n), d) + '%';
@@ -11,7 +11,6 @@ const fmtM = (n) => {
   return '$' + n.toFixed(0) + 'M';
 };
 const fmtB = (n) => {
-  // Raw dollar values from EDGAR (not already in millions)
   if (n == null) return '—';
   const abs = Math.abs(n);
   if (abs >= 1e12) return (n < 0 ? '−' : '') + '$' + (abs / 1e12).toFixed(2) + 'T';
@@ -19,6 +18,34 @@ const fmtB = (n) => {
   if (abs >= 1e6)  return (n < 0 ? '−' : '') + '$' + (abs / 1e6).toFixed(0) + 'M';
   return '$' + n.toLocaleString();
 };
+
+const CODE_LABEL = {
+  P: 'Purchase', S: 'Sale', M: 'Open Market', A: 'Award',
+  D: 'Disposition', F: 'Tax Withholding', G: 'Gift',
+};
+const BUY_CODES = new Set(['P', 'M', 'A', 'G']);
+
+function consensusFromUpside(upside) {
+  if (upside == null) return null;
+  if (upside > 20) return { label: 'Strong Buy', bg: 'var(--bg-buy)',  color: 'var(--text-buy)' };
+  if (upside > 8)  return { label: 'Buy',         bg: 'var(--bg-buy)',  color: 'var(--text-buy)' };
+  if (upside > -5) return { label: 'Hold',         bg: 'rgba(217,119,6,0.15)', color: '#d97706' };
+  return               { label: 'Sell',         bg: 'var(--bg-sell)', color: 'var(--text-sell)' };
+}
+
+function calcFcfMargin(finD) {
+  if (!finD?.operatingCF?.length) return null;
+  const years = [...finD.operatingCF].map(r => r.year).sort().reverse();
+  for (const yr of years) {
+    const ocf = finD.operatingCF.find(r => r.year === yr)?.value;
+    const cap = finD.capex?.find(r => r.year === yr)?.value ?? 0;
+    const rev = finD.revenue?.find(r => r.year === yr)?.value;
+    if (ocf != null && rev != null && rev !== 0) {
+      return ((ocf - cap) / rev) * 100;
+    }
+  }
+  return null;
+}
 
 function Skeleton({ height = 48 }) {
   return <div style={{ height, background: 'var(--border-color)', borderRadius: 4 }} />;
@@ -53,16 +80,180 @@ function KV({ label, value, valueColor }) {
   );
 }
 
+function AiSnapshotCard({ ticker, row, analystD, valD, finD, snap, aiLoading }) {
+  const upside = row?.price && analystD?.lastQuarterTarget
+    ? ((analystD.lastQuarterTarget - row.price) / row.price) * 100
+    : null;
+  const consensus = consensusFromUpside(upside);
+  const fcfMargin = calcFcfMargin(finD);
+
+  // Price target range bar
+  const low    = analystD?.targetLow;
+  const high   = analystD?.targetHigh;
+  const target = analystD?.lastQuarterTarget;
+  const price  = row?.price;
+  let rangePct = null, targetPct = null;
+  if (low != null && high != null && price != null && high > low) {
+    const span = high - low;
+    rangePct  = Math.min(100, Math.max(0, ((price  - low) / span) * 100));
+    targetPct = target != null ? Math.min(100, Math.max(0, ((target - low) / span) * 100)) : null;
+  }
+
+  const metrics = [
+    { label: 'Gross Margin', value: valD?.grossMargin != null ? `${fmt(valD.grossMargin, 1)}%` : '—' },
+    { label: 'P/E (TTM)',    value: valD?.peRatio     != null ? `${fmt(valD.peRatio, 1)}x`     : '—' },
+    { label: 'FCF Margin',  value: fcfMargin          != null ? `${fmt(fcfMargin, 1)}%`         : '—' },
+  ];
+  const hasMetrics = valD?.grossMargin != null || valD?.peRatio != null || fcfMargin != null;
+
+  return (
+    <div style={{
+      gridColumn: '1 / -1',
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-color)',
+      borderRadius: 8,
+      padding: '18px 20px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 14,
+    }}>
+      {/* Header: ticker, price, change, consensus */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent)', letterSpacing: '0.03em' }}>{ticker}</span>
+        {price != null && (
+          <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
+            ${fmt(price)}
+          </span>
+        )}
+        {row?.chgPct != null && (
+          <span style={{ fontSize: 13, color: clr(row.chgPct) }}>
+            {row.chgPct >= 0 ? '▲' : '▼'} {fmt(Math.abs(row.chgPct), 2)}%
+          </span>
+        )}
+        <span style={{ flex: 1 }} />
+        {consensus && (
+          <span style={{
+            fontSize: 11, fontWeight: 700, padding: '3px 12px', borderRadius: 12,
+            background: consensus.bg, color: consensus.color, letterSpacing: '0.04em',
+          }}>
+            {consensus.label}
+          </span>
+        )}
+      </div>
+
+      {/* Price target range bar */}
+      {low != null && high != null && price != null && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginBottom: 5 }}>
+            <span>Low ${fmt(low)}</span>
+            {target != null && (
+              <span style={{ color: 'var(--accent)' }}>Target ${fmt(target)}</span>
+            )}
+            <span>High ${fmt(high)}</span>
+          </div>
+          <div style={{ height: 5, background: 'var(--border-color)', borderRadius: 3, position: 'relative' }}>
+            {targetPct != null && (
+              <div style={{
+                width: `${targetPct}%`, height: '100%',
+                background: 'var(--accent)', borderRadius: 3, opacity: 0.3,
+              }} />
+            )}
+            {rangePct != null && (
+              <div style={{
+                position: 'absolute', top: -2, left: `${rangePct}%`,
+                width: 3, height: 9, background: 'var(--text-primary)',
+                borderRadius: 2, transform: 'translateX(-50%)',
+              }} />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Key metrics strip */}
+      {hasMetrics && (
+        <div style={{
+          display: 'flex',
+          borderTop: '1px solid var(--border-color)',
+          borderBottom: '1px solid var(--border-color)',
+          padding: '10px 0',
+        }}>
+          {metrics.map((m, i) => (
+            <div key={m.label} style={{
+              flex: 1, textAlign: 'center',
+              borderLeft: i > 0 ? '1px solid var(--border-color)' : 'none',
+              padding: '0 8px',
+            }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>{m.value}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {m.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Bull/Bear — skeleton while loading, content when ready */}
+      {aiLoading && !snap && <Skeleton height={90} />}
+      {snap && !snap.error && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            {/* Bull */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--positive)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                Bull Case
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(snap.bullCases ?? []).map((pt, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 7, fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                    <span style={{ color: 'var(--positive)', flexShrink: 0, marginTop: 1 }}>▲</span>
+                    <span>{pt}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Bear */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--negative)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                Bear Case
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(snap.bearCases ?? []).map((pt, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 7, fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                    <span style={{ color: 'var(--negative)', flexShrink: 0, marginTop: 1 }}>▼</span>
+                    <span>{pt}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          {snap.summary && (
+            <div style={{
+              fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic',
+              borderTop: '1px solid var(--border-color)', paddingTop: 10, lineHeight: 1.5,
+            }}>
+              {snap.summary}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function StockIntelSummary({ holdings, rows }) {
   const [ticker,    setTicker]    = useState('');
   const [data,      setData]      = useState(null);
   const [loading,   setLoading]   = useState(false);
+  const [aiSnap,    setAiSnap]    = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const selectStock = useCallback(async (t) => {
-    if (!t) { setTicker(''); setData(null); return; }
+    if (!t) { setTicker(''); setData(null); setAiSnap(null); setAiLoading(false); return; }
     setTicker(t);
     setLoading(true);
     setData(null);
+    setAiSnap(null);
+    setAiLoading(false);
 
     const [analyst, insider, earningsHist, valuation, peers, financials, news, filings] =
       await Promise.all([
@@ -80,6 +271,64 @@ export default function StockIntelSummary({ holdings, rows }) {
     setLoading(false);
   }, []);
 
+  // AI snapshot: trigger after main data loads, cache by ticker+date
+  useEffect(() => {
+    if (!ticker || !data) return;
+    let cancelled = false;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const cacheKey = `ai_snap_${ticker}_${today}`;
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) { setAiSnap(JSON.parse(cached)); return; }
+    } catch {}
+
+    setAiLoading(true);
+
+    const analystData = data.analyst?.find?.(a => a.ticker === ticker) ?? null;
+    const valData     = data.valuation?.find?.(v => v.ticker === ticker) ?? null;
+    const finData     = data.financials ?? null;
+    const currentRow  = rows.find(r => r.t === ticker);
+
+    fetch('/api/ai-summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        symbol: ticker,
+        price: currentRow?.price ?? null,
+        valuation: valData ? {
+          peRatio: valData.peRatio, forwardPE: valData.forwardPE,
+          grossMargin: valData.grossMargin, netMargin: valData.netMargin,
+          evEbitda: valData.evEbitda, marketCap: valData.marketCap,
+        } : null,
+        financials: finData ? {
+          revenue:    finData.revenue?.at(-1)    ?? null,
+          netIncome:  finData.netIncome?.at(-1)  ?? null,
+          operatingCF: finData.operatingCF?.at(-1) ?? null,
+          capex:      finData.capex?.at(-1)      ?? null,
+        } : null,
+        analyst: analystData ? {
+          target:    analystData.lastQuarterTarget ?? null,
+          targetHigh: analystData.targetHigh ?? null,
+          targetLow:  analystData.targetLow  ?? null,
+          count:      analystData.lastQuarterCount ?? null,
+        } : null,
+      }),
+    })
+      .then(r => r.json())
+      .then(snap => {
+        if (cancelled) return;
+        if (!snap.error) {
+          try { localStorage.setItem(cacheKey, JSON.stringify(snap)); } catch {}
+          setAiSnap(snap);
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setAiLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [ticker, data]); // rows intentionally excluded — stale price is fine for AI context
+
   const row       = rows.find(r => r.t === ticker);
   const analystD  = data?.analyst?.find?.(a => a.ticker === ticker) ?? null;
   const valD      = data?.valuation?.find?.(v => v.ticker === ticker) ?? null;
@@ -93,8 +342,6 @@ export default function StockIntelSummary({ holdings, rows }) {
   const upside = row?.price && analystD?.lastQuarterTarget
     ? ((analystD.lastQuarterTarget - row.price) / row.price) * 100
     : null;
-
-  console.log('[StockIntelSummary] holdings.length:', holdings.length, '| ticker:', ticker);
 
   return (
     <div style={{ marginBottom: 28 }}>
@@ -148,6 +395,17 @@ export default function StockIntelSummary({ holdings, rows }) {
           gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
           gap: 12,
         }}>
+
+          {/* 0 — AI Snapshot (full width, first) */}
+          <AiSnapshotCard
+            ticker={ticker}
+            row={row}
+            analystD={analystD}
+            valD={valD}
+            finD={finD}
+            snap={aiSnap}
+            aiLoading={aiLoading}
+          />
 
           {/* 1 — Position */}
           <Card title="My Position">
@@ -212,26 +470,30 @@ export default function StockIntelSummary({ holdings, rows }) {
           <Card title="Insider Activity" loading={loading}>
             {insiders.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                {insiders.map((ins, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, gap: 8 }}>
-                    <span style={{
-                      padding: '1px 5px', borderRadius: 3, fontWeight: 600, fontSize: 10, flexShrink: 0,
-                      background: ins.transactionCode === 'P' ? 'var(--bg-buy)' : 'var(--bg-sell)',
-                      color:      ins.transactionCode === 'P' ? 'var(--text-buy)' : 'var(--text-sell)',
-                    }}>
-                      {ins.transactionCode === 'P' ? 'BUY' : ins.transactionCode === 'S' ? 'SELL' : ins.transactionCode}
-                    </span>
-                    <span style={{ color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {ins.name?.split(' ').slice(-1)[0] ?? ins.name}
-                    </span>
-                    <span style={{ color: 'var(--text-secondary)', flexShrink: 0 }}>
-                      {ins.change != null ? Math.abs(ins.change).toLocaleString() : ''}
-                    </span>
-                    <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
-                      {ins.transactionDate ? ins.transactionDate.slice(5) : ''}
-                    </span>
-                  </div>
-                ))}
+                {insiders.map((ins, i) => {
+                  const isBuy = BUY_CODES.has(ins.transactionCode);
+                  const label = CODE_LABEL[ins.transactionCode] ?? ins.transactionCode;
+                  return (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, gap: 8 }}>
+                      <span style={{
+                        padding: '1px 5px', borderRadius: 3, fontWeight: 600, fontSize: 10, flexShrink: 0,
+                        background: isBuy ? 'var(--bg-buy)'   : 'var(--bg-sell)',
+                        color:      isBuy ? 'var(--text-buy)' : 'var(--text-sell)',
+                      }}>
+                        {label}
+                      </span>
+                      <span style={{ color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {ins.name?.split(' ').slice(-1)[0] ?? ins.name}
+                      </span>
+                      <span style={{ color: 'var(--text-secondary)', flexShrink: 0 }}>
+                        {ins.change != null ? Math.abs(ins.change).toLocaleString() : ''}
+                      </span>
+                      <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
+                        {ins.transactionDate ? ins.transactionDate.slice(5) : ''}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No recent insider activity</div>
