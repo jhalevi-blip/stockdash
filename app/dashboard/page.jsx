@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import DashboardSummary from '@/components/DashboardSummary';
 import StockIntelSummary from '@/components/StockIntelSummary';
 import DemoPrompt from '@/components/DemoPrompt';
@@ -316,6 +316,7 @@ export default function DashboardPage() {
                           <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
                         </linearGradient>
                       </defs>
+                      <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
                       <XAxis
                         dataKey="date"
                         tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
