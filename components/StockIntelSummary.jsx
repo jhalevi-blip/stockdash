@@ -86,12 +86,6 @@ function AiSnapshotCard({ ticker, row, analystD, valD, finD, snap, aiLoading, ai
     ? ((analystD.lastQuarterTarget - row.price) / row.price) * 100
     : null;
   const consensus = consensusFromUpside(upside);
-  // Guard finD — may be an error object when EDGAR lookup fails
-  const safeFinD = finD?.error ? null : finD;
-  const fcfMargin = calcFcfMargin(safeFinD);
-
-  console.log('[AiSnapshot] valD:', valD, '| finD:', finD, '| fcfMargin:', fcfMargin);
-
   // Price target range bar
   const low    = analystD?.targetLow;
   const high   = analystD?.targetHigh;
@@ -103,12 +97,6 @@ function AiSnapshotCard({ ticker, row, analystD, valD, finD, snap, aiLoading, ai
     rangePct  = Math.min(100, Math.max(0, ((price  - low) / span) * 100));
     targetPct = target != null ? Math.min(100, Math.max(0, ((target - low) / span) * 100)) : null;
   }
-
-  const metrics = [
-    { label: 'Gross Margin', value: valD?.grossMargin != null ? `${fmt(valD.grossMargin, 1)}%` : '—' },
-    { label: 'P/E (TTM)',    value: valD?.peRatio     != null ? `${fmt(valD.peRatio, 1)}x`     : '—' },
-    { label: 'FCF Margin',   value: fcfMargin         != null ? `${fmt(fcfMargin, 1)}%`         : '—' },
-  ];
 
   return (
     <div style={{
@@ -172,30 +160,6 @@ function AiSnapshotCard({ ticker, row, analystD, valD, finD, snap, aiLoading, ai
           </div>
         </div>
       )}
-
-      {/* Key metrics strip — always shown; values fall back to '—' if data unavailable */}
-      <div style={{
-        display: 'flex',
-        width: '100%',
-        borderTop: '1px solid var(--border-color)',
-        borderBottom: '1px solid var(--border-color)',
-        padding: '10px 0',
-      }}>
-        {metrics.map((m, i) => (
-          <div key={m.label} style={{
-            flex: '1 1 0',
-            minWidth: 0,
-            textAlign: 'center',
-            borderLeft: i > 0 ? '1px solid var(--border-color)' : 'none',
-            padding: '0 8px',
-          }}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>{m.value}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              {m.label}
-            </div>
-          </div>
-        ))}
-      </div>
 
       {/* Bull/Bear — skeleton while loading, error state, content when ready */}
       {aiLoading && !snap && <Skeleton height={90} />}
@@ -504,6 +468,8 @@ export default function StockIntelSummary({ holdings, rows }) {
                 <KV label="P/S"          value={valD.psRatio    != null ? fmt(valD.psRatio,   1) : '—'} />
                 <KV label="EV/EBITDA"    value={valD.evEbitda   != null ? fmt(valD.evEbitda,  1) : '—'} />
                 <KV label="Market Cap"   value={fmtM(valD.marketCap)} />
+                <KV label="Gross Margin" value={valD.grossMargin != null ? `${fmt(valD.grossMargin, 1)}%` : '—'} />
+                <KV label="FCF Margin"   value={(() => { const f = calcFcfMargin(finD?.error ? null : finD); return f != null ? `${fmt(f, 1)}%` : '—'; })()} />
               </>
             ) : (
               <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No valuation data</div>
