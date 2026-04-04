@@ -90,15 +90,25 @@ export default function DashboardPage() {
     }
 
     // Fetch from Supabase if signed in, fall back to localStorage on any failure
+    const localAtLoad = getLocalHoldings();
+    console.log('[dashboard] localStorage holdings at load:', JSON.stringify(localAtLoad));
     fetch('/api/portfolio')
       .then(r => r.json())
       .then(data => {
         let h;
         if (data.signedIn && data.holdings?.length) {
-          h = data.holdings;
+          // Merge Supabase data with localStorage: if Supabase has c: 0 or null for a ticker,
+          // prefer the localStorage value so a fresh save is never clobbered by stale Supabase data.
+          const localMap = {};
+          localAtLoad.forEach(lh => { localMap[lh.t] = lh; });
+          h = data.holdings.map(sh => ({
+            ...sh,
+            c: sh.c > 0 ? sh.c : (localMap[sh.t]?.c ?? 0),
+          }));
+          console.log('[dashboard] merged holdings (Supabase + localStorage):', JSON.stringify(h));
           localStorage.setItem('stockdash_holdings', JSON.stringify(h));
         } else {
-          h = getLocalHoldings();
+          h = localAtLoad;
         }
 
         setHoldings(h);
@@ -120,8 +130,7 @@ export default function DashboardPage() {
       })
       .catch(() => {
         // Network error or Clerk session issue — fall back to localStorage
-        const h = getLocalHoldings();
-        setHoldings(h);
+        setHoldings(localAtLoad);
       })
       .finally(() => setLoading(false));
   }, [loadChart]);
