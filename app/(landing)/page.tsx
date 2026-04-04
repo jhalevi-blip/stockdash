@@ -93,6 +93,7 @@ export default function LandingPage() {
             { icon: "💰", title: "Valuation", desc: "P/E, P/S, P/B, EV/EBITDA, ROE, margins — sortable across all your positions." },
             { icon: "📅", title: "Earnings", desc: "EPS history, beat/miss streaks, estimate vs actual charts going back years." },
             { icon: "🎯", title: "Analyst Targets", desc: "Consensus price targets, upside %, and analyst count from FMP data." },
+            { icon: "📈", title: "Performance", desc: "Portfolio vs SPY mirror, EUR/USD currency impact, beta-adjusted returns, and estimated purchase tracking." },
           ].map((f) => (
             <div key={f.title} style={{ background: "#0d1117", padding: "1.5rem 1.25rem" }}>
               <div style={{
