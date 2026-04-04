@@ -290,9 +290,23 @@ export default function StockIntelSummary({ holdings, rows }) {
 
     const today = new Date().toISOString().slice(0, 10);
     const cacheKey = `ai_snap_${ticker}_${today}`;
+
+    // Purge stale ai_snap_ entries from previous days
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('ai_snap_') && !k.endsWith(`_${today}`))
+        .forEach(k => localStorage.removeItem(k));
+    } catch {}
+
     try {
       const cached = localStorage.getItem(cacheKey);
-      if (cached) { setAiSnap(JSON.parse(cached)); return; }
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const valid = Array.isArray(parsed.bullCases) && parsed.bullCases.length > 0
+                   && Array.isArray(parsed.bearCases) && parsed.bearCases.length > 0;
+        if (valid) { setAiSnap(parsed); return; }
+        localStorage.removeItem(cacheKey);
+      }
     } catch {}
 
     setAiLoading(true);
