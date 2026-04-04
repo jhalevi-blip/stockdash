@@ -9,7 +9,7 @@ const iStyle = {
 
 export default function PortfolioModal({ holdings, onSave, onClose }) {
   const initial = holdings.length
-    ? holdings.map(h => ({ t: h.t, s: String(h.s), c: String(h.c) }))
+    ? holdings.map(h => ({ t: h.t, s: h.s != null ? String(h.s) : '', c: h.c != null ? String(h.c) : '' }))
     : [{ t: '', s: '', c: '' }];
 
   const [rows,   setRows]   = useState(initial);
@@ -28,6 +28,7 @@ export default function PortfolioModal({ holdings, onSave, onClose }) {
       s: parseFloat(r.s) || 0,
       c: parseFloat(r.c) || 0,
     }));
+    console.log('[PortfolioModal] saving holdings:', JSON.stringify(parsed));
 
     setSaving(true);
     setError('');
