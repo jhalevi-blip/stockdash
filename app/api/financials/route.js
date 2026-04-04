@@ -16,17 +16,18 @@ async function lookupCIK(ticker) {
 
 // Primary and fallback EDGAR us-gaap concept tags
 const CONCEPTS = {
-  revenue:      'RevenueFromContractWithCustomerExcludingAssessedTax',
-  revenueFb1:   'Revenues',
-  revenueFb2:   'SalesRevenueNet',
-  netIncome:    'NetIncomeLoss',
-  eps:          'EarningsPerShareDiluted',
-  assets:       'Assets',
-  liabilities:  'Liabilities',
-  equity:       'StockholdersEquity',
-  operatingCF:  'NetCashProvidedByUsedInOperatingActivities',
-  capex:        'PaymentsToAcquirePropertyPlantAndEquipment',
-  grossProfit:  'GrossProfit',
+  revenue:         'RevenueFromContractWithCustomerExcludingAssessedTax',
+  revenueFb1:      'Revenues',
+  revenueFb2:      'SalesRevenueNet',
+  netIncome:       'NetIncomeLoss',
+  eps:             'EarningsPerShareDiluted',
+  assets:          'Assets',
+  liabilities:     'Liabilities',
+  equity:          'StockholdersEquity',
+  operatingCF:     'NetCashProvidedByUsedInOperatingActivities',
+  capex:           'PaymentsToAcquirePropertyPlantAndEquipment',
+  grossProfit:     'GrossProfit',
+  operatingIncome: 'OperatingIncomeLoss',
 };
 
 async function fetchConcept(cik, conceptTag) {
@@ -50,6 +51,38 @@ async function fetchConcept(cik, conceptTag) {
   } catch {
     return null;
   }
+}
+
+function extractQuarterly(data, n = 5) {
+  if (!data?.units) return [];
+  const units =
+    data.units.USD ??
+    data.units.shares ??
+    Object.values(data.units)[0];
+  if (!units || !Array.isArray(units)) return [];
+
+  // Keep entries spanning ~1 quarter (60–105 days) — excludes YTD/annual values
+  const quarterly = units
+    .filter(d => {
+      if (d.val == null || !d.start) return false;
+      const days = (new Date(d.end) - new Date(d.start)) / 86400000;
+      return days >= 60 && days <= 105;
+    })
+    .sort((a, b) => new Date(b.end) - new Date(a.end));
+
+  const seen = new Set();
+  const deduped = [];
+  for (const d of quarterly) {
+    if (!seen.has(d.end)) {
+      seen.add(d.end);
+      const endDate = new Date(d.end);
+      const month = endDate.getMonth() + 1;
+      const q = month <= 3 ? 'Q1' : month <= 6 ? 'Q2' : month <= 9 ? 'Q3' : 'Q4';
+      deduped.push({ quarter: `${q} ${endDate.getFullYear()}`, end: d.end, value: d.val });
+    }
+  }
+
+  return deduped.slice(0, n);
 }
 
 function extractAnnual(data, n = 5) {
@@ -86,6 +119,7 @@ function extractAnnual(data, n = 5) {
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const ticker = searchParams.get('ticker')?.toUpperCase();
+  const period = searchParams.get('period') ?? 'annual'; // 'annual' | 'quarterly'
 
   if (!ticker) {
     return Response.json(
@@ -116,6 +150,7 @@ export async function GET(request) {
       operatingCFData,
       capexData,
       grossProfitData,
+      operatingIncomeData,
     ] = await Promise.all([
       fetchConcept(cik, CONCEPTS.revenue),
       fetchConcept(cik, CONCEPTS.revenueFb1),
@@ -128,7 +163,26 @@ export async function GET(request) {
       fetchConcept(cik, CONCEPTS.operatingCF),
       fetchConcept(cik, CONCEPTS.capex),
       fetchConcept(cik, CONCEPTS.grossProfit),
+      fetchConcept(cik, CONCEPTS.operatingIncome),
     ]);
+
+    if (period === 'quarterly') {
+      let revenue = extractQuarterly(revenueData);
+      if (revenue.length === 0) revenue = extractQuarterly(revenueFb1Data);
+      if (revenue.length === 0) revenue = extractQuarterly(revenueFb2Data);
+
+      return Response.json({
+        ticker,
+        cik,
+        period: 'quarterly',
+        revenue,
+        grossProfit:     extractQuarterly(grossProfitData),
+        netIncome:       extractQuarterly(netIncomeData),
+        operatingIncome: extractQuarterly(operatingIncomeData),
+        operatingCF:     extractQuarterly(operatingCFData),
+        capex:           extractQuarterly(capexData),
+      });
+    }
 
     // Revenue: try primary tag first, then fallbacks
     let revenue = extractAnnual(revenueData);
@@ -139,14 +193,14 @@ export async function GET(request) {
       ticker,
       cik,
       revenue,
-      grossProfit:  extractAnnual(grossProfitData),
-      netIncome:    extractAnnual(netIncomeData),
-      eps:          extractAnnual(epsData),
-      assets:       extractAnnual(assetsData),
-      liabilities:  extractAnnual(liabilitiesData),
-      equity:       extractAnnual(equityData),
-      operatingCF:  extractAnnual(operatingCFData),
-      capex:        extractAnnual(capexData),
+      grossProfit:     extractAnnual(grossProfitData),
+      netIncome:       extractAnnual(netIncomeData),
+      eps:             extractAnnual(epsData),
+      assets:          extractAnnual(assetsData),
+      liabilities:     extractAnnual(liabilitiesData),
+      equity:          extractAnnual(equityData),
+      operatingCF:     extractAnnual(operatingCFData),
+      capex:           extractAnnual(capexData),
     };
 
     return Response.json(result);

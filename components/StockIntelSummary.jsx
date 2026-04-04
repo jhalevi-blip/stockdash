@@ -215,21 +215,31 @@ function AiSnapshotCard({ ticker, row, analystD, valD, finD, snap, aiLoading, ai
 }
 
 export default function StockIntelSummary({ holdings, rows }) {
-  const [ticker,    setTicker]    = useState('');
-  const [data,      setData]      = useState(null);
-  const [loading,   setLoading]   = useState(false);
-  const [aiSnap,    setAiSnap]    = useState(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError,   setAiError]   = useState(false);
+  const [ticker,      setTicker]      = useState('');
+  const [data,        setData]        = useState(null);
+  const [loading,     setLoading]     = useState(false);
+  const [aiSnap,      setAiSnap]      = useState(null);
+  const [aiLoading,   setAiLoading]   = useState(false);
+  const [aiError,     setAiError]     = useState(false);
+  const [finPeriod,   setFinPeriod]   = useState('Annual');
+  const [finQData,    setFinQData]    = useState(null);   // quarterly data, keyed by ticker
+  const [finQLoading, setFinQLoading] = useState(false);
 
   const selectStock = useCallback(async (t) => {
-    if (!t) { setTicker(''); setData(null); setAiSnap(null); setAiLoading(false); setAiError(false); return; }
+    if (!t) {
+      setTicker(''); setData(null); setAiSnap(null);
+      setAiLoading(false); setAiError(false);
+      setFinPeriod('Annual'); setFinQData(null);
+      return;
+    }
     setTicker(t);
     setLoading(true);
     setData(null);
     setAiSnap(null);
     setAiLoading(false);
     setAiError(false);
+    setFinPeriod('Annual');
+    setFinQData(null);
 
     const [analyst, insider, earningsHist, valuation, peers, financials, news, filings] =
       await Promise.all([
@@ -540,31 +550,116 @@ export default function StockIntelSummary({ holdings, rows }) {
           </Card>
 
           {/* 6 — Financials */}
-          <Card title="Financials (Annual)" loading={loading}>
-            {finD?.revenue?.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Revenue</div>
-                {finD.revenue.slice(-4).map(r => (
-                  <div key={r.year} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>{r.year}</span>
-                    <span style={{ color: 'var(--text-primary)' }}>{fmtB(r.value)}</span>
-                  </div>
+          <Card title={
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Financials</span>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {['Annual', 'Quarterly'].map(p => (
+                  <button key={p} onClick={async () => {
+                    setFinPeriod(p);
+                    if (p === 'Quarterly' && !finQData) {
+                      setFinQLoading(true);
+                      try {
+                        const res = await fetch(`/api/financials?ticker=${ticker}&period=quarterly`);
+                        const d = await res.json();
+                        setFinQData(d?.error ? {} : d);
+                      } catch { setFinQData({}); }
+                      setFinQLoading(false);
+                    }
+                  }} style={{
+                    background: finPeriod === p ? 'var(--accent)' : 'var(--bg-secondary)',
+                    color: finPeriod === p ? '#fff' : 'var(--text-secondary)',
+                    border: 'none', borderRadius: 20,
+                    padding: '2px 8px', fontSize: 10, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    textTransform: 'none', letterSpacing: 0,
+                  }}>{p}</button>
                 ))}
-                {finD.netIncome?.length > 0 && (
-                  <>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Net Income</div>
-                    {finD.netIncome.slice(-2).map(r => (
-                      <div key={r.year} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>{r.year}</span>
-                        <span style={{ color: clr(r.value) }}>{fmtB(r.value)}</span>
-                      </div>
-                    ))}
-                  </>
-                )}
               </div>
-            ) : (
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No financials data</div>
-            )}
+            </div>
+          } loading={loading}>
+            {finPeriod === 'Annual' ? (
+              finD?.revenue?.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Revenue</div>
+                  {finD.revenue.slice(-4).map(r => (
+                    <div key={r.year} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>{r.year}</span>
+                      <span style={{ color: 'var(--text-primary)' }}>{fmtB(r.value)}</span>
+                    </div>
+                  ))}
+                  {finD.netIncome?.length > 0 && (
+                    <>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Net Income</div>
+                      {finD.netIncome.slice(-2).map(r => (
+                        <div key={r.year} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>{r.year}</span>
+                          <span style={{ color: clr(r.value) }}>{fmtB(r.value)}</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No financials data</div>
+              )
+            ) : finQLoading ? (
+              <Skeleton height={120} />
+            ) : (() => {
+              const qRev = finQData?.revenue?.slice(0, 4) ?? [];
+              if (!qRev.length) return <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No quarterly data</div>;
+              const toMap = arr => Object.fromEntries((arr ?? []).map(r => [r.end, r.value]));
+              const gpMap = toMap(finQData?.grossProfit);
+              const oiMap = toMap(finQData?.operatingIncome);
+              const niMap = toMap(finQData?.netIncome);
+              const ocfMap = toMap(finQData?.operatingCF);
+              const cxMap  = toMap(finQData?.capex);
+              const rows = qRev.map(r => ({
+                label: r.quarter,
+                revenue: r.value,
+                grossProfit: gpMap[r.end] ?? null,
+                operatingIncome: oiMap[r.end] ?? null,
+                netIncome: niMap[r.end] ?? null,
+                fcf: ocfMap[r.end] != null ? ocfMap[r.end] - (cxMap[r.end] ?? 0) : null,
+              }));
+              const METRICS = [
+                { key: 'revenue',         label: 'Revenue'    },
+                { key: 'grossProfit',     label: 'Gross Profit' },
+                { key: 'operatingIncome', label: 'Op. Income' },
+                { key: 'netIncome',       label: 'Net Income' },
+                { key: 'fcf',             label: 'FCF'        },
+              ];
+              return (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ color: 'var(--text-muted)', fontWeight: 500, textAlign: 'left', padding: '2px 4px', whiteSpace: 'nowrap' }}></th>
+                        {rows.map(r => (
+                          <th key={r.label} style={{ color: 'var(--text-secondary)', fontWeight: 600, textAlign: 'right', padding: '2px 4px', whiteSpace: 'nowrap' }}>{r.label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {METRICS.map(m => (
+                        <tr key={m.key}>
+                          <td style={{ color: 'var(--text-muted)', padding: '3px 4px', whiteSpace: 'nowrap' }}>{m.label}</td>
+                          {rows.map(r => (
+                            <td key={r.label} style={{
+                              textAlign: 'right', padding: '3px 4px',
+                              color: (m.key === 'netIncome' || m.key === 'operatingIncome' || m.key === 'fcf')
+                                ? clr(r[m.key]) : 'var(--text-primary)',
+                            }}>
+                              {r[m.key] != null ? fmtB(r[m.key]) : '—'}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </Card>
 
           {/* 7 — Peers */}
