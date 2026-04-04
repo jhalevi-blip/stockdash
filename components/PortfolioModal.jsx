@@ -9,15 +9,12 @@ const iStyle = {
 
 export default function PortfolioModal({ holdings, onSave, onClose }) {
   const initial = holdings.length
-    ? holdings.map(h => ({ t: h.t, s: h.s != null ? String(h.s) : '', c: h.c != null ? String(h.c) : '' }))
-    : [{ t: '', s: '', c: '' }];
+    ? holdings.map(h => ({ t: h.t ?? '', s: h.s ?? 0, c: h.c ?? 0 }))
+    : [{ t: '', s: 0, c: 0 }];
 
   const [rows,   setRows]   = useState(initial);
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState('');
-
-  const update = (i, field, val) =>
-    setRows(r => r.map((row, idx) => idx === i ? { ...row, [field]: val } : row));
 
   const handleSave = async () => {
     const valid = rows.filter(r => r.t.trim());
@@ -25,8 +22,8 @@ export default function PortfolioModal({ holdings, onSave, onClose }) {
 
     const parsed = valid.map(r => ({
       t: r.t.trim().toUpperCase(),
-      s: parseFloat(r.s) || 0,
-      c: parseFloat(r.c) || 0,
+      s: r.s,
+      c: r.c,
     }));
     console.log('[PortfolioModal] saving holdings:', JSON.stringify(parsed));
 
@@ -73,21 +70,21 @@ export default function PortfolioModal({ holdings, onSave, onClose }) {
           <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 28px', gap: 8, marginBottom: 8 }}>
             <input
               value={row.t}
-              onChange={e => update(i, 't', e.target.value)}
+              onChange={e => setRows(prev => prev.map((x, idx) => idx === i ? { ...x, t: e.target.value } : x))}
               placeholder="NVDA"
               style={iStyle}
             />
             <input
-              value={row.s}
-              onChange={e => update(i, 's', e.target.value)}
+              value={String(row.s ?? '')}
+              onChange={e => setRows(prev => prev.map((x, idx) => idx === i ? { ...x, s: parseFloat(e.target.value) || 0 } : x))}
               placeholder="100"
               type="number"
               min="0"
               style={iStyle}
             />
             <input
-              value={row.c}
-              onChange={e => update(i, 'c', e.target.value)}
+              value={String(row.c ?? '')}
+              onChange={e => setRows(prev => prev.map((x, idx) => idx === i ? { ...x, c: parseFloat(e.target.value) || 0 } : x))}
               placeholder="50.00"
               type="number"
               min="0"
@@ -102,7 +99,7 @@ export default function PortfolioModal({ holdings, onSave, onClose }) {
         ))}
 
         <button
-          onClick={() => setRows(r => [...r, { t: '', s: '', c: '' }])}
+          onClick={() => setRows(r => [...r, { t: '', s: 0, c: 0 }])}
           style={{
             background: 'none', border: '1px dashed var(--border-strong)', borderRadius: 4,
             color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer',
