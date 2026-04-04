@@ -255,7 +255,7 @@ export default function LandingPage() {
           Start researching your portfolio today
         </h2>
         <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "2rem" }}>
-          Free forever. No credit card. Your data stays on your device.
+          Free to get started. No credit card required. Your data stays on your device.
         </p>
         <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
           <a href="/sign-up" style={{

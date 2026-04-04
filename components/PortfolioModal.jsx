@@ -2,8 +2,8 @@
 import { useState } from 'react';
 
 const iStyle = {
-  background: '#0d1117', border: '1px solid #30363d', borderRadius: 4,
-  color: '#e6edf3', padding: '6px 10px', fontSize: 12, width: '100%',
+  background: 'var(--bg-input)', border: '1px solid var(--border-strong)', borderRadius: 4,
+  color: 'var(--text-primary)', padding: '6px 10px', fontSize: 12, width: '100%',
   outline: 'none', boxSizing: 'border-box',
 };
 
@@ -50,21 +50,21 @@ export default function PortfolioModal({ holdings, onSave, onClose }) {
       onClick={e => e.target === e.currentTarget && onClose()}
     >
       <div style={{
-        background: '#161b22', border: '1px solid #30363d', borderRadius: 8,
+        background: 'var(--bg-card)', border: '1px solid var(--border-strong)', borderRadius: 8,
         width: '100%', maxWidth: 500, maxHeight: '85vh', overflowY: 'auto',
         padding: 24,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#e6edf3' }}>My Portfolio</div>
-            <div style={{ fontSize: 12, color: '#8b949e', marginTop: 3 }}>Add your holdings to track your portfolio</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>My Portfolio</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>Add your holdings to track your portfolio</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8b949e', fontSize: 20, cursor: 'pointer', lineHeight: 1, marginLeft: 12, flexShrink: 0 }}>✕</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: 20, cursor: 'pointer', lineHeight: 1, marginLeft: 12, flexShrink: 0 }}>✕</button>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 28px', gap: 8, marginBottom: 6 }}>
           {['Ticker', 'Shares', 'Avg Cost ($)', ''].map(h => (
-            <div key={h} style={{ fontSize: 10, color: '#8b949e', textTransform: 'uppercase', letterSpacing: 1 }}>{h}</div>
+            <div key={h} style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 1 }}>{h}</div>
           ))}
         </div>
 
@@ -95,7 +95,7 @@ export default function PortfolioModal({ holdings, onSave, onClose }) {
             />
             <button
               onClick={() => setRows(r => r.filter((_, idx) => idx !== i))}
-              style={{ background: 'none', border: 'none', color: '#6b7280', fontSize: 15, cursor: 'pointer', padding: 0, alignSelf: 'center' }}
+              style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: 15, cursor: 'pointer', padding: 0, alignSelf: 'center' }}
             >✕</button>
           </div>
         ))}
@@ -103,23 +103,23 @@ export default function PortfolioModal({ holdings, onSave, onClose }) {
         <button
           onClick={() => setRows(r => [...r, { t: '', s: '', c: '' }])}
           style={{
-            background: 'none', border: '1px dashed #30363d', borderRadius: 4,
-            color: '#8b949e', fontSize: 12, cursor: 'pointer',
+            background: 'none', border: '1px dashed var(--border-strong)', borderRadius: 4,
+            color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer',
             padding: '6px 12px', width: '100%', marginTop: 4, marginBottom: 18,
           }}
         >+ Add ticker</button>
 
-        {error && <div style={{ color: '#f85149', fontSize: 12, marginBottom: 12 }}>{error}</div>}
+        {error && <div style={{ color: 'var(--negative)', fontSize: 12, marginBottom: 12 }}>{error}</div>}
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button
             onClick={onClose}
-            style={{ background: 'none', border: '1px solid #30363d', borderRadius: 4, color: '#8b949e', fontSize: 12, cursor: 'pointer', padding: '7px 14px' }}
+            style={{ background: 'none', border: '1px solid var(--border-strong)', borderRadius: 4, color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', padding: '7px 14px' }}
           >Cancel</button>
           <button
             onClick={handleSave}
             disabled={saving}
-            style={{ background: '#1f6feb', border: 'none', borderRadius: 4, color: '#fff', fontSize: 12, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', padding: '7px 16px', opacity: saving ? 0.7 : 1 }}
+            style={{ background: '#2563eb', border: 'none', borderRadius: 4, color: '#fff', fontSize: 12, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', padding: '7px 16px', opacity: saving ? 0.7 : 1 }}
           >{saving ? 'Saving…' : 'Save Portfolio'}</button>
         </div>
       </div>

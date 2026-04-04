@@ -23,16 +23,16 @@ export default function NavBar() {
   const router = useRouter();
   const [open,         setOpen]         = useState(false);
   const [demoHovered,  setDemoHovered]  = useState(false);
-  const [dark,         setDark]         = useState(false);
+  const [dark,         setDark]         = useState(true);
   const [modalOpen,    setModalOpen]    = useState(false);
   const [savedHoldings, setSavedHoldings] = useState([]);
   const { isLoaded, isSignedIn } = useUser();
 
   useEffect(() => {
-    const saved = localStorage.getItem('theme');
-    const isDark = saved !== 'light'; // default dark
+    const saved = localStorage.getItem('stockdash_theme');
+    const isDark = saved !== 'light';
     setDark(isDark);
-    document.documentElement.classList.toggle('dark', isDark);
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
   }, []);
 
   // Sync portfolio from Supabase → localStorage when user signs in
@@ -73,18 +73,9 @@ export default function NavBar() {
   function toggleTheme() {
     const next = !dark;
     setDark(next);
-    document.documentElement.classList.toggle('dark', next);
-    localStorage.setItem('theme', next ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
+    localStorage.setItem('stockdash_theme', next ? 'dark' : 'light');
   }
-
-  const bg             = dark ? '#161b22' : '#ffffff';
-  const border         = dark ? '#21262d' : '#e2e6ed';
-  const activeColor    = dark ? '#e6edf3' : '#1a1d23';
-  const inactiveColor  = dark ? '#8b949e' : '#6b7280';
-  const mobileTextColor  = dark ? '#c9d1d9' : '#374151';
-  const mobileActiveBg   = dark ? '#1e3a5f' : '#eff6ff';
-  const mobileActiveColor = dark ? '#58a6ff' : '#2563eb';
-  const mobileRowBorder  = dark ? '#21262d' : '#f0f2f5';
 
   const authSection = isLoaded && (
     isSignedIn ? (
@@ -96,9 +87,9 @@ export default function NavBar() {
           onMouseEnter={() => setDemoHovered(true)}
           onMouseLeave={() => setDemoHovered(false)}
           style={{
-            background: '#0d1117',
-            border: `1px solid ${demoHovered ? '#ffffff' : '#58a6ff'}`,
-            borderRadius: 6, color: '#e6edf3',
+            background: 'var(--bg-primary)',
+            border: `1px solid ${demoHovered ? 'var(--text-primary)' : 'var(--accent)'}`,
+            borderRadius: 6, color: 'var(--text-primary)',
             fontSize: 12, fontWeight: 600, cursor: 'pointer',
             padding: '4px 12px', whiteSpace: 'nowrap',
             display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -109,8 +100,8 @@ export default function NavBar() {
         </button>
         <SignInButton mode="modal">
           <button style={{
-            background: 'none', border: `1px solid ${border}`,
-            borderRadius: 6, color: inactiveColor,
+            background: 'none', border: '1px solid var(--border-color)',
+            borderRadius: 6, color: 'var(--text-secondary)',
             fontSize: 12, fontWeight: 600, cursor: 'pointer',
             padding: '4px 12px',
           }}>Sign In</button>
@@ -131,22 +122,22 @@ export default function NavBar() {
     <>
       {/* Desktop nav */}
       <nav style={{
-        background: bg,
-        borderBottom: `1px solid ${border}`,
+        background: 'var(--bg-card)',
+        borderBottom: '1px solid var(--border-color)',
         padding: '0 24px',
         display: 'flex',
         alignItems: 'center',
         gap: '4px',
         overflowX: 'auto',
-        boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+        boxShadow: '0 1px 4px var(--shadow-sm)',
       }} className="desktop-nav">
         {links.map(l => (
           <Link key={l.href} href={l.href} style={{
             padding: '10px 16px',
             fontSize: 12,
             fontWeight: 600,
-            color: path === l.href ? activeColor : inactiveColor,
-            borderBottom: path === l.href ? '2px solid #2563eb' : '2px solid transparent',
+            color: path === l.href ? 'var(--text-primary)' : 'var(--text-secondary)',
+            borderBottom: path === l.href ? '2px solid var(--accent)' : '2px solid transparent',
             textDecoration: 'none',
             transition: 'color .2s',
             whiteSpace: 'nowrap',
@@ -155,17 +146,17 @@ export default function NavBar() {
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {isLoaded && isSignedIn && (
             <button onClick={() => setModalOpen(true)} style={{
-              background: 'none', border: '1px solid #58a6ff',
-              borderRadius: 6, color: '#58a6ff',
+              background: 'none', border: '1px solid var(--accent)',
+              borderRadius: 6, color: 'var(--accent)',
               fontSize: 12, fontWeight: 600, cursor: 'pointer',
               padding: '4px 12px', whiteSpace: 'nowrap',
             }}>✏ Edit Portfolio</button>
           )}
           <button onClick={toggleTheme} style={{
             background: 'none',
-            border: `1px solid ${border}`,
+            border: '1px solid var(--border-color)',
             borderRadius: 6,
-            color: inactiveColor,
+            color: 'var(--text-secondary)',
             fontSize: 16,
             cursor: 'pointer',
             padding: '4px 10px',
@@ -180,35 +171,35 @@ export default function NavBar() {
       {/* Mobile nav */}
       <div className="mobile-nav">
         <div style={{
-          background: bg,
-          borderBottom: `1px solid ${border}`,
+          background: 'var(--bg-card)',
+          borderBottom: '1px solid var(--border-color)',
           padding: '0 16px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           height: 44,
-          boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+          boxShadow: '0 1px 4px var(--shadow-sm)',
         }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: inactiveColor }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
             {links.find(l => l.href === path)?.icon}{' '}
             {links.find(l => l.href === path)?.label || 'Menu'}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {isLoaded && isSignedIn && (
               <button onClick={() => setModalOpen(true)} style={{
-                background: 'none', border: '1px solid #58a6ff',
-                borderRadius: 6, color: '#58a6ff',
+                background: 'none', border: '1px solid var(--accent)',
+                borderRadius: 6, color: 'var(--accent)',
                 fontSize: 11, fontWeight: 600, cursor: 'pointer',
                 padding: '3px 10px', whiteSpace: 'nowrap',
               }}>✏ Edit Portfolio</button>
             )}
             {isLoaded && isSignedIn && <UserButton afterSignOutUrl="/" />}
             <button onClick={toggleTheme} style={{
-              background: 'none', border: 'none', color: inactiveColor,
+              background: 'none', border: 'none', color: 'var(--text-secondary)',
               fontSize: 16, cursor: 'pointer', padding: '4px 6px',
             }}>{dark ? '☀️' : '🌙'}</button>
             <button onClick={() => setOpen(!open)} style={{
-              background: 'none', border: 'none', color: mobileTextColor,
+              background: 'none', border: 'none', color: 'var(--text-primary)',
               fontSize: 20, cursor: 'pointer', padding: '4px 8px',
             }}>{open ? '✕' : '☰'}</button>
           </div>
@@ -216,11 +207,11 @@ export default function NavBar() {
 
         {open && (
           <div style={{
-            background: bg,
-            borderBottom: `1px solid ${border}`,
+            background: 'var(--bg-card)',
+            borderBottom: '1px solid var(--border-color)',
             position: 'absolute',
             left: 0, right: 0, zIndex: 100,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+            boxShadow: '0 8px 24px var(--shadow-sm)',
           }}>
             {links.map(l => (
               <Link key={l.href} href={l.href} onClick={() => setOpen(false)} style={{
@@ -230,28 +221,28 @@ export default function NavBar() {
                 padding: '14px 20px',
                 fontSize: 14,
                 fontWeight: 600,
-                color: path === l.href ? mobileActiveColor : mobileTextColor,
-                background: path === l.href ? mobileActiveBg : 'transparent',
-                borderBottom: `1px solid ${mobileRowBorder}`,
+                color: path === l.href ? 'var(--accent)' : 'var(--text-primary)',
+                background: path === l.href ? 'var(--bg-accent-subtle)' : 'transparent',
+                borderBottom: '1px solid var(--border-color)',
                 textDecoration: 'none',
               }}>
                 <span style={{ fontSize: 18 }}>{l.icon}</span>
                 {l.label}
                 {path === l.href && (
-                  <span style={{ marginLeft: 'auto', color: mobileActiveColor }}>◀</span>
+                  <span style={{ marginLeft: 'auto', color: 'var(--accent)' }}>◀</span>
                 )}
               </Link>
             ))}
             {isLoaded && !isSignedIn && (
-              <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8, borderTop: `1px solid ${border}` }}>
+              <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid var(--border-color)' }}>
                 <button
                   onClick={() => { setOpen(false); startDemo(); }}
                   onMouseEnter={() => setDemoHovered(true)}
                   onMouseLeave={() => setDemoHovered(false)}
                   style={{
-                    background: '#0d1117',
-                    border: `1px solid ${demoHovered ? '#ffffff' : '#58a6ff'}`,
-                    borderRadius: 6, color: '#e6edf3',
+                    background: 'var(--bg-primary)',
+                    border: `1px solid ${demoHovered ? 'var(--text-primary)' : 'var(--accent)'}`,
+                    borderRadius: 6, color: 'var(--text-primary)',
                     fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '8px',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     transition: 'border-color 0.15s',
@@ -262,8 +253,8 @@ export default function NavBar() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <SignInButton mode="modal">
                     <button style={{
-                      flex: 1, background: 'none', border: `1px solid ${border}`,
-                      borderRadius: 6, color: mobileTextColor,
+                      flex: 1, background: 'none', border: '1px solid var(--border-color)',
+                      borderRadius: 6, color: 'var(--text-primary)',
                       fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '8px',
                     }}>Sign In</button>
                   </SignInButton>

@@ -3,19 +3,19 @@ import { useState, useEffect } from 'react';
 
 const fmt = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => n == null ? '—' : (n >= 0 ? '+' : '') + fmt(Math.abs(n), d) + '%';
-const clr = (n) => n == null ? '#8b949e' : n >= 0 ? '#16a34a' : '#dc2626';
+const clr = (n) => n == null ? 'var(--text-secondary)' : n >= 0 ? 'var(--positive)' : 'var(--negative)';
 
 function Skeleton() {
   return (
-    <div style={{ height: 60, background: '#21262d', borderRadius: 4 }} />
+    <div style={{ height: 60, background: 'var(--border-color)', borderRadius: 4 }} />
   );
 }
 
 function Card({ title, children, loading }) {
   return (
     <div style={{
-      background: '#161b22',
-      border: '1px solid #21262d',
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-color)',
       borderRadius: 8,
       padding: '14px 16px',
       display: 'flex',
@@ -23,7 +23,7 @@ function Card({ title, children, loading }) {
       gap: 8,
       minHeight: 110,
     }}>
-      <div style={{ fontSize: 11, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
         {title}
       </div>
       {loading ? <Skeleton /> : children}
@@ -95,7 +95,7 @@ export default function DashboardSummary({ holdings, rows, earnings, news }) {
 
       {/* 1 — Portfolio Health */}
       <Card title="Portfolio Health">
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#e6edf3' }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>
           ${fmt(totalMkt)}
         </div>
         <div style={{ fontSize: 14, color: clr(totalPnl) }}>
@@ -103,9 +103,9 @@ export default function DashboardSummary({ holdings, rows, earnings, news }) {
           <span style={{ fontSize: 12 }}>({fmtD(totalPct)})</span>
         </div>
         {best && worst && best.t !== worst.t && (
-          <div style={{ fontSize: 11, color: '#8b949e', display: 'flex', gap: 10 }}>
-            <span>▲ <span style={{ color: '#16a34a' }}>{best.t} {fmtD(best.pnlPct)}</span></span>
-            <span>▼ <span style={{ color: '#dc2626' }}>{worst.t} {fmtD(worst.pnlPct)}</span></span>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', gap: 10 }}>
+            <span>▲ <span style={{ color: 'var(--positive)' }}>{best.t} {fmtD(best.pnlPct)}</span></span>
+            <span>▼ <span style={{ color: 'var(--negative)' }}>{worst.t} {fmtD(worst.pnlPct)}</span></span>
           </div>
         )}
       </Card>
@@ -114,16 +114,16 @@ export default function DashboardSummary({ holdings, rows, earnings, news }) {
       <Card title="Next Earnings">
         {nextEarning ? (
           <>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#58a6ff' }}>{nextEarning.symbol}</div>
-            <div style={{ fontSize: 13, color: '#e6edf3' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>{nextEarning.symbol}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>
               {new Date(nextEarning.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             </div>
             {nextEarning.epsEstimate != null && (
-              <div style={{ fontSize: 12, color: '#8b949e' }}>Est. EPS: ${fmt(nextEarning.epsEstimate)}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Est. EPS: ${fmt(nextEarning.epsEstimate)}</div>
             )}
           </>
         ) : (
-          <div style={{ fontSize: 13, color: '#8b949e' }}>No upcoming earnings</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No upcoming earnings</div>
         )}
       </Card>
 
@@ -138,8 +138,8 @@ export default function DashboardSummary({ holdings, rows, earnings, news }) {
                 : null;
               return (
                 <div key={a.ticker} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span style={{ color: '#58a6ff', minWidth: 48 }}>{a.ticker}</span>
-                  <span style={{ color: '#e6edf3' }}>${fmt(a.lastQuarterTarget)}</span>
+                  <span style={{ color: 'var(--accent)', minWidth: 48 }}>{a.ticker}</span>
+                  <span style={{ color: 'var(--text-primary)' }}>${fmt(a.lastQuarterTarget)}</span>
                   {upside != null && (
                     <span style={{ color: clr(upside) }}>{fmtD(upside)}</span>
                   )}
@@ -148,7 +148,7 @@ export default function DashboardSummary({ holdings, rows, earnings, news }) {
             })}
           </div>
         ) : (
-          <div style={{ fontSize: 13, color: '#8b949e' }}>No analyst data</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No analyst data</div>
         )}
       </Card>
 
@@ -157,7 +157,7 @@ export default function DashboardSummary({ holdings, rows, earnings, news }) {
         {recentInsider ? (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: '#58a6ff', fontWeight: 600, fontSize: 15 }}>{recentInsider.ticker}</span>
+              <span style={{ color: 'var(--accent)', fontWeight: 600, fontSize: 15 }}>{recentInsider.ticker}</span>
               {(() => {
                 const CODE_LABEL = { P: 'Purchase', S: 'Sale', M: 'Open Market', A: 'Award', D: 'Disposition' };
                 const isBuy = ['P', 'M', 'A'].includes(recentInsider.transactionCode);
@@ -165,24 +165,24 @@ export default function DashboardSummary({ holdings, rows, earnings, news }) {
                 return (
                   <span style={{
                     fontSize: 11, padding: '2px 7px', borderRadius: 4, fontWeight: 600,
-                    background: isBuy ? '#14532d' : '#450a0a',
-                    color:      isBuy ? '#4ade80' : '#f87171',
+                    background: isBuy ? 'var(--bg-buy)' : 'var(--bg-sell)',
+                    color:      isBuy ? 'var(--text-buy)' : 'var(--text-sell)',
                   }}>
                     {label}
                   </span>
                 );
               })()}
             </div>
-            <div style={{ fontSize: 12, color: '#8b949e', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {recentInsider.name}
             </div>
-            <div style={{ fontSize: 12, color: '#8b949e' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
               {recentInsider.change != null && `${Math.abs(recentInsider.change).toLocaleString()} shares`}
               {recentInsider.transactionDate && ` · ${new Date(recentInsider.transactionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
             </div>
           </>
         ) : (
-          <div style={{ fontSize: 13, color: '#8b949e' }}>No recent insider transactions</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No recent insider transactions</div>
         )}
       </Card>
 
@@ -192,22 +192,22 @@ export default function DashboardSummary({ holdings, rows, earnings, news }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {[{ label: 'SPY', d: spy }, { label: 'QQQ', d: qqq }].map(({ label, d }) => d && (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ color: '#8b949e', minWidth: 36 }}>{label}</span>
-                <span style={{ color: '#e6edf3' }}>${fmt(d.price)}</span>
+                <span style={{ color: 'var(--text-secondary)', minWidth: 36 }}>{label}</span>
+                <span style={{ color: 'var(--text-primary)' }}>${fmt(d.price)}</span>
                 <span style={{ color: clr(d.changesPercentage) }}>{fmtD(d.changesPercentage)}</span>
               </div>
             ))}
             {fg && (
-              <div style={{ fontSize: 12, color: '#8b949e', paddingTop: 2, borderTop: '1px solid #21262d' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', paddingTop: 2, borderTop: '1px solid var(--border-color)' }}>
                 Fear & Greed:&nbsp;
-                <span style={{ color: fg.score >= 50 ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
+                <span style={{ color: fg.score >= 50 ? 'var(--positive)' : 'var(--negative)', fontWeight: 600 }}>
                   {Math.round(fg.score)} — {fg.rating}
                 </span>
               </div>
             )}
           </div>
         ) : (
-          <div style={{ fontSize: 13, color: '#8b949e' }}>No market data</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No market data</div>
         )}
       </Card>
 
@@ -215,18 +215,18 @@ export default function DashboardSummary({ holdings, rows, earnings, news }) {
       <Card title="Top News">
         {topNews ? (
           <a href={topNews.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <div style={{ fontSize: 11, color: '#58a6ff' }}>
+            <div style={{ fontSize: 11, color: 'var(--accent)' }}>
               {topNews.ticker}&nbsp;·&nbsp;{topNews.source}
             </div>
-            <div style={{ fontSize: 13, color: '#e6edf3', lineHeight: 1.45 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.45 }}>
               {topNews.headline}
             </div>
-            <div style={{ fontSize: 11, color: '#8b949e' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
               {new Date(topNews.time * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </div>
           </a>
         ) : (
-          <div style={{ fontSize: 13, color: '#8b949e' }}>No news available</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No news available</div>
         )}
       </Card>
 

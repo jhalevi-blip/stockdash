@@ -3,7 +3,7 @@ import { useState, useCallback } from 'react';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => n == null ? '—' : (n >= 0 ? '+' : '') + fmt(Math.abs(n), d) + '%';
-const clr  = (n) => n == null ? '#8b949e' : n >= 0 ? '#16a34a' : '#dc2626';
+const clr  = (n) => n == null ? 'var(--text-secondary)' : n >= 0 ? 'var(--positive)' : 'var(--negative)';
 const fmtM = (n) => {
   if (n == null) return '—';
   if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(2) + 'T';
@@ -21,14 +21,14 @@ const fmtB = (n) => {
 };
 
 function Skeleton({ height = 48 }) {
-  return <div style={{ height, background: '#21262d', borderRadius: 4 }} />;
+  return <div style={{ height, background: 'var(--border-color)', borderRadius: 4 }} />;
 }
 
 function Card({ title, loading, children, span }) {
   return (
     <div style={{
-      background: '#161b22',
-      border: '1px solid #21262d',
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-color)',
       borderRadius: 8,
       padding: '14px 16px',
       display: 'flex',
@@ -36,7 +36,7 @@ function Card({ title, loading, children, span }) {
       gap: 8,
       gridColumn: span ? `span ${span}` : undefined,
     }}>
-      <div style={{ fontSize: 11, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
         {title}
       </div>
       {loading ? <Skeleton /> : children}
@@ -47,8 +47,8 @@ function Card({ title, loading, children, span }) {
 function KV({ label, value, valueColor }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-      <span style={{ color: '#8b949e' }}>{label}</span>
-      <span style={{ color: valueColor ?? '#e6edf3' }}>{value}</span>
+      <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+      <span style={{ color: valueColor ?? 'var(--text-primary)' }}>{value}</span>
     </div>
   );
 }
@@ -100,17 +100,17 @@ export default function StockIntelSummary({ holdings, rows }) {
     <div style={{ marginBottom: 28 }}>
       {/* Selector */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: '#8b949e', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           Stock Intel
         </div>
         <select
           value={ticker}
           onChange={e => selectStock(e.target.value)}
           style={{
-            background: '#161b22',
-            border: '1px solid #30363d',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-strong)',
             borderRadius: 6,
-            color: '#e6edf3',
+            color: 'var(--text-primary)',
             padding: '5px 10px',
             fontSize: 13,
             cursor: 'pointer',
@@ -127,7 +127,7 @@ export default function StockIntelSummary({ holdings, rows }) {
           }
         </select>
         {ticker && (
-          <span style={{ fontSize: 12, color: '#8b949e' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
             {row?.price != null ? `$${fmt(row.price)}` : ''}
             {row?.chgPct != null && (
               <span style={{ color: clr(row.chgPct), marginLeft: 6 }}>{fmtD(row.chgPct)}</span>
@@ -137,7 +137,7 @@ export default function StockIntelSummary({ holdings, rows }) {
       </div>
 
       {!ticker && (
-        <div style={{ fontSize: 13, color: '#8b949e', padding: '12px 0' }}>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)', padding: '12px 0' }}>
           Select a stock above to see a full intelligence brief.
         </div>
       )}
@@ -162,7 +162,7 @@ export default function StockIntelSummary({ holdings, rows }) {
                 />
               </>
             ) : (
-              <div style={{ fontSize: 13, color: '#8b949e' }}>No position data</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No position data</div>
             )}
           </Card>
 
@@ -171,7 +171,7 @@ export default function StockIntelSummary({ holdings, rows }) {
             {analystD ? (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <span style={{ fontSize: 20, fontWeight: 700, color: '#e6edf3' }}>
+                  <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>
                     ${fmt(analystD.lastQuarterTarget)}
                   </span>
                   {upside != null && (
@@ -181,14 +181,14 @@ export default function StockIntelSummary({ holdings, rows }) {
                   )}
                 </div>
                 {analystD.lastQuarterCount && (
-                  <div style={{ fontSize: 12, color: '#8b949e' }}>{analystD.lastQuarterCount} analysts · {analystD.source}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{analystD.lastQuarterCount} analysts · {analystD.source}</div>
                 )}
                 {analystD.allTimeTarget && analystD.allTimeTarget !== analystD.lastQuarterTarget && (
                   <KV label="All-time avg" value={`$${fmt(analystD.allTimeTarget)}`} />
                 )}
               </>
             ) : (
-              <div style={{ fontSize: 13, color: '#8b949e' }}>No analyst data</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No analyst data</div>
             )}
           </Card>
 
@@ -204,7 +204,7 @@ export default function StockIntelSummary({ holdings, rows }) {
                 <KV label="Market Cap"   value={fmtM(valD.marketCap)} />
               </>
             ) : (
-              <div style={{ fontSize: 13, color: '#8b949e' }}>No valuation data</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No valuation data</div>
             )}
           </Card>
 
@@ -216,25 +216,25 @@ export default function StockIntelSummary({ holdings, rows }) {
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, gap: 8 }}>
                     <span style={{
                       padding: '1px 5px', borderRadius: 3, fontWeight: 600, fontSize: 10, flexShrink: 0,
-                      background: ins.transactionCode === 'P' ? '#14532d' : '#450a0a',
-                      color:      ins.transactionCode === 'P' ? '#4ade80' : '#f87171',
+                      background: ins.transactionCode === 'P' ? 'var(--bg-buy)' : 'var(--bg-sell)',
+                      color:      ins.transactionCode === 'P' ? 'var(--text-buy)' : 'var(--text-sell)',
                     }}>
                       {ins.transactionCode === 'P' ? 'BUY' : ins.transactionCode === 'S' ? 'SELL' : ins.transactionCode}
                     </span>
-                    <span style={{ color: '#8b949e', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {ins.name?.split(' ').slice(-1)[0] ?? ins.name}
                     </span>
-                    <span style={{ color: '#8b949e', flexShrink: 0 }}>
+                    <span style={{ color: 'var(--text-secondary)', flexShrink: 0 }}>
                       {ins.change != null ? Math.abs(ins.change).toLocaleString() : ''}
                     </span>
-                    <span style={{ color: '#6e7681', flexShrink: 0 }}>
+                    <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
                       {ins.transactionDate ? ins.transactionDate.slice(5) : ''}
                     </span>
                   </div>
                 ))}
               </div>
             ) : (
-              <div style={{ fontSize: 13, color: '#8b949e' }}>No recent insider activity</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No recent insider activity</div>
             )}
           </Card>
 
@@ -246,15 +246,15 @@ export default function StockIntelSummary({ holdings, rows }) {
                   const beat = e.actual != null && e.estimate != null ? e.actual >= e.estimate : null;
                   return (
                     <div key={e.period} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                      <span style={{ color: '#8b949e' }}>{e.period?.slice(0, 7)}</span>
-                      <span style={{ color: '#e6edf3' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>{e.period?.slice(0, 7)}</span>
+                      <span style={{ color: 'var(--text-primary)' }}>
                         {e.actual != null ? `$${fmt(e.actual)}` : '—'}
                       </span>
                       {e.estimate != null && (
-                        <span style={{ color: '#6e7681' }}>est ${fmt(e.estimate)}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>est ${fmt(e.estimate)}</span>
                       )}
                       {beat != null && (
-                        <span style={{ color: beat ? '#16a34a' : '#dc2626', fontSize: 10, fontWeight: 600 }}>
+                        <span style={{ color: beat ? 'var(--positive)' : 'var(--negative)', fontSize: 10, fontWeight: 600 }}>
                           {beat ? '▲ BEAT' : '▼ MISS'}
                         </span>
                       )}
@@ -263,7 +263,7 @@ export default function StockIntelSummary({ holdings, rows }) {
                 })}
               </div>
             ) : (
-              <div style={{ fontSize: 13, color: '#8b949e' }}>No earnings history</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No earnings history</div>
             )}
           </Card>
 
@@ -271,19 +271,19 @@ export default function StockIntelSummary({ holdings, rows }) {
           <Card title="Financials (Annual)" loading={loading}>
             {finD?.revenue?.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <div style={{ fontSize: 11, color: '#6e7681', marginBottom: 2 }}>Revenue</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Revenue</div>
                 {finD.revenue.slice(-4).map(r => (
                   <div key={r.year} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                    <span style={{ color: '#8b949e' }}>{r.year}</span>
-                    <span style={{ color: '#e6edf3' }}>{fmtB(r.value)}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{r.year}</span>
+                    <span style={{ color: 'var(--text-primary)' }}>{fmtB(r.value)}</span>
                   </div>
                 ))}
                 {finD.netIncome?.length > 0 && (
                   <>
-                    <div style={{ fontSize: 11, color: '#6e7681', marginTop: 4 }}>Net Income</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Net Income</div>
                     {finD.netIncome.slice(-2).map(r => (
                       <div key={r.year} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                        <span style={{ color: '#8b949e' }}>{r.year}</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>{r.year}</span>
                         <span style={{ color: clr(r.value) }}>{fmtB(r.value)}</span>
                       </div>
                     ))}
@@ -291,7 +291,7 @@ export default function StockIntelSummary({ holdings, rows }) {
                 )}
               </div>
             ) : (
-              <div style={{ fontSize: 13, color: '#8b949e' }}>No financials data</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No financials data</div>
             )}
           </Card>
 
@@ -303,17 +303,17 @@ export default function StockIntelSummary({ holdings, rows }) {
                   <thead>
                     <tr>
                       {['Ticker', 'Mkt Cap', 'P/E', 'P/B', 'Rev Gr %', 'Net Mg %'].map(h => (
-                        <th key={h} style={{ color: '#8b949e', fontWeight: 500, textAlign: h === 'Ticker' ? 'left' : 'right', padding: '3px 6px', whiteSpace: 'nowrap' }}>{h}</th>
+                        <th key={h} style={{ color: 'var(--text-secondary)', fontWeight: 500, textAlign: h === 'Ticker' ? 'left' : 'right', padding: '3px 6px', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {peersList.map(p => (
-                      <tr key={p.ticker} style={{ background: p.isBase ? '#1c2128' : 'transparent' }}>
-                        <td style={{ padding: '4px 6px', color: p.isBase ? '#58a6ff' : '#e6edf3', fontWeight: p.isBase ? 700 : 400 }}>{p.ticker}</td>
-                        <td style={{ padding: '4px 6px', color: '#e6edf3', textAlign: 'right' }}>{fmtM(p.marketCap)}</td>
-                        <td style={{ padding: '4px 6px', color: '#e6edf3', textAlign: 'right' }}>{p.peRatio != null ? fmt(p.peRatio, 1) : '—'}</td>
-                        <td style={{ padding: '4px 6px', color: '#e6edf3', textAlign: 'right' }}>{p.pbRatio != null ? fmt(p.pbRatio, 1) : '—'}</td>
+                      <tr key={p.ticker} style={{ background: p.isBase ? 'var(--bg-secondary)' : 'transparent' }}>
+                        <td style={{ padding: '4px 6px', color: p.isBase ? 'var(--accent)' : 'var(--text-primary)', fontWeight: p.isBase ? 700 : 400 }}>{p.ticker}</td>
+                        <td style={{ padding: '4px 6px', color: 'var(--text-primary)', textAlign: 'right' }}>{fmtM(p.marketCap)}</td>
+                        <td style={{ padding: '4px 6px', color: 'var(--text-primary)', textAlign: 'right' }}>{p.peRatio != null ? fmt(p.peRatio, 1) : '—'}</td>
+                        <td style={{ padding: '4px 6px', color: 'var(--text-primary)', textAlign: 'right' }}>{p.pbRatio != null ? fmt(p.pbRatio, 1) : '—'}</td>
                         <td style={{ padding: '4px 6px', textAlign: 'right', color: clr(p.revenueGrowth) }}>{p.revenueGrowth != null ? fmtD(p.revenueGrowth) : '—'}</td>
                         <td style={{ padding: '4px 6px', textAlign: 'right', color: clr(p.netMargin) }}>{p.netMargin != null ? fmtD(p.netMargin) : '—'}</td>
                       </tr>
@@ -322,7 +322,7 @@ export default function StockIntelSummary({ holdings, rows }) {
                 </table>
               </div>
             ) : (
-              <div style={{ fontSize: 13, color: '#8b949e' }}>No peer data</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No peer data</div>
             )}
           </Card>
 
@@ -332,15 +332,15 @@ export default function StockIntelSummary({ holdings, rows }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {newsList.map((n, i) => (
                   <a key={i} href={n.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
-                    <div style={{ fontSize: 11, color: '#6e7681' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                       {n.source} · {new Date(n.time * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </div>
-                    <div style={{ fontSize: 12, color: '#e6edf3', lineHeight: 1.4 }}>{n.headline}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.4 }}>{n.headline}</div>
                   </a>
                 ))}
               </div>
             ) : (
-              <div style={{ fontSize: 13, color: '#8b949e' }}>No news available</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No news available</div>
             )}
           </Card>
 
@@ -353,16 +353,16 @@ export default function StockIntelSummary({ holdings, rows }) {
                     style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
                     <span style={{
                       fontSize: 11, padding: '1px 6px', borderRadius: 3,
-                      background: '#21262d', color: '#58a6ff', fontWeight: 600, flexShrink: 0,
+                      background: 'var(--bg-secondary)', color: 'var(--accent)', fontWeight: 600, flexShrink: 0,
                     }}>
                       {f.type}
                     </span>
-                    <span style={{ fontSize: 12, color: '#8b949e', flexShrink: 0 }}>{f.filingDate}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0 }}>{f.filingDate}</span>
                   </a>
                 ))}
               </div>
             ) : (
-              <div style={{ fontSize: 13, color: '#8b949e' }}>No filings found</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No filings found</div>
             )}
           </Card>
 
