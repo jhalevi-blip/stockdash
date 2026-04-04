@@ -1,204 +1,415 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, Legend, ReferenceLine, ComposedChart, Bar,
+  LineChart, Line, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid,
 } from 'recharts';
+import { useChartTheme } from '@/lib/useChartTheme';
+import DemoPrompt from '@/components/DemoPrompt';
 
-const f  = (n, d=0) => n?.toLocaleString('en-US', { minimumFractionDigits:d, maximumFractionDigits:d }) ?? '—';
-const f2 = (n)      => n != null ? n.toFixed(2) : '—';
+const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
+const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
+const clr  = (n) => n == null ? 'var(--text-secondary)' : n >= 0 ? 'var(--positive)' : 'var(--negative)';
 
-const CardBase = ({ border, children }) => (
-  <div style={{
-    background: '#ffffff', borderRadius: 8, padding: '16px 20px',
-    flex: '1 1 160px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
-    border: `1px solid ${border}`,
-  }}>
-    {children}
-  </div>
-);
+const DEMO_SHARES   = [50, 30, 20, 15, 10];
+const DEMO_FALLBACK = ['AAPL', 'NVDA', 'TSLA', 'AMZN', 'MSFT'];
 
-const CardLabel = ({ children }) => (
-  <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-    {children}
-  </div>
-);
+function getLocalHoldings() {
+  try {
+    const stored = localStorage.getItem('stockdash_holdings');
+    return stored ? JSON.parse(stored) : [];
+  } catch { return []; }
+}
+
+/** Find index in candles where close is closest to avgCost */
+function estimatePurchaseIdx(candles, avgCost) {
+  if (!candles?.length || avgCost == null || avgCost <= 0) return 0;
+  let best = 0;
+  let bestDiff = Infinity;
+  for (let i = 0; i < candles.length; i++) {
+    const diff = Math.abs(candles[i].close - avgCost);
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  }
+  return best;
+}
+
+function StatCard({ label, value, sub, valueColor }) {
+  return (
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-color)',
+      borderRadius: 10,
+      padding: '20px 24px',
+      flex: '1 1 0',
+      minWidth: 0,
+    }}>
+      <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 26, fontWeight: 700, color: valueColor ?? 'var(--text-primary)', lineHeight: 1.1 }}>
+        {value}
+      </div>
+      {sub != null && (
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>{sub}</div>
+      )}
+    </div>
+  );
+}
+
+function MetricCard({ label, value, sub, valueColor }) {
+  return (
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-color)',
+      borderRadius: 10,
+      padding: '16px 20px',
+      flex: '1 1 180px',
+      minWidth: 0,
+    }}>
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 22, fontWeight: 700, color: valueColor ?? 'var(--text-primary)', lineHeight: 1.2 }}>
+        {value}
+      </div>
+      {sub != null && (
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>{sub}</div>
+      )}
+    </div>
+  );
+}
+
+function PortTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: 'var(--bg-card)', border: '1px solid var(--border-strong)',
+      borderRadius: 8, padding: '10px 14px', fontSize: 12,
+    }}>
+      <div style={{ color: 'var(--text-secondary)', marginBottom: 6 }}>{label}</div>
+      {payload.map((p, i) => (
+        <div key={i} style={{ color: p.color, fontWeight: 600, lineHeight: 1.7 }}>
+          {p.name}: ${fmt(p.value)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EurTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: 'var(--bg-card)', border: '1px solid var(--border-strong)',
+      borderRadius: 8, padding: '10px 14px', fontSize: 12,
+    }}>
+      <div style={{ color: 'var(--text-secondary)', marginBottom: 6 }}>{label}</div>
+      <div style={{ color: payload[0].color, fontWeight: 600 }}>
+        EUR/USD: {payload[0].value?.toFixed(4)}
+      </div>
+    </div>
+  );
+}
 
 export default function PerformancePage() {
-  const [data,    setData]    = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
+  const theme = useChartTheme();
 
+  const [holdings,    setHoldings]    = useState(null); // null = loading
+  const [chartData,   setChartData]   = useState([]);
+  const [eurData,     setEurData]     = useState([]);
+  const [stats,       setStats]       = useState(null);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [error,       setError]       = useState(null);
+
+  // Load holdings (demo or real)
   useEffect(() => {
-    fetch('/api/performance')
-      .then(r => r.json())
-      .then(d => { if (d.error) throw new Error(d.error); setData(d); })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
+    async function loadHoldings() {
+      const isDemo = localStorage.getItem('stockdash_demo') === 'true';
+      if (isDemo) {
+        try {
+          const res  = await fetch('/api/most-traded');
+          const data = await res.json();
+          if (Array.isArray(data) && data.length) {
+            setHoldings(data.slice(0, 5).map((e, i) => ({
+              t: e.symbol, s: DEMO_SHARES[i], c: e.price ?? 0,
+            })));
+            return;
+          }
+        } catch {}
+        try {
+          const res    = await fetch(`/api/prices?tickers=${DEMO_FALLBACK.join(',')}`);
+          const prices = await res.json();
+          const pm = {};
+          if (Array.isArray(prices)) prices.forEach(p => { pm[p.ticker] = p.price ?? 0; });
+          setHoldings(DEMO_FALLBACK.map((t, i) => ({ t, s: DEMO_SHARES[i], c: pm[t] ?? 0 })));
+          return;
+        } catch {}
+        setHoldings(DEMO_FALLBACK.map((t, i) => ({ t, s: DEMO_SHARES[i], c: 0 })));
+        return;
+      }
+
+      // Signed-in: try /api/portfolio, fallback to localStorage
+      try {
+        const res  = await fetch('/api/portfolio');
+        const data = await res.json();
+        if (data.signedIn && data.holdings?.length) {
+          setHoldings(data.holdings);
+          return;
+        }
+      } catch {}
+      setHoldings(getLocalHoldings());
+    }
+    loadHoldings();
   }, []);
 
-  if (loading) return (
-    <main style={{ padding: '20px 24px' }}>
-      <div className="chart-placeholder">Reconstructing portfolio history… this may take 15–20 seconds on first load.</div>
-    </main>
-  );
+  // Once holdings are known, fetch all chart + valuation data
+  useEffect(() => {
+    if (holdings === null) return;
+    if (!holdings.length) return;
 
-  if (error) return (
-    <main style={{ padding: '20px 24px' }}>
-      <div style={{ padding: 16, background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.2)', borderRadius: 8, color: '#dc2626', fontSize: 12 }}>
-        Error: {error}
-      </div>
-    </main>
-  );
+    let cancelled = false;
+    setDataLoading(true);
+    setError(null);
 
-  const isAhead        = (data?.currentPortfolio ?? 0) > (data?.currentSpy ?? 0);
-  const diff           = Math.abs((data?.currentPortfolio ?? 0) - (data?.currentSpy ?? 0));
-  const eurStrengthened = (data?.eurUsdChangePct ?? 0) > 0;
-  const currencyHelped  = (data?.totalCurrencyImpact ?? 0) < 0; // stronger EUR = lower EUR portfolio value
+    async function fetchAll() {
+      try {
+        const tickers = holdings.map(h => h.t);
+
+        const [spyRes, eurRes, valRes, ...tickerChartRes] = await Promise.all([
+          fetch('/api/chart?symbol=SPY').then(r => r.json()),
+          fetch('/api/chart?symbol=EURUSD%3DX').then(r => r.json()),
+          fetch(`/api/valuation?${tickers.map(t => `tickers=${t}`).join('&')}`).then(r => r.json()),
+          ...tickers.map(t => fetch(`/api/chart?symbol=${t}`).then(r => r.json())),
+        ]);
+
+        if (cancelled) return;
+
+        const spyCandles = spyRes.candles ?? [];
+        const eurCandles = eurRes.candles ?? [];
+        const valArr     = Array.isArray(valRes) ? valRes : [];
+
+        const tickerCandles = {};
+        tickers.forEach((t, i) => { tickerCandles[t] = tickerChartRes[i]?.candles ?? []; });
+
+        const spyLen = spyCandles.length;
+        if (!spyLen) throw new Error('No SPY data');
+
+        // Map each holding's estimated purchase index onto SPY's index space
+        const spyStartIndices = holdings.map(h => {
+          const pIdx = estimatePurchaseIdx(tickerCandles[h.t], h.c);
+          const tLen = tickerCandles[h.t].length;
+          if (!tLen) return 0;
+          return Math.round((pIdx / tLen) * spyLen);
+        });
+        const portfolioStartIdx = Math.min(...spyStartIndices, spyLen - 1);
+
+        // SPY mirror: total cost basis → SPY shares at start
+        const totalCostBasis  = holdings.reduce((sum, h) => sum + h.s * h.c, 0);
+        const spyPriceAtStart = spyCandles[portfolioStartIdx]?.close ?? spyCandles[0].close;
+        const spyShares       = spyPriceAtStart > 0 ? totalCostBasis / spyPriceAtStart : 0;
+
+        // Build portfolio vs SPY chart from portfolioStartIdx onward
+        const chartPoints = [];
+        for (let i = portfolioStartIdx; i < spyLen; i++) {
+          const spyVal = spyShares * spyCandles[i].close;
+          let portVal  = 0;
+          holdings.forEach(h => {
+            const tc = tickerCandles[h.t];
+            if (!tc.length) return;
+            const tIdx    = Math.round((i / spyLen) * tc.length);
+            const safeIdx = Math.min(tIdx, tc.length - 1);
+            portVal += h.s * (tc[safeIdx]?.close ?? h.c);
+          });
+          chartPoints.push({ date: spyCandles[i].date, portfolio: portVal, spy: spyVal });
+        }
+
+        // Current portfolio value
+        let portNow = 0;
+        holdings.forEach(h => {
+          const tc = tickerCandles[h.t];
+          portNow += h.s * (tc.length ? (tc[tc.length - 1]?.close ?? h.c) : h.c);
+        });
+
+        // EUR/USD impact
+        const eurStart = eurCandles[portfolioStartIdx]?.close ?? eurCandles[0]?.close ?? null;
+        const eurNow   = eurCandles[eurCandles.length - 1]?.close ?? null;
+        let currencyImpact = null;
+        if (eurStart && eurNow && eurStart > 0 && eurNow > 0) {
+          currencyImpact = portNow * (1 / eurNow - 1 / eurStart);
+        }
+
+        const eurLineData = eurCandles.map(c => ({ date: c.date, rate: c.close }));
+
+        // Portfolio beta: market-cap weighted
+        let totalMktCap  = 0;
+        let weightedBeta = 0;
+        valArr.forEach(v => {
+          if (v.beta != null && v.marketCap != null && v.marketCap > 0) {
+            totalMktCap  += v.marketCap;
+            weightedBeta += v.beta * v.marketCap;
+          }
+        });
+        const portfolioBeta = totalMktCap > 0 ? weightedBeta / totalMktCap : null;
+
+        const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
+        const portStart    = chartPoints[0]?.portfolio ?? totalCostBasis;
+        const spyStart     = chartPoints[0]?.spy ?? totalCostBasis;
+        const portReturn   = portStart > 0 ? ((portNow - portStart) / portStart) * 100 : null;
+        const spyReturn    = spyStart  > 0 ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
+        const vsSpyPct     = portReturn != null && spyReturn != null ? portReturn - spyReturn : null;
+
+        if (!cancelled) {
+          setChartData(chartPoints);
+          setEurData(eurLineData);
+          setStats({ portNow, spyMirrorNow, vsSpyPct, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, currencyImpact, totalCostBasis });
+          setDataLoading(false);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e.message ?? 'Failed to load data');
+          setDataLoading(false);
+        }
+      }
+    }
+
+    fetchAll();
+    return () => { cancelled = true; };
+  }, [holdings]);
+
+  // --- Render ---
+  if (holdings === null) {
+    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>Loading…</div>;
+  }
+
+  if (!holdings.length) {
+    return <DemoPrompt message="No portfolio configured" />;
+  }
+
+  const s          = stats;
+  const xInterval  = Math.max(1, Math.floor((chartData.length - 1) / 5));
+  const eurXInt    = Math.max(1, Math.floor((eurData.length - 1) / 5));
 
   return (
-    <main style={{ padding: '20px 24px' }}>
-      <div className="section-title" style={{ marginBottom: 20 }}>Portfolio Performance vs S&P 500</div>
+    <div style={{ padding: '24px 20px', maxWidth: 1100, margin: '0 auto' }}>
 
-      {/* ── Row 1: Portfolio summary cards ── */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 28 }}>
-        <CardBase border="#16a34a">
-          <CardLabel>Your Portfolio</CardLabel>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#16a34a' }}>€{f(data?.currentPortfolio)}</div>
-          <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 4 }}>Current market value</div>
-        </CardBase>
-
-        <CardBase border="#2563eb">
-          <CardLabel>SPY (Mirror Trades)</CardLabel>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#2563eb' }}>€{f(data?.currentSpy)}</div>
-          <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 4 }}>If all trades mirrored into SPY</div>
-        </CardBase>
-
-        <CardBase border={isAhead ? '#16a34a' : '#dc2626'}>
-          <CardLabel>vs SPY</CardLabel>
-          <div style={{ fontSize: 22, fontWeight: 700, color: isAhead ? '#16a34a' : '#dc2626' }}>
-            {isAhead ? '+' : '-'}€{diff.toLocaleString()}
-          </div>
-          <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
-            {isAhead ? '✅ Ahead of SPY' : '❌ Behind SPY'}
-          </div>
-        </CardBase>
+      {/* Top stat cards */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <StatCard
+          label="Portfolio Value"
+          value={s ? `$${fmt(s.portNow)}` : '…'}
+          sub={s ? `Cost basis: $${fmt(s.totalCostBasis)}` : null}
+          valueColor={s && s.portNow >= s.totalCostBasis ? 'var(--positive)' : s ? 'var(--negative)' : undefined}
+        />
+        <StatCard
+          label="SPY Mirror"
+          value={s ? `$${fmt(s.spyMirrorNow)}` : '…'}
+          sub={s?.spyReturn != null ? `SPY return: ${fmtD(s.spyReturn, 1)}` : null}
+        />
+        <StatCard
+          label="vs SPY"
+          value={s?.vsSpyPct == null ? '—' : (s.vsSpyPct >= 0 ? '+' : '') + fmt(s.vsSpyPct, 1) + '%'}
+          sub={s?.portReturn != null ? `Portfolio: ${fmtD(s.portReturn, 1)}` : null}
+          valueColor={s ? clr(s.vsSpyPct) : undefined}
+        />
       </div>
 
-      {/* ── Portfolio vs SPY chart ── */}
-      <div style={{ marginBottom: 28 }}>
-        <div className="section-title">Portfolio Value vs SPY (Mirror Trades)</div>
-        <div className="chart-panel">
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={data?.chartData || []} margin={{ top: 4, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f2f5" />
-              <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={d => d?.slice(0, 7)} />
-              <YAxis tick={{ fill: '#9ca3af', fontSize: 10 }} tickLine={false} axisLine={false} width={75}
-                tickFormatter={v => '€' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v)} />
-              <Tooltip
-                contentStyle={{ background: '#ffffff', border: '1px solid #e2e6ed', borderRadius: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
-                labelStyle={{ color: '#6b7280', fontSize: 11 }}
-                formatter={(v, n) => ['€' + f(v), n]}
-              />
-              <Legend wrapperStyle={{ fontSize: 11, color: '#6b7280' }} />
-              <Line type="monotone" dataKey="portfolio" name="Your Portfolio" stroke="#16a34a" strokeWidth={2} dot={false} connectNulls />
-              <Line type="monotone" dataKey="spy" name="SPY (Mirror)" stroke="#2563eb" strokeWidth={2} dot={false} connectNulls />
+      {/* Portfolio vs SPY chart */}
+      <div style={{
+        background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+        borderRadius: 10, padding: '20px 24px', marginBottom: 20,
+      }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>
+          Portfolio vs SPY (since estimated purchase)
+        </div>
+        {dataLoading || !chartData.length ? (
+          <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
+            {error ? `Error: ${error}` : 'Loading chart…'}
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid vertical={false} stroke={theme.grid} />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: theme.axis }} tickLine={false} axisLine={false} interval={xInterval} />
+              <YAxis tick={{ fontSize: 11, fill: theme.axis }} tickLine={false} axisLine={false} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} width={52} />
+              <Tooltip content={<PortTooltip />} />
+              <Line type="monotone" dataKey="portfolio" name="Portfolio" stroke="var(--accent)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              <Line type="monotone" dataKey="spy" name="SPY Mirror" stroke="#f59e0b" strokeWidth={2} dot={false} activeDot={{ r: 4 }} strokeDasharray="4 3" />
             </LineChart>
           </ResponsiveContainer>
+        )}
+        <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 12 }}>
+          <span style={{ color: 'var(--accent)', fontWeight: 600 }}>— Portfolio</span>
+          <span style={{ color: '#f59e0b', fontWeight: 600 }}>- - SPY Mirror</span>
         </div>
       </div>
 
-      {/* ── Row 2: Context cards ── */}
-      <div className="section-title" style={{ marginBottom: 12 }}>Risk & Currency Context</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 28 }}>
-
-        <CardBase border="#7c3aed">
-          <CardLabel>Portfolio Beta</CardLabel>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#7c3aed' }}>{f2(data?.portfolioBeta)}x</div>
-          <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
-            {(data?.portfolioBeta ?? 1) > 1.5
-              ? '⚡ High risk vs market'
-              : (data?.portfolioBeta ?? 1) > 1
-              ? '📈 Above market risk'
-              : '🛡 Defensive'}
-          </div>
-          <div style={{ fontSize: 10, color: '#c4b5fd', marginTop: 6, lineHeight: 1.5 }}>
-            For every 1% SPY moves, your portfolio moves ~{f2(data?.portfolioBeta)}%
-          </div>
-        </CardBase>
-
-        <CardBase border="#d97706">
-          <CardLabel>EUR/USD Rate</CardLabel>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#d97706' }}>{f2(data?.currentEurUsd)}</div>
-          <div style={{ fontSize: 11, color: eurStrengthened ? '#dc2626' : '#16a34a', marginTop: 4 }}>
-            {eurStrengthened ? '▲' : '▼'} {Math.abs(data?.eurUsdChangePct ?? 0).toFixed(2)}% since Jul 2025
-            {eurStrengthened ? ' (EUR stronger → hurts USD holdings)' : ' (EUR weaker → helps USD holdings)'}
-          </div>
-          <div style={{ fontSize: 10, color: '#fbbf24', marginTop: 6 }}>
-            Started at {f2(data?.startEurUsd)} · Now {f2(data?.currentEurUsd)}
-          </div>
-        </CardBase>
-
-        <CardBase border={currencyHelped ? '#dc2626' : '#16a34a'}>
-          <CardLabel>Currency Impact</CardLabel>
-          <div style={{ fontSize: 22, fontWeight: 700, color: currencyHelped ? '#dc2626' : '#16a34a' }}>
-            {(data?.totalCurrencyImpact ?? 0) >= 0 ? '+' : ''}€{f(data?.totalCurrencyImpact)}
-          </div>
-          <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
-            {currencyHelped
-              ? '📉 EUR strength reduced your EUR returns'
-              : '📈 EUR weakness boosted your EUR returns'}
-          </div>
-          <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 6 }}>
-            vs holding at Jul 2025 rate ({f2(data?.startEurUsd)})
-          </div>
-        </CardBase>
-
-        <CardBase border="#6b7280">
-          <CardLabel>Beta-Adjusted Performance</CardLabel>
-          <div style={{ fontSize: 22, fontWeight: 700, color: isAhead ? '#16a34a' : '#dc2626' }}>
-            {isAhead ? 'Outperforming' : 'Underperforming'}
-          </div>
-          <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
-            Risk-adjusted: taking {f2(data?.portfolioBeta)}x more risk than SPY
-          </div>
-          <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 6 }}>
-            Fair comparison requires {f2(data?.portfolioBeta)}x SPY return to break even on risk
-          </div>
-        </CardBase>
+      {/* Metric cards */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <MetricCard
+          label="Portfolio Beta"
+          value={s?.portfolioBeta != null ? fmt(s.portfolioBeta, 2) : '—'}
+          sub={
+            s?.portfolioBeta == null ? 'Not available' :
+            s.portfolioBeta < 0.8   ? 'Lower volatility than market' :
+            s.portfolioBeta > 1.2   ? 'Higher volatility than market' :
+            'Close to market volatility'
+          }
+        />
+        <MetricCard
+          label="EUR/USD Rate"
+          value={s?.eurNow != null ? s.eurNow.toFixed(4) : '—'}
+          sub={s?.eurStart != null ? `At purchase: ${s.eurStart.toFixed(4)}` : null}
+        />
+        <MetricCard
+          label="Currency Impact"
+          value={s?.currencyImpact != null ? `$${fmt(Math.abs(s.currencyImpact))}` : '—'}
+          sub={
+            s?.currencyImpact == null ? 'No EUR/USD data' :
+            s.currencyImpact >= 0     ? 'Tailwind (USD weakened)' :
+                                        'Headwind (USD strengthened)'
+          }
+          valueColor={s?.currencyImpact != null ? clr(s.currencyImpact) : undefined}
+        />
+        <MetricCard
+          label={s?.vsSpyPct != null && s.vsSpyPct >= 0 ? 'Outperforming' : 'Underperforming'}
+          value={s?.vsSpyPct == null ? '—' : Math.abs(s.vsSpyPct).toFixed(1) + '%'}
+          sub="vs SPY since purchase"
+          valueColor={s ? clr(s.vsSpyPct) : undefined}
+        />
       </div>
 
-      {/* ── EUR/USD chart ── */}
-      <div style={{ marginBottom: 28 }}>
-        <div className="section-title">EUR/USD Rate Since Jul 2025</div>
-        <div className="chart-panel">
-          <ResponsiveContainer width="100%" height={200}>
-            <ComposedChart data={data?.eurUsdData || []} margin={{ top: 4, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f2f5" />
-              <XAxis dataKey="date" tick={{ fill: '#9ca3af', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={d => d?.slice(0, 7)} />
-              <YAxis tick={{ fill: '#9ca3af', fontSize: 10 }} tickLine={false} axisLine={false} width={60}
-                domain={['auto', 'auto']} tickFormatter={v => v.toFixed(3)} />
-              <Tooltip
-                contentStyle={{ background: '#ffffff', border: '1px solid #e2e6ed', borderRadius: 6 }}
-                labelStyle={{ color: '#6b7280', fontSize: 11 }}
-                formatter={(v) => [v.toFixed(4), 'EUR/USD']}
-              />
-              <ReferenceLine y={data?.startEurUsd} stroke="#9ca3af" strokeDasharray="4 4"
-                label={{ value: `Start ${f2(data?.startEurUsd)}`, fill: '#9ca3af', fontSize: 10 }} />
-              <Line type="monotone" dataKey="rate" name="EUR/USD" stroke="#d97706" strokeWidth={2} dot={false} connectNulls />
-            </ComposedChart>
+      {/* EUR/USD chart */}
+      <div style={{
+        background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+        borderRadius: 10, padding: '20px 24px', marginBottom: 20,
+      }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>
+          EUR/USD (1 Year)
+        </div>
+        {dataLoading || !eurData.length ? (
+          <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
+            {error ? `Error: ${error}` : 'Loading chart…'}
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={eurData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid vertical={false} stroke={theme.grid} />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: theme.axis }} tickLine={false} axisLine={false} interval={eurXInt} />
+              <YAxis tick={{ fontSize: 11, fill: theme.axis }} tickLine={false} axisLine={false} tickFormatter={v => v.toFixed(3)} width={52} domain={['auto', 'auto']} />
+              <Tooltip content={<EurTooltip />} />
+              <Line type="monotone" dataKey="rate" name="EUR/USD" stroke="#a78bfa" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+            </LineChart>
           </ResponsiveContainer>
-          <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 8 }}>
-            A rising EUR/USD means EUR is strengthening — this reduces the EUR value of your USD-denominated holdings.
-            Dashed line = rate when you started investing (Jul 2025).
-          </div>
-        </div>
+        )}
       </div>
 
-      <p className="note">
-        SPY mirror: each buy/sell mirrored into SPY at same USD value. Beta weighted by current position size.
-        Currency impact vs Jul 2025 baseline rate. Yahoo Finance data · Cached 1 hour.
-      </p>
-    </main>
+      {/* Disclaimer */}
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
+        Purchase dates are estimated by matching your average cost basis to historical weekly closing prices.
+        SPY mirror assumes your total cost basis was invested in SPY at the estimated start date.
+        Currency impact reflects the USD/EUR exchange-rate effect on your portfolio value since purchase.
+        Past performance is not indicative of future results. Data provided for informational purposes only.
+      </div>
+    </div>
   );
 }

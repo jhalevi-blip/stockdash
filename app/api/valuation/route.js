@@ -34,6 +34,7 @@ export async function GET(request) {
           netMargin:   m?.netProfitMarginTTM                   ?? null,
           grossMargin: m?.grossMarginTTM                       ?? null,
           marketCap:   m?.marketCapitalization                 ?? null,
+          beta:        m?.beta                                 ?? null,
         };
       } catch {
         return { ticker: h.t, name: h.n };
