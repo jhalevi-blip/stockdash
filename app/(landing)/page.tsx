@@ -23,7 +23,7 @@ export default function LandingPage() {
           Research your portfolio<br />like a <span style={{ color: "#38bdf8" }}>professional</span>
         </h1>
         <p style={{ fontSize: "16px", color: "#94a3b8", lineHeight: 1.7, maxWidth: "560px", margin: "0 auto 2.5rem" }}>
-          StockDash brings institutional-grade research tools to retail investors — earnings history,
+          StockDashes brings institutional-grade research tools to retail investors — earnings history,
           insider transactions, fund holdings, peer comparisons, and macro data. All free.
         </p>
         <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>

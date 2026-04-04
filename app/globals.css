@@ -147,8 +147,7 @@ tr:hover td { background: var(--bg-hover); cursor: pointer; }
 
 /* App header */
 .app-header { background: var(--bg-primary); border-bottom: 1px solid var(--border-color); padding: 14px 24px; }
-.app-logo { font-size: 20px; font-weight: 700; color: var(--text-primary); letter-spacing: 1px; }
-.app-logo span { color: var(--accent); }
+.app-logo { font-size: 20px; font-weight: 700; letter-spacing: 1px; }
 
 /* Nav */
 .mobile-nav { display: none !important; position: relative; }

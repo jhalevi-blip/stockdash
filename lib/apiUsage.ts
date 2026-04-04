@@ -116,13 +116,13 @@ async function sendAlert(api: string, count: number, limit: number): Promise<voi
       // Domain must be verified in Resend dashboard; swap to onboarding@resend.dev for testing
       from: 'alerts@stockdashes.com',
       to:   'jhalevi@gmail.com',
-      subject: `⚠️ StockDash: ${api.toUpperCase()} API at ${pct}% capacity`,
+      subject: `⚠️ StockDashes: ${api.toUpperCase()} API at ${pct}% capacity`,
       html: `
         <p>Hi,</p>
         <p>The <strong>${api.toUpperCase()}</strong> API on <strong>stockdashes.com</strong> has crossed the 80% alert threshold.</p>
         <p><strong>Current usage:</strong> ${unit} (${pct}%)</p>
         <p>Some data pages may become unavailable if usage continues at this rate.</p>
-        <p style="color:#888;font-size:12px">— StockDash automated monitoring · ${new Date().toUTCString()}</p>
+        <p style="color:#888;font-size:12px">— StockDashes automated monitoring · ${new Date().toUTCString()}</p>
       `,
     });
   } catch {

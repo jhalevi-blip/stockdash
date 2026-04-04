@@ -2,7 +2,7 @@ import '../globals.css';
 import { ClerkProvider } from '@clerk/nextjs';
 import { Analytics } from '@vercel/analytics/react';
 
-export const metadata = { title: 'StockDash — Research your portfolio like a professional' };
+export const metadata = { title: 'StockDashes — Research your portfolio like a professional' };
 
 export default function LandingLayout({ children }: { children: React.ReactNode }) {
   return (

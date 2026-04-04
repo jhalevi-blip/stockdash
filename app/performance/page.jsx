@@ -210,16 +210,24 @@ export default function PerformancePage() {
         const tickerCandles = {};
         tickers.forEach((t, i) => { tickerCandles[t] = tickerChartRes[i]?.candles ?? []; });
 
-        // Compute Option B estimated start index
+        // Compute Option B estimated start index (per-holding fallback when no h.d)
         const spyLen = spyCandles.length;
         const spyStartIndices = holdings.map(h => {
+          // If holding has a user-supplied date, map it to a candle index
+          if (h.d) return findStartIdx(spyCandles, h.d);
+          // Otherwise estimate from avg cost
           const pIdx = estimatePurchaseIdx(tickerCandles[h.t], h.c);
           const tLen = tickerCandles[h.t].length;
           if (!tLen) return 0;
           return Math.round((pIdx / tLen) * spyLen);
         });
         const optionBIdx  = Math.min(...spyStartIndices, spyLen - 1);
-        const optionBDate = candleIdxToDate(spyCandles, optionBIdx);
+        // If any holding has an explicit date, use the earliest one as the estimated date label
+        const explicitDates = holdings.map(h => h.d).filter(Boolean);
+        const earliestExplicit = explicitDates.length
+          ? explicitDates.reduce((a, b) => a < b ? a : b)
+          : null;
+        const optionBDate = earliestExplicit ?? candleIdxToDate(spyCandles, optionBIdx);
 
         if (!cancelled) {
           setRawData({ spyCandles, eurCandles, valArr, tickerCandles });
@@ -246,18 +254,26 @@ export default function PerformancePage() {
     const spyLen = spyCandles.length;
     if (!spyLen) return { chartData: [], eurData: [], stats: null };
 
-    // Determine start index from user date or Option B fallback
+    // Determine start index: user-set date > earliest h.d > Option B estimation
     let startIdx;
     if (startDate) {
       startIdx = findStartIdx(spyCandles, startDate);
     } else {
-      const spyStartIndices = holdings.map(h => {
-        const pIdx = estimatePurchaseIdx(tickerCandles[h.t], h.c);
-        const tLen = tickerCandles[h.t].length;
-        if (!tLen) return 0;
-        return Math.round((pIdx / tLen) * spyLen);
-      });
-      startIdx = Math.min(...spyStartIndices, spyLen - 1);
+      const explicitDates = holdings.map(h => h.d).filter(Boolean);
+      const earliestDate  = explicitDates.length
+        ? explicitDates.reduce((a, b) => a < b ? a : b)
+        : null;
+      if (earliestDate) {
+        startIdx = findStartIdx(spyCandles, earliestDate);
+      } else {
+        const spyStartIndices = holdings.map(h => {
+          const pIdx = estimatePurchaseIdx(tickerCandles[h.t], h.c);
+          const tLen = tickerCandles[h.t].length;
+          if (!tLen) return 0;
+          return Math.round((pIdx / tLen) * spyLen);
+        });
+        startIdx = Math.min(...spyStartIndices, spyLen - 1);
+      }
     }
 
     // SPY mirror: total cost basis → SPY shares at start

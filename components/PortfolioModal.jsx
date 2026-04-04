@@ -9,8 +9,8 @@ const iStyle = {
 
 export default function PortfolioModal({ holdings, onSave, onClose }) {
   const initial = holdings.length
-    ? holdings.map(h => ({ t: h.t ?? '', s: h.s ?? 0, c: h.c ?? 0 }))
-    : [{ t: '', s: 0, c: 0 }];
+    ? holdings.map(h => ({ t: h.t ?? '', s: h.s ?? 0, c: h.c ?? 0, d: h.d ?? '' }))
+    : [{ t: '', s: 0, c: 0, d: '' }];
 
   const [rows,   setRows]   = useState(initial);
   const [saving, setSaving] = useState(false);
@@ -24,6 +24,7 @@ export default function PortfolioModal({ holdings, onSave, onClose }) {
       t: r.t.trim().toUpperCase(),
       s: r.s,
       c: r.c,
+      ...(r.d ? { d: r.d } : {}),
     }));
     console.log('[PortfolioModal] saving holdings:', JSON.stringify(parsed));
 
@@ -49,7 +50,7 @@ export default function PortfolioModal({ holdings, onSave, onClose }) {
     >
       <div style={{
         background: 'var(--bg-card)', border: '1px solid var(--border-strong)', borderRadius: 8,
-        width: '100%', maxWidth: 500, maxHeight: '85vh', overflowY: 'auto',
+        width: '100%', maxWidth: 640, maxHeight: '85vh', overflowY: 'auto',
         padding: 24,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
@@ -60,14 +61,16 @@ export default function PortfolioModal({ holdings, onSave, onClose }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: 20, cursor: 'pointer', lineHeight: 1, marginLeft: 12, flexShrink: 0 }}>✕</button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 28px', gap: 8, marginBottom: 6 }}>
-          {['Ticker', 'Shares', 'Avg Cost ($)', ''].map(h => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 116px 28px', gap: 8, marginBottom: 6 }}>
+          {['Ticker', 'Shares', 'Avg Cost ($)'].map(h => (
             <div key={h} style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 1 }}>{h}</div>
           ))}
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: 0.5 }}>Date bought <span style={{ fontStyle: 'italic' }}>(optional)</span></div>
+          <div />
         </div>
 
         {rows.map((row, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 28px', gap: 8, marginBottom: 8 }}>
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 116px 28px', gap: 8, marginBottom: 8 }}>
             <input
               value={row.t}
               onChange={e => setRows(prev => prev.map((x, idx) => idx === i ? { ...x, t: e.target.value } : x))}
@@ -91,6 +94,17 @@ export default function PortfolioModal({ holdings, onSave, onClose }) {
               step="0.01"
               style={iStyle}
             />
+            <input
+              value={row.d ?? ''}
+              onChange={e => setRows(prev => prev.map((x, idx) => idx === i ? { ...x, d: e.target.value } : x))}
+              type="date"
+              style={{
+                ...iStyle,
+                border: '1px solid var(--border-color)',
+                color: row.d ? 'var(--text-primary)' : 'var(--text-muted)',
+                colorScheme: 'dark',
+              }}
+            />
             <button
               onClick={() => setRows(r => r.filter((_, idx) => idx !== i))}
               style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: 15, cursor: 'pointer', padding: 0, alignSelf: 'center' }}
@@ -99,7 +113,7 @@ export default function PortfolioModal({ holdings, onSave, onClose }) {
         ))}
 
         <button
-          onClick={() => setRows(r => [...r, { t: '', s: 0, c: 0 }])}
+          onClick={() => setRows(r => [...r, { t: '', s: 0, c: 0, d: '' }])}
           style={{
             background: 'none', border: '1px dashed var(--border-strong)', borderRadius: 4,
             color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer',
