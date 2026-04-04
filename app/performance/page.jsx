@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
@@ -23,13 +23,36 @@ function getLocalHoldings() {
 /** Find index in candles where close is closest to avgCost */
 function estimatePurchaseIdx(candles, avgCost) {
   if (!candles?.length || avgCost == null || avgCost <= 0) return 0;
-  let best = 0;
-  let bestDiff = Infinity;
+  let best = 0, bestDiff = Infinity;
   for (let i = 0; i < candles.length; i++) {
     const diff = Math.abs(candles[i].close - avgCost);
     if (diff < bestDiff) { bestDiff = diff; best = i; }
   }
   return best;
+}
+
+/** Find candle index closest to a given YYYY-MM-DD date, approximating from array position */
+function findStartIdx(candles, dateStr) {
+  if (!candles?.length || !dateStr) return 0;
+  const target = new Date(dateStr).getTime();
+  const now = Date.now();
+  let best = 0, bestDiff = Infinity;
+  for (let i = 0; i < candles.length; i++) {
+    const weeksBack = candles.length - 1 - i;
+    const ts = now - weeksBack * 7 * 24 * 60 * 60 * 1000;
+    const diff = Math.abs(ts - target);
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  }
+  return best;
+}
+
+/** Convert a candle index back to an approximate YYYY-MM-DD date */
+function candleIdxToDate(candles, idx) {
+  if (!candles?.length) return '';
+  const now = new Date();
+  const weeksBack = candles.length - 1 - idx;
+  const d = new Date(now.getTime() - weeksBack * 7 * 24 * 60 * 60 * 1000);
+  return d.toISOString().slice(0, 10);
 }
 
 function StatCard({ label, value, sub, valueColor }) {
@@ -111,17 +134,21 @@ function EurTooltip({ active, payload, label }) {
 }
 
 export default function PerformancePage() {
+  const [holdings,       setHoldings]       = useState(null);
+  const [rawData,        setRawData]        = useState(null);
+  const [dataLoading,    setDataLoading]    = useState(false);
+  const [error,          setError]          = useState(null);
+  const [startDate,      setStartDate]      = useState(null);  // YYYY-MM-DD or null
+  const [dateInput,      setDateInput]      = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [estimatedDate,  setEstimatedDate]  = useState('');
 
-  const [holdings,    setHoldings]    = useState(null); // null = loading
-  const [chartData,   setChartData]   = useState([]);
-  const [eurData,     setEurData]     = useState([]);
-  const [stats,       setStats]       = useState(null);
-  const [dataLoading, setDataLoading] = useState(false);
-  const [error,       setError]       = useState(null);
-
-  // Load holdings (demo or real)
+  // Load holdings (demo or real) and saved start date
   useEffect(() => {
     async function loadHoldings() {
+      const saved = localStorage.getItem('stockdash_start_date');
+      if (saved) setStartDate(saved);
+
       const isDemo = localStorage.getItem('stockdash_demo') === 'true';
       if (isDemo) {
         try {
@@ -146,7 +173,6 @@ export default function PerformancePage() {
         return;
       }
 
-      // Signed-in: try /api/portfolio, fallback to localStorage
       try {
         const res  = await fetch('/api/portfolio');
         const data = await res.json();
@@ -160,11 +186,9 @@ export default function PerformancePage() {
     loadHoldings();
   }, []);
 
-  // Once holdings are known, fetch all chart + valuation data
+  // Fetch raw candle + valuation data once holdings are known
   useEffect(() => {
-    if (holdings === null) return;
-    if (!holdings.length) return;
-
+    if (holdings === null || !holdings.length) return;
     let cancelled = false;
     setDataLoading(true);
     setError(null);
@@ -172,94 +196,35 @@ export default function PerformancePage() {
     async function fetchAll() {
       try {
         const tickers = holdings.map(h => h.t);
-
         const [spyRes, eurRes, valRes, ...tickerChartRes] = await Promise.all([
           fetch('/api/chart?symbol=SPY').then(r => r.json()),
           fetch('/api/chart?symbol=EURUSD%3DX').then(r => r.json()),
           fetch(`/api/valuation?${tickers.map(t => `tickers=${t}`).join('&')}`).then(r => r.json()),
           ...tickers.map(t => fetch(`/api/chart?symbol=${t}`).then(r => r.json())),
         ]);
-
         if (cancelled) return;
 
-        const spyCandles = spyRes.candles ?? [];
-        const eurCandles = eurRes.candles ?? [];
-        const valArr     = Array.isArray(valRes) ? valRes : [];
-
+        const spyCandles    = spyRes.candles ?? [];
+        const eurCandles    = eurRes.candles ?? [];
+        const valArr        = Array.isArray(valRes) ? valRes : [];
         const tickerCandles = {};
         tickers.forEach((t, i) => { tickerCandles[t] = tickerChartRes[i]?.candles ?? []; });
 
+        // Compute Option B estimated start index
         const spyLen = spyCandles.length;
-        if (!spyLen) throw new Error('No SPY data');
-
-        // Map each holding's estimated purchase index onto SPY's index space
         const spyStartIndices = holdings.map(h => {
           const pIdx = estimatePurchaseIdx(tickerCandles[h.t], h.c);
           const tLen = tickerCandles[h.t].length;
           if (!tLen) return 0;
           return Math.round((pIdx / tLen) * spyLen);
         });
-        const portfolioStartIdx = Math.min(...spyStartIndices, spyLen - 1);
-
-        // SPY mirror: total cost basis → SPY shares at start
-        const totalCostBasis  = holdings.reduce((sum, h) => sum + h.s * h.c, 0);
-        const spyPriceAtStart = spyCandles[portfolioStartIdx]?.close ?? spyCandles[0].close;
-        const spyShares       = spyPriceAtStart > 0 ? totalCostBasis / spyPriceAtStart : 0;
-
-        // Build portfolio vs SPY chart from portfolioStartIdx onward
-        const chartPoints = [];
-        for (let i = portfolioStartIdx; i < spyLen; i++) {
-          const spyVal = spyShares * spyCandles[i].close;
-          let portVal  = 0;
-          holdings.forEach(h => {
-            const tc = tickerCandles[h.t];
-            if (!tc.length) return;
-            const tIdx    = Math.round((i / spyLen) * tc.length);
-            const safeIdx = Math.min(tIdx, tc.length - 1);
-            portVal += h.s * (tc[safeIdx]?.close ?? h.c);
-          });
-          chartPoints.push({ date: spyCandles[i].date, portfolio: portVal, spy: spyVal });
-        }
-
-        // Current portfolio value
-        let portNow = 0;
-        holdings.forEach(h => {
-          const tc = tickerCandles[h.t];
-          portNow += h.s * (tc.length ? (tc[tc.length - 1]?.close ?? h.c) : h.c);
-        });
-
-        // EUR/USD impact
-        const eurStart = eurCandles[portfolioStartIdx]?.close ?? eurCandles[0]?.close ?? null;
-        const eurNow   = eurCandles[eurCandles.length - 1]?.close ?? null;
-        let currencyImpact = null;
-        if (eurStart && eurNow && eurStart > 0 && eurNow > 0) {
-          currencyImpact = portNow * (1 / eurNow - 1 / eurStart);
-        }
-
-        const eurLineData = eurCandles.map(c => ({ date: c.date, rate: c.close }));
-
-        // Portfolio beta: market-cap weighted
-        let totalMktCap  = 0;
-        let weightedBeta = 0;
-        valArr.forEach(v => {
-          if (v.beta != null && v.marketCap != null && v.marketCap > 0) {
-            totalMktCap  += v.marketCap;
-            weightedBeta += v.beta * v.marketCap;
-          }
-        });
-        const portfolioBeta = totalMktCap > 0 ? weightedBeta / totalMktCap : null;
-
-        const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
-        const portStart    = chartPoints[0]?.portfolio ?? totalCostBasis;
-        const spyStart     = chartPoints[0]?.spy ?? totalCostBasis;
-        const portReturn   = portStart > 0 ? ((portNow - portStart) / portStart) * 100 : null;
-        const spyReturn    = spyStart  > 0 ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
-        const vsSpyPct     = portReturn != null && spyReturn != null ? portReturn - spyReturn : null;
+        const optionBIdx  = Math.min(...spyStartIndices, spyLen - 1);
+        const optionBDate = candleIdxToDate(spyCandles, optionBIdx);
 
         if (!cancelled) {
-          setChartData(chartPoints);
-          setEurData(eurLineData);
-          setStats({ portNow, spyMirrorNow, vsSpyPct, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, currencyImpact, totalCostBasis });
+          setRawData({ spyCandles, eurCandles, valArr, tickerCandles });
+          setEstimatedDate(optionBDate);
+          setDateInput(d => d || optionBDate);
           setDataLoading(false);
         }
       } catch (e) {
@@ -269,26 +234,191 @@ export default function PerformancePage() {
         }
       }
     }
-
     fetchAll();
     return () => { cancelled = true; };
   }, [holdings]);
+
+  // Derive chart data and stats from rawData + startDate (re-runs when startDate changes)
+  const { chartData, eurData, stats } = useMemo(() => {
+    if (!rawData || !holdings?.length) return { chartData: [], eurData: [], stats: null };
+
+    const { spyCandles, eurCandles, valArr, tickerCandles } = rawData;
+    const spyLen = spyCandles.length;
+    if (!spyLen) return { chartData: [], eurData: [], stats: null };
+
+    // Determine start index from user date or Option B fallback
+    let startIdx;
+    if (startDate) {
+      startIdx = findStartIdx(spyCandles, startDate);
+    } else {
+      const spyStartIndices = holdings.map(h => {
+        const pIdx = estimatePurchaseIdx(tickerCandles[h.t], h.c);
+        const tLen = tickerCandles[h.t].length;
+        if (!tLen) return 0;
+        return Math.round((pIdx / tLen) * spyLen);
+      });
+      startIdx = Math.min(...spyStartIndices, spyLen - 1);
+    }
+
+    // SPY mirror: total cost basis → SPY shares at start
+    const totalCostBasis  = holdings.reduce((sum, h) => sum + h.s * h.c, 0);
+    const spyPriceAtStart = spyCandles[startIdx]?.close ?? spyCandles[0].close;
+    const spyShares       = spyPriceAtStart > 0 ? totalCostBasis / spyPriceAtStart : 0;
+
+    // Build portfolio vs SPY chart from startIdx onward
+    const chartPoints = [];
+    for (let i = startIdx; i < spyLen; i++) {
+      const spyVal = spyShares * spyCandles[i].close;
+      let portVal  = 0;
+      holdings.forEach(h => {
+        const tc = tickerCandles[h.t];
+        if (!tc.length) return;
+        const tIdx    = Math.round((i / spyLen) * tc.length);
+        const safeIdx = Math.min(tIdx, tc.length - 1);
+        portVal += h.s * (tc[safeIdx]?.close ?? h.c);
+      });
+      chartPoints.push({ date: spyCandles[i].date, portfolio: portVal, spy: spyVal });
+    }
+
+    // Current portfolio value
+    let portNow = 0;
+    holdings.forEach(h => {
+      const tc = tickerCandles[h.t];
+      portNow += h.s * (tc.length ? (tc[tc.length - 1]?.close ?? h.c) : h.c);
+    });
+
+    // EUR/USD — slice from startIdx
+    const eurStartIdx  = Math.min(startIdx, eurCandles.length - 1);
+    const eurSliced    = eurCandles.slice(eurStartIdx);
+    const eurData      = eurSliced.map(c => ({ date: c.date, rate: c.close }));
+    const eurStart     = eurCandles[eurStartIdx]?.close ?? null;
+    const eurNow       = eurCandles[eurCandles.length - 1]?.close ?? null;
+    const eurChangePct = eurStart && eurNow ? ((eurNow - eurStart) / eurStart) * 100 : null;
+    let currencyImpact = null;
+    if (eurStart && eurNow && eurStart > 0 && eurNow > 0) {
+      currencyImpact = portNow * (1 / eurNow - 1 / eurStart);
+    }
+
+    // Portfolio beta: market-cap weighted
+    let totalMktCap = 0, weightedBeta = 0;
+    valArr.forEach(v => {
+      if (v.beta != null && v.marketCap != null && v.marketCap > 0) {
+        totalMktCap  += v.marketCap;
+        weightedBeta += v.beta * v.marketCap;
+      }
+    });
+    const portfolioBeta = totalMktCap > 0 ? weightedBeta / totalMktCap : null;
+
+    const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
+    const vsSpyAmt     = portNow != null && spyMirrorNow != null ? portNow - spyMirrorNow : null;
+    const portStart    = chartPoints[0]?.portfolio ?? totalCostBasis;
+    const spyStart     = chartPoints[0]?.spy ?? totalCostBasis;
+    const portReturn   = portStart > 0 ? ((portNow - portStart) / portStart) * 100 : null;
+    const spyReturn    = spyStart  > 0 ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
+
+    return {
+      chartData: chartPoints,
+      eurData,
+      stats: { portNow, spyMirrorNow, vsSpyAmt, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis },
+    };
+  }, [rawData, holdings, startDate]);
+
+  function handleDateSave() {
+    if (!dateInput) return;
+    setStartDate(dateInput);
+    localStorage.setItem('stockdash_start_date', dateInput);
+    setShowDatePicker(false);
+  }
+
+  function handleDateClear() {
+    setStartDate(null);
+    localStorage.removeItem('stockdash_start_date');
+    setDateInput(estimatedDate);
+    setShowDatePicker(false);
+  }
 
   // --- Render ---
   if (holdings === null) {
     return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>Loading…</div>;
   }
-
   if (!holdings.length) {
     return <DemoPrompt message="No portfolio configured" />;
   }
 
-  const s          = stats;
-  const xInterval  = Math.max(1, Math.floor((chartData.length - 1) / 5));
-  const eurXInt    = Math.max(1, Math.floor((eurData.length - 1) / 5));
+  const s         = stats;
+  const xInterval = Math.max(1, Math.floor((chartData.length - 1) / 5));
+  const eurXInt   = Math.max(1, Math.floor((eurData.length - 1) / 5));
 
   return (
     <div style={{ padding: '24px 20px', maxWidth: 1100, margin: '0 auto' }}>
+
+      {/* Section header with start date display and picker trigger */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+          Since:{' '}
+          <strong style={{ color: 'var(--text-primary)' }}>
+            {startDate ?? (estimatedDate ? `~${estimatedDate} (estimated)` : '—')}
+          </strong>
+        </div>
+        <button
+          onClick={() => setShowDatePicker(v => !v)}
+          style={{
+            background: 'none', border: 'none', padding: '2px 6px',
+            cursor: 'pointer', fontSize: 12, color: 'var(--accent)',
+            borderRadius: 4, textDecoration: 'underline', lineHeight: 1,
+          }}
+        >
+          {showDatePicker ? 'Cancel' : 'Set start date'}
+        </button>
+        {startDate && !showDatePicker && (
+          <button
+            onClick={handleDateClear}
+            style={{
+              background: 'none', border: 'none', padding: '2px 6px',
+              cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)',
+              borderRadius: 4, lineHeight: 1,
+            }}
+          >
+            Reset to estimated
+          </button>
+        )}
+      </div>
+
+      {/* Inline date picker */}
+      {showDatePicker && (
+        <div style={{
+          background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+          borderRadius: 8, padding: '14px 20px', marginBottom: 20,
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+        }}>
+          <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Start date:</label>
+          <input
+            type="date"
+            value={dateInput}
+            onChange={e => setDateInput(e.target.value)}
+            style={{
+              background: 'var(--bg-primary)', border: '1px solid var(--border-color)',
+              borderRadius: 6, padding: '6px 10px', fontSize: 13,
+              color: 'var(--text-primary)', outline: 'none',
+            }}
+          />
+          <button
+            onClick={handleDateSave}
+            style={{
+              background: 'var(--accent)', color: '#fff', border: 'none',
+              borderRadius: 6, padding: '6px 14px', fontSize: 13,
+              cursor: 'pointer', fontWeight: 600,
+            }}
+          >
+            Apply
+          </button>
+          {estimatedDate && (
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Estimated: {estimatedDate}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Top stat cards */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -305,9 +435,9 @@ export default function PerformancePage() {
         />
         <StatCard
           label="vs SPY"
-          value={s?.vsSpyPct == null ? '—' : (s.vsSpyPct >= 0 ? '+' : '') + fmt(s.vsSpyPct, 1) + '%'}
+          value={s?.vsSpyAmt == null ? '—' : (s.vsSpyAmt >= 0 ? '+$' : '-$') + fmt(Math.abs(s.vsSpyAmt))}
           sub={s?.portReturn != null ? `Portfolio: ${fmtD(s.portReturn, 1)}` : null}
-          valueColor={s ? clr(s.vsSpyPct) : undefined}
+          valueColor={s ? clr(s.vsSpyAmt) : undefined}
         />
       </div>
 
@@ -317,7 +447,7 @@ export default function PerformancePage() {
         borderRadius: 10, padding: '20px 24px', marginBottom: 20,
       }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>
-          Portfolio vs SPY (since estimated purchase)
+          Portfolio vs SPY
         </div>
         {dataLoading || !chartData.length ? (
           <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
@@ -332,8 +462,8 @@ export default function PerformancePage() {
                   <stop offset="100%" stopColor="#58a6ff" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="perfSpyGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#4ade80" stopOpacity={0.2} />
+                  <stop offset="100%" stopColor="#4ade80" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
@@ -341,13 +471,13 @@ export default function PerformancePage() {
               <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} width={52} />
               <Tooltip content={<PortTooltip />} />
               <Area type="monotone" dataKey="portfolio" name="Portfolio" stroke="#58a6ff" strokeWidth={2} fill="url(#perfPortGrad)" dot={false} activeDot={{ r: 4 }} />
-              <Area type="monotone" dataKey="spy" name="SPY Mirror" stroke="#f59e0b" strokeWidth={2} fill="url(#perfSpyGrad)" dot={false} activeDot={{ r: 4 }} />
+              <Area type="monotone" dataKey="spy" name="SPY Mirror" stroke="#4ade80" strokeWidth={2} fill="url(#perfSpyGrad)" dot={false} activeDot={{ r: 4 }} />
             </AreaChart>
           </ResponsiveContainer>
         )}
         <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 12 }}>
-          <span style={{ color: 'var(--accent)', fontWeight: 600 }}>— Portfolio</span>
-          <span style={{ color: '#f59e0b', fontWeight: 600 }}>— SPY Mirror</span>
+          <span style={{ color: '#58a6ff', fontWeight: 600 }}>— Portfolio</span>
+          <span style={{ color: '#4ade80', fontWeight: 600 }}>— SPY Mirror</span>
         </div>
       </div>
 
@@ -360,13 +490,13 @@ export default function PerformancePage() {
             s?.portfolioBeta == null ? 'Not available' :
             s.portfolioBeta < 0.8   ? 'Lower volatility than market' :
             s.portfolioBeta > 1.2   ? 'Higher volatility than market' :
-            'Close to market volatility'
+                                      'Close to market volatility'
           }
         />
         <MetricCard
           label="EUR/USD Rate"
           value={s?.eurNow != null ? s.eurNow.toFixed(4) : '—'}
-          sub={s?.eurStart != null ? `At purchase: ${s.eurStart.toFixed(4)}` : null}
+          sub={s?.eurChangePct != null ? `${fmtD(s.eurChangePct, 2)} since start` : s?.eurStart != null ? `At start: ${s.eurStart.toFixed(4)}` : null}
         />
         <MetricCard
           label="Currency Impact"
@@ -379,10 +509,10 @@ export default function PerformancePage() {
           valueColor={s?.currencyImpact != null ? clr(s.currencyImpact) : undefined}
         />
         <MetricCard
-          label={s?.vsSpyPct != null && s.vsSpyPct >= 0 ? 'Outperforming' : 'Underperforming'}
-          value={s?.vsSpyPct == null ? '—' : Math.abs(s.vsSpyPct).toFixed(1) + '%'}
-          sub="vs SPY since purchase"
-          valueColor={s ? clr(s.vsSpyPct) : undefined}
+          label={s?.vsSpyAmt != null && s.vsSpyAmt >= 0 ? 'Outperforming' : 'Underperforming'}
+          value={s?.vsSpyAmt == null ? '—' : (s.vsSpyAmt >= 0 ? '+$' : '-$') + fmt(Math.abs(s.vsSpyAmt))}
+          sub="vs SPY since start"
+          valueColor={s ? clr(s.vsSpyAmt) : undefined}
         />
       </div>
 
@@ -392,7 +522,7 @@ export default function PerformancePage() {
         borderRadius: 10, padding: '20px 24px', marginBottom: 20,
       }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>
-          EUR/USD (1 Year)
+          EUR/USD{startDate ? ` (since ${startDate})` : ' (since start)'}
         </div>
         {dataLoading || !eurData.length ? (
           <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
@@ -403,15 +533,15 @@ export default function PerformancePage() {
             <AreaChart data={eurData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="eurGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#a78bfa" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
               <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} interval={eurXInt} />
               <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} tickFormatter={v => v.toFixed(3)} width={52} domain={['auto', 'auto']} />
               <Tooltip content={<EurTooltip />} />
-              <Area type="monotone" dataKey="rate" name="EUR/USD" stroke="#a78bfa" strokeWidth={2} fill="url(#eurGrad)" dot={false} activeDot={{ r: 4 }} />
+              <Area type="monotone" dataKey="rate" name="EUR/USD" stroke="#f59e0b" strokeWidth={2} fill="url(#eurGrad)" dot={false} activeDot={{ r: 4 }} />
             </AreaChart>
           </ResponsiveContainer>
         )}
@@ -419,9 +549,11 @@ export default function PerformancePage() {
 
       {/* Disclaimer */}
       <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
-        Purchase dates are estimated by matching your average cost basis to historical weekly closing prices.
-        SPY mirror assumes your total cost basis was invested in SPY at the estimated start date.
-        Currency impact reflects the USD/EUR exchange-rate effect on your portfolio value since purchase.
+        {startDate
+          ? 'Start date is user-configured. '
+          : 'Purchase dates are estimated by matching your average cost basis to historical weekly closing prices. '}
+        SPY mirror assumes your total cost basis was invested in SPY at the start date.
+        Currency impact reflects the USD/EUR exchange-rate effect on your portfolio value since the start date.
         Past performance is not indicative of future results. Data provided for informational purposes only.
       </div>
     </div>
