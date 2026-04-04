@@ -91,6 +91,6 @@ export async function GET(request) {
     .slice(-12);
 
   return Response.json(results, {
-    headers: { 'Cache-Control': 's-maxage=86400, stale-while-revalidate' },
+    headers: { 'Cache-Control': 's-maxage=3600, stale-while-revalidate=300' },
   });
 }

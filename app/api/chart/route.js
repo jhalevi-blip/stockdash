@@ -49,7 +49,7 @@ export async function GET(request) {
     })).filter(c => c.close != null);
 
     return Response.json({ candles }, {
-      headers: { 'Cache-Control': 's-maxage=3600, stale-while-revalidate=600' },
+      headers: { 'Cache-Control': 's-maxage=3600, stale-while-revalidate=300' },
     });
   } catch (err) {
     console.error('[chart] Error:', err);

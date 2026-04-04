@@ -94,6 +94,6 @@ export async function GET(request) {
   ];
 
   return Response.json(sorted, {
-    headers: { 'Cache-Control': 's-maxage=3600, stale-while-revalidate' },
+    headers: { 'Cache-Control': 's-maxage=3600, stale-while-revalidate=300' },
   });
 }

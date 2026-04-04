@@ -181,7 +181,7 @@ export async function GET(request) {
         operatingIncome: extractQuarterly(operatingIncomeData),
         operatingCF:     extractQuarterly(operatingCFData),
         capex:           extractQuarterly(capexData),
-      });
+      }, { headers: { 'Cache-Control': 's-maxage=21600, stale-while-revalidate=3600' } });
     }
 
     // Revenue: try primary tag first, then fallbacks
@@ -203,7 +203,9 @@ export async function GET(request) {
       capex:           extractAnnual(capexData),
     };
 
-    return Response.json(result);
+    return Response.json(result, {
+      headers: { 'Cache-Control': 's-maxage=21600, stale-while-revalidate=3600' },
+    });
   } catch (err) {
     console.error(`[financials] Error fetching ${ticker}:`, err);
     return Response.json(

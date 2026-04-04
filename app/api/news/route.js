@@ -33,5 +33,7 @@ export async function GET(request) {
   );
 
   const all = results.flat().sort((a, b) => b.time - a.time);
-  return Response.json(all);
+  return Response.json(all, {
+    headers: { 'Cache-Control': 's-maxage=900, stale-while-revalidate=300' },
+  });
 }

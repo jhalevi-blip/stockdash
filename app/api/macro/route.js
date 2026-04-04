@@ -146,7 +146,7 @@ export async function GET() {
       treasury,
       gdp: null,
     }, {
-      headers: { 'Cache-Control': 's-maxage=3600, stale-while-revalidate' }
+      headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=60' }
     });
   } catch(e) {
     console.error('[macro] outer error:', e.message);

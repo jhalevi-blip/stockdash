@@ -41,7 +41,9 @@ export async function GET() {
     { rank: 4, symbol: 'AMZN', name: 'Amazon',  price: 196.35, change: -2.88, volume: 0 },
     { rank: 5, symbol: 'AMD',  name: 'AMD',     price:  96.49, change: -3.47, volume: 0 },
   ];
-  return Response.json(hardcoded);
+  return Response.json(hardcoded, {
+    headers: { 'Cache-Control': 's-maxage=3600, stale-while-revalidate=300' },
+  });
 
   /*
   const currentWeek = getISOWeek(new Date());

@@ -99,7 +99,9 @@ Respond with JSON only (no markdown, no extra text). Each bull/bear case should 
     return Response.json({ error: 'Parse error' }, { status: 500 });
   }
   try {
-    return Response.json(JSON.parse(match[0]));
+    return Response.json(JSON.parse(match[0]), {
+      headers: { 'Cache-Control': 's-maxage=86400, stale-while-revalidate=3600' },
+    });
   } catch {
     console.error('[ai-summary] JSON.parse failed on:', match[0]);
     return Response.json({ error: 'Parse error' }, { status: 500 });

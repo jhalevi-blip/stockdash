@@ -33,5 +33,7 @@ export async function GET(request) {
     .sort((a, b) => new Date(b.transactionDate) - new Date(a.transactionDate))
     .slice(0, 30);
 
-  return Response.json(all);
+  return Response.json(all, {
+    headers: { 'Cache-Control': 's-maxage=1800, stale-while-revalidate=300' },
+  });
 }

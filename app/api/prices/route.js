@@ -32,6 +32,6 @@ export async function GET(request) {
   );
 
   return Response.json(results, {
-    headers: { 'Cache-Control': 's-maxage=30, stale-while-revalidate' }
+    headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=30' }
   });
 }
