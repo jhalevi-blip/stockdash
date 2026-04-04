@@ -170,16 +170,16 @@ function AiSnapshotCard({ ticker, row, analystD, valD, finD, snap, aiLoading, ai
       )}
       {snap && !snap.error && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, minWidth: 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, minWidth: 0, padding: '16px 0' }}>
             {/* Bull */}
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--positive)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--positive)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
                 Bull Case
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {(snap.bullCases ?? []).map((pt, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 7, fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.4 }}>
-                    <span style={{ color: 'var(--positive)', flexShrink: 0, marginTop: 1 }}>▲</span>
+                  <div key={i} style={{ display: 'flex', gap: 8, fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.4, padding: '6px 0' }}>
+                    <span style={{ color: 'var(--positive)', flexShrink: 0, fontSize: 18 }}>▲</span>
                     <span>{pt}</span>
                   </div>
                 ))}
@@ -187,13 +187,13 @@ function AiSnapshotCard({ ticker, row, analystD, valD, finD, snap, aiLoading, ai
             </div>
             {/* Bear */}
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--negative)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--negative)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
                 Bear Case
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {(snap.bearCases ?? []).map((pt, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 7, fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.4 }}>
-                    <span style={{ color: 'var(--negative)', flexShrink: 0, marginTop: 1 }}>▼</span>
+                  <div key={i} style={{ display: 'flex', gap: 8, fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.4, padding: '6px 0' }}>
+                    <span style={{ color: 'var(--negative)', flexShrink: 0, fontSize: 18 }}>▼</span>
                     <span>{pt}</span>
                   </div>
                 ))}
@@ -202,8 +202,8 @@ function AiSnapshotCard({ ticker, row, analystD, valD, finD, snap, aiLoading, ai
           </div>
           {snap.summary && (
             <div style={{
-              fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic',
-              borderTop: '1px solid var(--border-color)', paddingTop: 10, lineHeight: 1.5,
+              fontSize: 14, color: 'var(--text-secondary)', fontStyle: 'italic',
+              borderTop: '1px solid var(--border-color)', paddingTop: 16, lineHeight: 1.5,
             }}>
               {snap.summary}
             </div>
