@@ -4,7 +4,7 @@ import InsiderTransactions from '@/components/InsiderTransactions';
 import { getDemoTickers } from '@/lib/startDemo';
 
 export default function InsiderPage() {
-  const [tickers, setTickers] = useState([]);
+  const [tickers, setTickers] = useState(null); // null = not yet read from localStorage
 
   useEffect(() => {
     try {
@@ -12,13 +12,18 @@ export default function InsiderPage() {
       const holdings = stored ? JSON.parse(stored) : [];
       const t = holdings.map(h => h.t);
       setTickers(t.length ? t : (localStorage.getItem('stockdash_demo') === 'true' ? getDemoTickers() : []));
-    } catch {}
+    } catch {
+      setTickers([]);
+    }
   }, []);
 
   return (
     <main style={{ padding: '20px 24px' }}>
       <div className="section-title" style={{ marginBottom: 16 }}>Insider Transactions</div>
-      <InsiderTransactions tickers={tickers} />
+      {tickers === null
+        ? <div className="news-placeholder">Loading…</div>
+        : <InsiderTransactions tickers={tickers} />
+      }
     </main>
   );
 }

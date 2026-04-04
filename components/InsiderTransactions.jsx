@@ -24,10 +24,16 @@ export default function InsiderTransactions({ tickers }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const url = tickers?.length ? `/api/insider?tickers=${tickers.join(',')}` : '/api/insider';
-    fetch(url)
+    if (!tickers?.length) {
+      setTransactions([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    fetch(`/api/insider?tickers=${tickers.join(',')}`)
       .then(r => r.json())
       .then(data => setTransactions(Array.isArray(data) ? data : []))
+      .catch(() => setTransactions([]))
       .finally(() => setLoading(false));
   }, [tickers?.join(',')]);
 
