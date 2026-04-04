@@ -87,7 +87,10 @@ Respond with JSON only (no markdown, no extra text). Each bull/bear case should 
 
   console.log('[ai-summary] Anthropic response status:', res.status, '— body:', JSON.stringify(raw));
 
-  if (!res.ok) return Response.json({ error: raw.error?.message ?? raw.error?.type ?? 'API error' }, { status: 500 });
+  if (!res.ok) {
+    console.error('[ai-summary] Anthropic API error — status:', res.status, '| full body:', JSON.stringify(raw, null, 2));
+    return Response.json({ error: raw.error?.message ?? raw.error?.type ?? 'API error' }, { status: 500 });
+  }
 
   const text = raw.content?.[0]?.text ?? '';
   const match = text.match(/\{[\s\S]*\}/);
