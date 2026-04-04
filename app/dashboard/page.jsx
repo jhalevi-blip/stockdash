@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import DashboardSummary from '@/components/DashboardSummary';
 import StockIntelSummary from '@/components/StockIntelSummary';
 import DemoPrompt from '@/components/DemoPrompt';
@@ -242,9 +242,8 @@ export default function DashboardPage() {
               : (
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={candles} margin={{ top: 4, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
                     <XAxis dataKey="date" tick={{ fill: '#8b949e', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                    <YAxis tick={{ fill: '#8b949e', fontSize: 10 }} tickLine={false} axisLine={false} width={52} domain={['auto', 'auto']} tickFormatter={v => '$' + v.toFixed(0)} />
+                    <YAxis hide domain={['auto', 'auto']} />
                     <Tooltip
                       contentStyle={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 4, fontSize: 12 }}
                       labelStyle={{ color: '#8b949e' }}
