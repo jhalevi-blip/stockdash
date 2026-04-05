@@ -116,33 +116,38 @@ export async function GET() {
   ]);
 
   try {
-    const [spyRes, qqqRes, diaRes, dxyRes, goldRes, oilRes, irx, fvx, tnx, tyx] = await Promise.all([
+    const [spyRes, qqqRes, diaRes, dxyRes, goldRes, oilRes, irx, fvx, tnx, tyx, fmpTreasury] = await Promise.all([
       fetch(`https://finnhub.io/api/v1/quote?symbol=SPY&token=${fhKey}`, opts).then(r => r.json()),
       fetch(`https://finnhub.io/api/v1/quote?symbol=QQQ&token=${fhKey}`, opts).then(r => r.json()),
       fetch(`https://finnhub.io/api/v1/quote?symbol=DIA&token=${fhKey}`, opts).then(r => r.json()),
       fetch(`https://finnhub.io/api/v1/quote?symbol=UUP&token=${fhKey}`, opts).then(r => r.json()),
-      fetch(`https://finnhub.io/api/v1/quote?symbol=GLD&token=${fhKey}`, opts).then(r => r.json()),
+      fetch(`https://finnhub.io/api/v1/quote?symbol=OANDA:XAU_USD&token=${fhKey}`, opts).then(r => r.json()),
       fetch(`https://finnhub.io/api/v1/quote?symbol=USO&token=${fhKey}`, opts).then(r => r.json()),
       fetchYahooYield('%5EIRX'),  // 13-week T-bill (~3 month)
       fetchYahooYield('%5EFVX'),  // 5-year
       fetchYahooYield('%5ETNX'),  // 10-year
       fetchYahooYield('%5ETYX'),  // 30-year
+      fmpKey
+        ? fetch(`https://financialmodelingprep.com/stable/treasury-rates?limit=1&apikey=${fmpKey}`, opts)
+            .then(r => r.json())
+            .then(d => Array.isArray(d) ? d[0] : null)
+            .catch(() => null)
+        : Promise.resolve(null),
     ]);
 
-    // Build treasury from Yahoo Finance yields (free); fall back to FMP only if all four fail
+    // Build treasury: FMP provides all tenors (month1, month6, year1, year2, etc.).
+    // Yahoo Finance only has 3m/5y/10y/30y — use those to override FMP where available.
     let treasury = null;
-    if (irx != null || fvx != null || tnx != null || tyx != null) {
+    if (fmpTreasury) {
+      treasury = { ...fmpTreasury };
+      if (irx != null) treasury.month3 = irx;
+      if (fvx != null) treasury.year5  = fvx;
+      if (tnx != null) treasury.year10 = tnx;
+      if (tyx != null) treasury.year30 = tyx;
+      console.log('[macro] treasury merged FMP+Yahoo:', JSON.stringify(treasury));
+    } else if (irx != null || fvx != null || tnx != null || tyx != null) {
       treasury = { month3: irx, year5: fvx, year10: tnx, year30: tyx };
-      console.log('[macro] treasury from Yahoo Finance:', JSON.stringify(treasury));
-    } else if (fmpKey) {
-      try {
-        const r = await fetch(`https://financialmodelingprep.com/stable/treasury-rates?limit=1&apikey=${fmpKey}`, opts);
-        const d = await r.json();
-        treasury = Array.isArray(d) ? d[0] : null;
-        console.log('[macro] treasury from FMP fallback:', JSON.stringify(treasury));
-      } catch(e) {
-        console.error('[macro] FMP treasury fallback error:', e.message);
-      }
+      console.log('[macro] treasury from Yahoo Finance only (no FMP key):', JSON.stringify(treasury));
     }
 
     const makeIndex = (d, symbol) => ({
