@@ -87,6 +87,32 @@ async function fetchYahooYield(encodedTicker) {
   }
 }
 
+// Returns { price, change, changesPercentage } — same shape as makeIndex output.
+async function fetchYahooQuote(encodedTicker) {
+  try {
+    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodedTicker}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json',
+      },
+      cache: 'no-store',
+    });
+    const text = await r.text();
+    const data = JSON.parse(text);
+    const meta  = data?.chart?.result?.[0]?.meta;
+    const price = meta?.regularMarketPrice ?? null;
+    const prev  = meta?.chartPreviousClose ?? meta?.previousClose ?? null;
+    console.log(`[macro] fetchYahooQuote ${encodedTicker}: price=${price} prev=${prev}`);
+    if (price == null) return null;
+    const change    = prev != null ? price - prev : null;
+    const changePct = change != null && prev ? (change / prev) * 100 : null;
+    return { price, change, changesPercentage: changePct };
+  } catch(e) {
+    console.error(`[macro] fetchYahooQuote ${encodedTicker} error:`, e.message);
+    return null;
+  }
+}
+
 export async function GET() {
   const fhKey = process.env.FINNHUB_API_KEY;
   const fmpKey = process.env.FMP_API_KEY;
@@ -121,8 +147,8 @@ export async function GET() {
       fetch(`https://finnhub.io/api/v1/quote?symbol=QQQ&token=${fhKey}`, opts).then(r => r.json()),
       fetch(`https://finnhub.io/api/v1/quote?symbol=DIA&token=${fhKey}`, opts).then(r => r.json()),
       fetch(`https://finnhub.io/api/v1/quote?symbol=UUP&token=${fhKey}`, opts).then(r => r.json()),
-      fetch(`https://finnhub.io/api/v1/quote?symbol=OANDA:XAU_USD&token=${fhKey}`, opts).then(r => r.json()),
-      fetch(`https://finnhub.io/api/v1/quote?symbol=USO&token=${fhKey}`, opts).then(r => r.json()),
+      fetchYahooQuote('GC%3DF'),  // Gold futures (COMEX) — Finnhub OANDA:XAU_USD requires premium
+      fetchYahooQuote('CL%3DF'),  // WTI crude futures — Finnhub USO ETF doesn't track spot price
       fetchYahooYield('%5EIRX'),  // 13-week T-bill (~3 month)
       fetchYahooYield('%5EFVX'),  // 5-year
       fetchYahooYield('%5ETNX'),  // 10-year
@@ -177,8 +203,8 @@ export async function GET() {
         VIX: vix,
       },
       commodities: {
-        gold: makeIndex(goldRes, 'GLD'),
-        oil:  makeIndex(oilRes,  'USO'),
+        gold: goldRes,  // { price, change, changesPercentage } from Yahoo Finance GC=F
+        oil:  oilRes,   // { price, change, changesPercentage } from Yahoo Finance CL=F
         dxy:  makeIndex(dxyRes,  'UUP'),
       },
       fearGreed,
