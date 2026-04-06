@@ -28,26 +28,25 @@ export default function DashboardPage() {
   const [candles,        setCandles]        = useState([]);
   const [selected,       setSelected]       = useState(null);
   const [period,         setPeriod]         = useState('1Y');
-  const [loading,        setLoading]        = useState(true);
-  const [tourRun,        setTourRun]        = useState(false);
-  const [autoStartTour,  setAutoStartTour]  = useState(false);
+  const [loading,  setLoading]  = useState(true);
+  const [tourRun,  setTourRun]  = useState(false);
 
-  // Detect ?tour=true in URL on mount
+  // Auto-start tour: fires once when loading flips to false.
+  // Reading the param here (not on mount) avoids the two-effect race
+  // where autoStartTour state could be stale if the fetch settled in
+  // the same batch.
   useEffect(() => {
+    if (loading) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get('tour') === 'true' && localStorage.getItem('tour_completed') !== 'true') {
-      setAutoStartTour(true);
+    const tourParam  = params.get('tour');
+    const completed  = localStorage.getItem('tour_completed');
+    console.log('[tour] loading done — tour param:', tourParam, '| completed:', completed);
+    if (tourParam === 'true' && completed !== 'true') {
       window.history.replaceState({}, '', '/dashboard');
-    }
-  }, []);
-
-  // Start tour once data has finished loading
-  useEffect(() => {
-    if (!loading && autoStartTour) {
+      console.log('[tour] starting tour');
       setTourRun(true);
-      setAutoStartTour(false);
     }
-  }, [loading, autoStartTour]);
+  }, [loading]);
 
   const loadChart = useCallback(async (ticker) => {
     setSelected(ticker);

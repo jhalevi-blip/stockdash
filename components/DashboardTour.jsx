@@ -123,6 +123,7 @@ export default function DashboardTour({ run, onStop }) {
 
   // Reset modal when a new run starts
   useEffect(() => {
+    console.log('[DashboardTour] run prop changed:', run);
     if (run) setShowModal(false);
   }, [run]);
 
