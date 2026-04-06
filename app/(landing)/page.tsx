@@ -34,7 +34,7 @@ export default function LandingPage() {
           }}>
             Get Started — It&apos;s Free
           </a>
-          <button onClick={() => startDemo("/dashboard?tour=true")} style={{
+          <button onClick={() => { localStorage.setItem('tour_pending', 'true'); startDemo("/dashboard"); }} style={{
             background: "#0d1117", color: "#e6edf3",
             border: "1px solid #58a6ff",
             padding: "12px 24px", borderRadius: "5px", fontSize: "14px",

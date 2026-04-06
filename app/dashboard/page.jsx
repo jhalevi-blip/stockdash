@@ -31,18 +31,26 @@ export default function DashboardPage() {
   const [loading,  setLoading]  = useState(true);
   const [tourRun,  setTourRun]  = useState(false);
 
-  // Auto-start tour: fires once when loading flips to false.
-  // Reading the param here (not on mount) avoids the two-effect race
-  // where autoStartTour state could be stale if the fetch settled in
-  // the same batch.
+  // Auto-start tour.
+  // Primary trigger: localStorage 'tour_pending' (set by landing page before
+  // navigating, survives Clerk's server-side handshake redirect which strips
+  // query params).
+  // Secondary trigger: ?tour=true URL param (works when no Clerk handshake
+  // happens, e.g. already-authenticated users navigating directly).
   useEffect(() => {
+    console.log('[tour] effect fired, loading:', loading);
     if (loading) return;
-    const params = new URLSearchParams(window.location.search);
-    const tourParam  = params.get('tour');
+
+    const lsPending  = localStorage.getItem('tour_pending') === 'true';
+    const params     = new URLSearchParams(window.location.search);
+    const urlPending = params.get('tour') === 'true';
     const completed  = localStorage.getItem('tour_completed');
-    console.log('[tour] loading done — tour param:', tourParam, '| completed:', completed);
-    if (tourParam === 'true' && completed !== 'true') {
-      window.history.replaceState({}, '', '/dashboard');
+
+    console.log('[tour] loading done — ls_pending:', lsPending, '| url_pending:', urlPending, '| completed:', completed);
+
+    if ((lsPending || urlPending) && completed !== 'true') {
+      localStorage.removeItem('tour_pending');
+      if (urlPending) window.history.replaceState({}, '', '/dashboard');
       console.log('[tour] starting tour');
       setTourRun(true);
     }
