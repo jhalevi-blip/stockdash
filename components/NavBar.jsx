@@ -8,14 +8,14 @@ import { startDemo } from '@/lib/startDemo';
 
 const links = [
   { href: '/dashboard',      label: 'Dashboard',   icon: '📊' },
-  { href: '/performance',   label: 'Performance', icon: '📉' },
-  { href: '/macro',          label: 'Macro',       icon: '🌍', dataTour: 'macro-link' },
-  { href: '/insider',        label: 'Insider',     icon: '🦅', dataTour: 'insider-link' },
-  { href: '/institutional',  label: 'Ownership',   icon: '🏦', dataTour: 'ownership-link' },
-  { href: '/peers',          label: 'Peers',       icon: '🔍' },
-  { href: '/research',       label: 'Research',    icon: '🔬' },
-  { href: '/valuation',      label: 'Valuation',   icon: '🔢' },
-  { href: '/earnings',       label: 'Earnings',    icon: '📈' },
+  { href: '/performance',   label: 'Performance', icon: '📈' },
+  { href: '/macro',          label: 'Macro',       icon: '🌏', dataTour: 'macro-link' },
+  { href: '/insider',        label: 'Insider',     icon: '🔎', dataTour: 'insider-link' },
+  { href: '/institutional',  label: 'Ownership',   icon: '🏛', dataTour: 'ownership-link' },
+  { href: '/peers',          label: 'Peers',       icon: '📋' },
+  { href: '/research',       label: 'Research',    icon: '📑' },
+  { href: '/valuation',      label: 'Valuation',   icon: '📐' },
+  { href: '/earnings',       label: 'Earnings',    icon: '📅' },
   { href: '/analyst',        label: 'Analyst',     icon: '🎯' },
 ];
 
@@ -27,6 +27,7 @@ export default function NavBar() {
   const [dark,         setDark]         = useState(true);
   const [modalOpen,    setModalOpen]    = useState(false);
   const [savedHoldings, setSavedHoldings] = useState([]);
+  const [isDemo,       setIsDemo]       = useState(false);
   const { isLoaded, isSignedIn } = useUser();
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export default function NavBar() {
     const isDark = saved !== 'light';
     setDark(isDark);
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    setIsDemo(localStorage.getItem('stockdash_demo') === 'true');
   }, []);
 
   // Sync portfolio from Supabase → localStorage when user signs in
@@ -41,6 +43,7 @@ export default function NavBar() {
     if (!isLoaded || !isSignedIn) return;
     // Clear demo mode — real account takes over
     localStorage.removeItem('stockdash_demo');
+    setIsDemo(false);
     fetch('/api/portfolio')
       .then(r => r.json())
       .then(data => {
@@ -77,6 +80,8 @@ export default function NavBar() {
     document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
     localStorage.setItem('stockdash_theme', next ? 'dark' : 'light');
   }
+
+  const showEditPortfolio = (isLoaded && isSignedIn) || isDemo;
 
   const authSection = isLoaded && (
     isSignedIn ? (
@@ -152,13 +157,16 @@ export default function NavBar() {
           </Link>
         ))}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          {isLoaded && isSignedIn && (
-            <button onClick={() => setModalOpen(true)} style={{
-              background: 'none', border: '1px solid var(--accent)',
-              borderRadius: 6, color: 'var(--accent)',
-              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              padding: '4px 12px', whiteSpace: 'nowrap',
-            }}>✏ Edit Portfolio</button>
+          {showEditPortfolio && (
+            <button
+              data-tour="edit-portfolio"
+              onClick={() => setModalOpen(true)}
+              style={{
+                background: 'none', border: '1px solid var(--accent)',
+                borderRadius: 6, color: 'var(--accent)',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                padding: '4px 12px', whiteSpace: 'nowrap',
+              }}>🛠 Edit Portfolio</button>
           )}
           <button onClick={toggleTheme} style={{
             background: 'none',
@@ -170,7 +178,7 @@ export default function NavBar() {
             padding: '4px 10px',
             lineHeight: 1,
           }} title={dark ? 'Switch to light mode' : 'Switch to dark mode'}>
-            {dark ? '☀️' : '🌙'}
+            {dark ? '🌙' : '🌔'}
           </button>
           {authSection}
         </div>
@@ -193,19 +201,22 @@ export default function NavBar() {
             {links.find(l => l.href === path)?.label || 'Menu'}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {isLoaded && isSignedIn && (
-              <button onClick={() => setModalOpen(true)} style={{
-                background: 'none', border: '1px solid var(--accent)',
-                borderRadius: 6, color: 'var(--accent)',
-                fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                padding: '3px 10px', whiteSpace: 'nowrap',
-              }}>✏ Edit Portfolio</button>
+            {showEditPortfolio && (
+              <button
+                data-tour="edit-portfolio"
+                onClick={() => setModalOpen(true)}
+                style={{
+                  background: 'none', border: '1px solid var(--accent)',
+                  borderRadius: 6, color: 'var(--accent)',
+                  fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                  padding: '3px 10px', whiteSpace: 'nowrap',
+                }}>🛠 Edit Portfolio</button>
             )}
             {isLoaded && isSignedIn && <UserButton afterSignOutUrl="/" />}
             <button onClick={toggleTheme} style={{
               background: 'none', border: 'none', color: 'var(--text-secondary)',
               fontSize: 16, cursor: 'pointer', padding: '4px 6px',
-            }}>{dark ? '☀️' : '🌙'}</button>
+            }}>{dark ? '🌙' : '🌔'}</button>
             <button onClick={() => setOpen(!open)} style={{
               background: 'none', border: 'none', color: 'var(--text-primary)',
               fontSize: 20, cursor: 'pointer', padding: '4px 8px',
@@ -237,7 +248,7 @@ export default function NavBar() {
                 <span style={{ fontSize: 18 }}>{l.icon}</span>
                 {l.label}
                 {path === l.href && (
-                  <span style={{ marginLeft: 'auto', color: 'var(--accent)' }}>◀</span>
+                  <span style={{ marginLeft: 'auto', color: 'var(--accent)' }}>→</span>
                 )}
               </Link>
             ))}
