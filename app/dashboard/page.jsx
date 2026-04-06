@@ -43,7 +43,6 @@ export default function DashboardPage() {
     const DEMO_SHARES    = [50, 30, 20, 15, 10];
     const DEMO_FALLBACK  = ['AAPL', 'NVDA', 'TSLA', 'AMZN', 'MSFT'];
 
-    // Demo mode: build holdings from /api/most-traded
     if (localStorage.getItem('stockdash_demo') === 'true') {
       (async () => {
         try {
@@ -90,7 +89,6 @@ export default function DashboardPage() {
       return;
     }
 
-    // Fetch from Supabase if signed in, fall back to localStorage on any failure
     const localAtLoad = getLocalHoldings();
     console.log('[dashboard] localStorage holdings at load:', JSON.stringify(localAtLoad));
     fetch('/api/portfolio')
@@ -143,7 +141,6 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!loading && localStorage.getItem('tour_pending') === 'true') {
       localStorage.removeItem('tour_pending');
-      // Small delay so DOM targets are painted before Joyride measures them
       setTimeout(() => setTourRun(true), 600);
     }
   }, [loading]);
@@ -184,32 +181,6 @@ export default function DashboardPage() {
 
       <DashboardSummary holdings={holdings} rows={rows} earnings={earnings} news={news} />
 
-      {/* Tour button + Summary cards row */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <div />
-        <button
-          onClick={() => setTourRun(true)}
-          style={{
-            background: 'none',
-            border: '1px solid #30363d',
-            color: '#8b949e',
-            padding: '5px 14px',
-            borderRadius: 6,
-            fontSize: 12,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            transition: 'border-color 0.15s, color 0.15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = '#58a6ff'; e.currentTarget.style.color = '#c9d1d9'; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = '#30363d'; e.currentTarget.style.color = '#8b949e'; }}
-        >
-          🗺 Take the tour
-        </button>
-      </div>
-
       {/* Summary cards */}
       <div
         data-tour="summary-cards"
@@ -241,7 +212,31 @@ export default function DashboardPage() {
 
       {/* Holdings table */}
       <section data-tour="holdings-table">
-        <div className="section-title">Holdings</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div className="section-title" style={{ marginBottom: 0 }}>Holdings</div>
+          <button
+            onClick={() => setTourRun(true)}
+            style={{
+              background: 'var(--bg-secondary, #161b22)',
+              border: '1px solid var(--accent, #2563eb)',
+              color: 'var(--text-primary, #e6edf3)',
+              padding: '6px 16px',
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'background 0.15s, border-color 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent, #2563eb)'; e.currentTarget.style.color = '#fff'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-secondary, #161b22)'; e.currentTarget.style.color = 'var(--text-primary, #e6edf3)'; }}
+          >
+            <span style={{ fontSize: 16 }}>🗺</span> Take the Tour
+          </button>
+        </div>
         <div className="table-wrap">
           <table>
             <thead>

@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { Joyride } from 'react-joyride';
 
-// STATUS string values inlined to avoid any static import of react-joyride internals.
 const STATUS_FINISHED = 'finished';
 const STATUS_SKIPPED  = 'skipped';
 
@@ -10,7 +9,7 @@ const STEPS = [
   {
     target: '[data-tour="summary-cards"]',
     title: 'Portfolio at a glance',
-    content: 'Your portfolio at a glance. P&L, market value and upcoming earnings all in one place.',
+    content: 'Portfolio value, cost basis, total P&L and market status — your key numbers at a glance.',
     disableBeacon: true,
     placement: 'bottom',
   },
@@ -159,43 +158,52 @@ export default function DashboardTour({ run, onStop }) {
         callback={handleCallback}
         styles={{
           options: {
-            backgroundColor: '#1a1f2e',
-            textColor: '#ffffff',
-            primaryColor: '#1f6feb',
-            arrowColor: '#1a1f2e',
-            overlayColor: 'rgba(0,0,0,0.55)',
+            backgroundColor: '#161b22',
+            textColor: '#e6edf3',
+            primaryColor: '#2563eb',
+            arrowColor: '#161b22',
+            overlayColor: 'rgba(0,0,0,0.6)',
             zIndex: 9000,
           },
           tooltip: {
-            borderRadius: 8,
+            borderRadius: 10,
             border: '1px solid #30363d',
             fontSize: 14,
+            padding: '20px 24px',
+            boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
           },
           tooltipTitle: {
-            color: '#e6edf3',
-            fontSize: 14,
+            color: '#f0f6fc',
+            fontSize: 16,
             fontWeight: 700,
+            marginBottom: 4,
           },
           tooltipContent: {
-            color: '#c9d1d9',
+            color: '#b1bac4',
+            fontSize: 14,
+            lineHeight: '1.6',
             paddingTop: 8,
           },
           buttonNext: {
-            backgroundColor: '#1f6feb',
+            backgroundColor: '#2563eb',
             borderRadius: 6,
             fontSize: 13,
             fontWeight: 600,
+            padding: '8px 18px',
           },
           buttonBack: {
             color: '#8b949e',
             fontSize: 13,
           },
           buttonSkip: {
-            color: '#4b5563',
+            color: '#484f58',
             fontSize: 13,
           },
           buttonClose: {
             color: '#8b949e',
+          },
+          spotlight: {
+            borderRadius: 8,
           },
         }}
       />
