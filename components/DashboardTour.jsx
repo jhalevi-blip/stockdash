@@ -1,9 +1,15 @@
 'use client';
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+
+// Load Joyride only in the browser — it uses DOM APIs that crash during SSR.
+// Do NOT also import react-joyride statically (even for STATUS) as that loads
+// the module twice and causes React hooks violations (Error #306).
 const Joyride = dynamic(() => import('react-joyride'), { ssr: false });
-// STATUS is a plain object — safe to import directly (no browser APIs)
-import { STATUS } from 'react-joyride';
+
+// STATUS string values inlined to avoid any static import of react-joyride.
+const STATUS_FINISHED = 'finished';
+const STATUS_SKIPPED  = 'skipped';
 
 const STEPS = [
   {
@@ -124,18 +130,16 @@ function CompletionModal({ onClose }) {
 export default function DashboardTour({ run, onStop }) {
   const [showModal, setShowModal] = useState(false);
 
-  // Reset modal when a new run starts
   useEffect(() => {
-    console.log('[DashboardTour] run prop changed:', run);
     if (run) setShowModal(false);
   }, [run]);
 
   function handleCallback({ status }) {
-    if (status === STATUS.FINISHED) {
+    if (status === STATUS_FINISHED) {
       localStorage.setItem('tour_completed', 'true');
       onStop();
       setShowModal(true);
-    } else if (status === STATUS.SKIPPED) {
+    } else if (status === STATUS_SKIPPED) {
       localStorage.setItem('tour_completed', 'true');
       onStop();
     }
