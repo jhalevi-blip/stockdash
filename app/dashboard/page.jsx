@@ -47,7 +47,16 @@ export default function DashboardPage() {
       (async () => {
         try {
           let h;
+          // Use user-edited holdings from localStorage if available
           try {
+            const stored = localStorage.getItem('stockdash_holdings');
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (Array.isArray(parsed) && parsed.length) h = parsed;
+            }
+          } catch {}
+          // Otherwise fetch demo holdings from most-traded
+          if (!h) try {
             const res  = await fetch('/api/most-traded');
             const data = await res.json();
             if (Array.isArray(data) && data.length) {
