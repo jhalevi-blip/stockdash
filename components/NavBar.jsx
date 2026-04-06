@@ -9,9 +9,9 @@ import { startDemo } from '@/lib/startDemo';
 const links = [
   { href: '/dashboard',      label: 'Dashboard',   icon: '📊' },
   { href: '/performance',   label: 'Performance', icon: '📉' },
-  { href: '/macro',          label: 'Macro',       icon: '🌍' },
-  { href: '/insider',        label: 'Insider',     icon: '🦅' },
-  { href: '/institutional',  label: 'Ownership',   icon: '🏦' },
+  { href: '/macro',          label: 'Macro',       icon: '🌍', dataTour: 'macro-link' },
+  { href: '/insider',        label: 'Insider',     icon: '🦅', dataTour: 'insider-link' },
+  { href: '/institutional',  label: 'Ownership',   icon: '🏦', dataTour: 'ownership-link' },
   { href: '/peers',          label: 'Peers',       icon: '🔍' },
   { href: '/research',       label: 'Research',    icon: '🔬' },
   { href: '/valuation',      label: 'Valuation',   icon: '🔢' },
@@ -133,16 +133,23 @@ export default function NavBar() {
         boxShadow: '0 1px 4px var(--shadow-sm)',
       }} className="desktop-nav">
         {links.map(l => (
-          <Link key={l.href} href={l.href} style={{
-            padding: '10px 16px',
-            fontSize: 12,
-            fontWeight: 600,
-            color: path === l.href ? 'var(--text-primary)' : 'var(--text-secondary)',
-            borderBottom: path === l.href ? '2px solid var(--accent)' : '2px solid transparent',
-            textDecoration: 'none',
-            transition: 'color .2s',
-            whiteSpace: 'nowrap',
-          }}>{l.label}</Link>
+          <Link
+            key={l.href}
+            href={l.href}
+            {...(l.dataTour ? { 'data-tour': l.dataTour } : {})}
+            style={{
+              padding: '10px 16px',
+              fontSize: 12,
+              fontWeight: 600,
+              color: path === l.href ? 'var(--text-primary)' : 'var(--text-secondary)',
+              borderBottom: path === l.href ? '2px solid var(--accent)' : '2px solid transparent',
+              textDecoration: 'none',
+              transition: 'color .2s',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {l.label}
+          </Link>
         ))}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {isLoaded && isSignedIn && (

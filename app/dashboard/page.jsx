@@ -4,6 +4,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import DashboardSummary from '@/components/DashboardSummary';
 import StockIntelSummary from '@/components/StockIntelSummary';
 import DemoPrompt from '@/components/DemoPrompt';
+import DashboardTour from '@/components/DashboardTour';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
@@ -20,14 +21,33 @@ function daysUntil(dateStr) {
 }
 
 export default function DashboardPage() {
-  const [holdings,  setHoldings]  = useState([]);
-  const [prices,    setPrices]    = useState({});
-  const [earnings,  setEarnings]  = useState([]);
-  const [news,      setNews]      = useState([]);
-  const [candles,   setCandles]   = useState([]);
-  const [selected,  setSelected]  = useState(null);
-  const [period,    setPeriod]    = useState('1Y');
-  const [loading,   setLoading]   = useState(true);
+  const [holdings,       setHoldings]       = useState([]);
+  const [prices,         setPrices]         = useState({});
+  const [earnings,       setEarnings]       = useState([]);
+  const [news,           setNews]           = useState([]);
+  const [candles,        setCandles]        = useState([]);
+  const [selected,       setSelected]       = useState(null);
+  const [period,         setPeriod]         = useState('1Y');
+  const [loading,        setLoading]        = useState(true);
+  const [tourRun,        setTourRun]        = useState(false);
+  const [autoStartTour,  setAutoStartTour]  = useState(false);
+
+  // Detect ?tour=true in URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tour') === 'true' && localStorage.getItem('tour_completed') !== 'true') {
+      setAutoStartTour(true);
+      window.history.replaceState({}, '', '/dashboard');
+    }
+  }, []);
+
+  // Start tour once data has finished loading
+  useEffect(() => {
+    if (!loading && autoStartTour) {
+      setTourRun(true);
+      setAutoStartTour(false);
+    }
+  }, [loading, autoStartTour]);
 
   const loadChart = useCallback(async (ticker) => {
     setSelected(ticker);
@@ -59,7 +79,6 @@ export default function DashboardPage() {
           } catch {}
 
           if (!h) {
-            // Fetch live prices for fallback tickers so cost basis = current price → $0 P&L
             try {
               const res    = await fetch(`/api/prices?tickers=${DEMO_FALLBACK.join(',')}`);
               const prices = await res.json();
@@ -97,8 +116,6 @@ export default function DashboardPage() {
       .then(data => {
         let h;
         if (data.signedIn && data.holdings?.length) {
-          // Merge Supabase data with localStorage: if Supabase has c: 0 or null for a ticker,
-          // prefer the localStorage value so a fresh save is never clobbered by stale Supabase data.
           const localMap = {};
           localAtLoad.forEach(lh => { localMap[lh.t] = lh; });
           h = data.holdings.map(sh => ({
@@ -129,7 +146,6 @@ export default function DashboardPage() {
         });
       })
       .catch(() => {
-        // Network error or Clerk session issue — fall back to localStorage
         setHoldings(localAtLoad);
       })
       .finally(() => setLoading(false));
@@ -173,10 +189,39 @@ export default function DashboardPage() {
   return (
     <main style={{ padding: '20px 24px' }}>
 
+      <DashboardTour run={tourRun} onStop={() => setTourRun(false)} />
+
+      {/* Tour replay button */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <button
+          onClick={() => setTourRun(true)}
+          style={{
+            background: 'none',
+            border: '1px solid var(--border-color)',
+            borderRadius: 6,
+            color: 'var(--text-secondary)',
+            fontSize: 12,
+            fontWeight: 500,
+            cursor: 'pointer',
+            padding: '4px 12px',
+            fontFamily: 'inherit',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+          }}
+        >
+          <span style={{ fontSize: 13 }}>🗺</span> Take the tour
+        </button>
+      </div>
+
       <DashboardSummary holdings={holdings} rows={rows} earnings={earnings} news={news} />
 
-      {/* Summary bar */}
-      <div className="summary-bar" style={{ marginBottom: 24, borderRadius: 8, border: '1px solid', overflow: 'hidden' }}>
+      {/* Summary cards */}
+      <div
+        data-tour="summary-cards"
+        className="summary-bar"
+        style={{ marginBottom: 24, borderRadius: 8, border: '1px solid', overflow: 'hidden' }}
+      >
         {[
           { label: 'Portfolio Value', value: '$' + fmt(totalMkt), sub: null },
           { label: 'Cost Basis',      value: '$' + fmt(totalCost), sub: `${holdings.length} positions` },
@@ -201,7 +246,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Holdings table */}
-      <section>
+      <section data-tour="holdings-table">
         <div className="section-title">Holdings</div>
         <div className="table-wrap">
           <table>
@@ -264,7 +309,7 @@ export default function DashboardPage() {
         const lineColor  = isPos ? '#58a6ff' : '#f87171';
 
         return (
-          <section>
+          <section data-tour="price-chart">
             <div style={{
               background: 'var(--bg-card)',
               border: '1px solid var(--border-color)',
@@ -273,7 +318,6 @@ export default function DashboardPage() {
               marginBottom: 24,
               boxShadow: '0 1px 6px rgba(0,0,0,0.08)',
             }}>
-              {/* Header: ticker + price + return */}
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>{selected}</div>
@@ -288,7 +332,6 @@ export default function DashboardPage() {
                     )}
                   </div>
                 </div>
-                {/* Period selector */}
                 <div style={{ display: 'flex', gap: 4 }}>
                   {PERIODS.map(p => (
                     <button
@@ -313,7 +356,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Chart */}
               {candles.length === 0
                 ? <div className="chart-placeholder">Loading chart…</div>
                 : (
@@ -366,7 +408,7 @@ export default function DashboardPage() {
       })()}
 
       {/* Stock Intel */}
-      <section>
+      <section data-tour="stock-intel">
         <div className="section-title">Stock Intel</div>
         <StockIntelSummary holdings={holdings} rows={rows} />
       </section>
