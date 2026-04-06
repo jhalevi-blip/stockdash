@@ -21,6 +21,12 @@ function daysUntil(dateStr) {
 }
 
 export default function DashboardPage() {
+  // DIAGNOSTIC — remove after confirming tour works
+  if (typeof window !== 'undefined') {
+    console.log('[tour-debug] tour_pending:', localStorage.getItem('tour_pending'));
+    console.log('[tour-debug] tour_completed:', localStorage.getItem('tour_completed'));
+  }
+
   const [holdings,       setHoldings]       = useState([]);
   const [prices,         setPrices]         = useState({});
   const [earnings,       setEarnings]       = useState([]);
@@ -29,7 +35,7 @@ export default function DashboardPage() {
   const [selected,       setSelected]       = useState(null);
   const [period,         setPeriod]         = useState('1Y');
   const [loading,  setLoading]  = useState(true);
-  const [tourRun,  setTourRun]  = useState(false);
+  const [tourRun,  setTourRun]  = useState(true);  // DIAGNOSTIC: hardcoded true to test Joyride directly
 
   // Auto-start tour.
   // Primary trigger: localStorage 'tour_pending' (set by landing page before
