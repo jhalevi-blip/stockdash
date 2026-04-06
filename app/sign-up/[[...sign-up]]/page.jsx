@@ -30,7 +30,7 @@ export default function SignUpPage() {
             footerActionLink: { color: '#58a6ff' },
           },
         }}
-        redirectUrl="/dashboard"
+        forceRedirectUrl="/dashboard"
         signInUrl="/login"
       />
     </div>
