@@ -4,8 +4,6 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import DashboardSummary from '@/components/DashboardSummary';
 import StockIntelSummary from '@/components/StockIntelSummary';
 import DemoPrompt from '@/components/DemoPrompt';
-import dynamic from 'next/dynamic';
-const DashboardTour = dynamic(() => import('@/components/DashboardTour'), { ssr: false });
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
@@ -30,32 +28,6 @@ export default function DashboardPage() {
   const [selected,       setSelected]       = useState(null);
   const [period,         setPeriod]         = useState('1Y');
   const [loading,  setLoading]  = useState(true);
-  const [tourRun,  setTourRun]  = useState(false);
-
-  // Auto-start tour.
-  // Primary trigger: localStorage 'tour_pending' (set by landing page before
-  // navigating, survives Clerk's server-side handshake redirect which strips
-  // query params).
-  // Secondary trigger: ?tour=true URL param (works when no Clerk handshake
-  // happens, e.g. already-authenticated users navigating directly).
-  useEffect(() => {
-    console.log('[tour] effect fired, loading:', loading);
-    if (loading) return;
-
-    const lsPending  = localStorage.getItem('tour_pending') === 'true';
-    const params     = new URLSearchParams(window.location.search);
-    const urlPending = params.get('tour') === 'true';
-    const completed  = localStorage.getItem('tour_completed');
-
-    console.log('[tour] loading done — ls_pending:', lsPending, '| url_pending:', urlPending, '| completed:', completed);
-
-    if ((lsPending || urlPending) && completed !== 'true') {
-      localStorage.removeItem('tour_pending');
-      if (urlPending) window.history.replaceState({}, '', '/dashboard');
-      console.log('[tour] starting tour');
-      setTourRun(true);
-    }
-  }, [loading]);
 
   const loadChart = useCallback(async (ticker) => {
     setSelected(ticker);
@@ -196,31 +168,6 @@ export default function DashboardPage() {
 
   return (
     <main style={{ padding: '20px 24px' }}>
-
-      <DashboardTour run={tourRun} onStop={() => setTourRun(false)} />
-
-      {/* Tour replay button */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <button
-          onClick={() => setTourRun(true)}
-          style={{
-            background: 'none',
-            border: '1px solid var(--border-color)',
-            borderRadius: 6,
-            color: 'var(--text-secondary)',
-            fontSize: 12,
-            fontWeight: 500,
-            cursor: 'pointer',
-            padding: '4px 12px',
-            fontFamily: 'inherit',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-          }}
-        >
-          <span style={{ fontSize: 13 }}>🗺</span> Take the tour
-        </button>
-      </div>
 
       <DashboardSummary holdings={holdings} rows={rows} earnings={earnings} news={news} />
 
