@@ -4,7 +4,8 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import DashboardSummary from '@/components/DashboardSummary';
 import StockIntelSummary from '@/components/StockIntelSummary';
 import DemoPrompt from '@/components/DemoPrompt';
-import DashboardTour from '@/components/DashboardTour';
+import dynamic from 'next/dynamic';
+const DashboardTour = dynamic(() => import('@/components/DashboardTour'), { ssr: false });
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');

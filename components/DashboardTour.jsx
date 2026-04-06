@@ -1,6 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
-import Joyride, { STATUS } from 'react-joyride';
+import dynamic from 'next/dynamic';
+const Joyride = dynamic(() => import('react-joyride'), { ssr: false });
+// STATUS is a plain object — safe to import directly (no browser APIs)
+import { STATUS } from 'react-joyride';
 
 const STEPS = [
   {
