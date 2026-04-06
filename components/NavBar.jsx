@@ -61,6 +61,15 @@ export default function NavBar() {
       .catch(() => {});
   }, [isLoaded, isSignedIn]);
 
+  // Load holdings from localStorage in demo mode
+  useEffect(() => {
+    if (!isDemo) return;
+    try {
+      const stored = localStorage.getItem('stockdash_holdings');
+      if (stored) setSavedHoldings(JSON.parse(stored));
+    } catch {}
+  }, [isDemo]);
+
   async function savePortfolio(holdings) {
     localStorage.setItem('stockdash_holdings', JSON.stringify(holdings));
     setSavedHoldings(holdings);
