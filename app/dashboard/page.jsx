@@ -4,6 +4,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import DashboardSummary from '@/components/DashboardSummary';
 import StockIntelSummary from '@/components/StockIntelSummary';
 import DemoPrompt from '@/components/DemoPrompt';
+import DashboardTour from '@/components/DashboardTour';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
@@ -27,7 +28,8 @@ export default function DashboardPage() {
   const [candles,        setCandles]        = useState([]);
   const [selected,       setSelected]       = useState(null);
   const [period,         setPeriod]         = useState('1Y');
-  const [loading,  setLoading]  = useState(true);
+  const [loading,        setLoading]        = useState(true);
+  const [tourRun,        setTourRun]        = useState(false);
 
   const loadChart = useCallback(async (ticker) => {
     setSelected(ticker);
@@ -137,6 +139,15 @@ export default function DashboardPage() {
     return () => window.removeEventListener('portfolio-saved', fetchDashboard);
   }, [fetchDashboard]);
 
+  // Auto-start tour when dashboard finishes loading if tour_pending is set
+  useEffect(() => {
+    if (!loading && localStorage.getItem('tour_pending') === 'true') {
+      localStorage.removeItem('tour_pending');
+      // Small delay so DOM targets are painted before Joyride measures them
+      setTimeout(() => setTourRun(true), 600);
+    }
+  }, [loading]);
+
   // Portfolio summary
   const rows = holdings.map(h => {
     const q     = prices[h.t];
@@ -169,7 +180,35 @@ export default function DashboardPage() {
   return (
     <main style={{ padding: '20px 24px' }}>
 
+      <DashboardTour run={tourRun} onStop={() => setTourRun(false)} />
+
       <DashboardSummary holdings={holdings} rows={rows} earnings={earnings} news={news} />
+
+      {/* Tour button + Summary cards row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div />
+        <button
+          onClick={() => setTourRun(true)}
+          style={{
+            background: 'none',
+            border: '1px solid #30363d',
+            color: '#8b949e',
+            padding: '5px 14px',
+            borderRadius: 6,
+            fontSize: 12,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            transition: 'border-color 0.15s, color 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#58a6ff'; e.currentTarget.style.color = '#c9d1d9'; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = '#30363d'; e.currentTarget.style.color = '#8b949e'; }}
+        >
+          🗺 Take the tour
+        </button>
+      </div>
 
       {/* Summary cards */}
       <div

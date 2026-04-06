@@ -1,13 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
+import Joyride from 'react-joyride';
 
-// Load Joyride only in the browser — it uses DOM APIs that crash during SSR.
-// Do NOT also import react-joyride statically (even for STATUS) as that loads
-// the module twice and causes React hooks violations (Error #306).
-const Joyride = dynamic(() => import('react-joyride'), { ssr: false });
-
-// STATUS string values inlined to avoid any static import of react-joyride.
+// STATUS string values inlined to avoid any static import of react-joyride internals.
 const STATUS_FINISHED = 'finished';
 const STATUS_SKIPPED  = 'skipped';
 
@@ -81,7 +76,7 @@ function CompletionModal({ onClose }) {
         textAlign: 'center',
         boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
       }}>
-        <div style={{ fontSize: 36, marginBottom: 16 }}>🎉</div>
+        <div style={{ fontSize: 36, marginBottom: 16 }}>🚀</div>
         <h2 style={{
           color: '#e6edf3', fontSize: 20, fontWeight: 700,
           margin: '0 0 12px',
@@ -128,7 +123,12 @@ function CompletionModal({ onClose }) {
 }
 
 export default function DashboardTour({ run, onStop }) {
+  const [mounted, setMounted] = useState(false);
   const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (run) setShowModal(false);
@@ -144,6 +144,8 @@ export default function DashboardTour({ run, onStop }) {
       onStop();
     }
   }
+
+  if (!mounted) return null;
 
   return (
     <>
