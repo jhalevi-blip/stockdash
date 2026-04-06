@@ -64,13 +64,16 @@ export default function NavBar() {
   async function savePortfolio(holdings) {
     localStorage.setItem('stockdash_holdings', JSON.stringify(holdings));
     setSavedHoldings(holdings);
+    if (isDemo) {
+      window.dispatchEvent(new CustomEvent('portfolio-saved'));
+      return;
+    }
     const res = await fetch('/api/portfolio', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ holdings }),
     });
     if (!res.ok) throw new Error('Save failed');
-    // Notify pages already mounted (e.g. dashboard) to re-fetch
     window.dispatchEvent(new CustomEvent('portfolio-saved'));
   }
 
