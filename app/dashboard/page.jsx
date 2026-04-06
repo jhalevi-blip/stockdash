@@ -72,6 +72,7 @@ export default function DashboardPage() {
           }
 
           setHoldings(h);
+          localStorage.setItem('stockdash_holdings', JSON.stringify(h));
           const tickers = h.map(x => x.t).join(',');
           const [priceArr, earningsArr, newsArr] = await Promise.all([
             fetch(`/api/prices?tickers=${tickers}`).then(r => r.json()),
