@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import Joyride from 'react-joyride';
+import { Joyride } from 'react-joyride';
 
 // STATUS string values inlined to avoid any static import of react-joyride internals.
 const STATUS_FINISHED = 'finished';
