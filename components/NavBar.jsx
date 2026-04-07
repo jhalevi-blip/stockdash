@@ -175,7 +175,7 @@ export default function NavBar() {
           {showEditPortfolio && (
             <button
               data-tour="edit-portfolio"
-              onClick={() => setModalOpen(true)}
+              onClick={() => { try { const s = localStorage.getItem('stockdash_holdings'); if (s) setSavedHoldings(JSON.parse(s)); } catch {} setModalOpen(true); }}
               style={{
                 background: 'none', border: '1px solid var(--accent)',
                 borderRadius: 6, color: 'var(--accent)',
@@ -219,7 +219,7 @@ export default function NavBar() {
             {showEditPortfolio && (
               <button
                 data-tour="edit-portfolio"
-                onClick={() => setModalOpen(true)}
+                onClick={() => { try { const s = localStorage.getItem('stockdash_holdings'); if (s) setSavedHoldings(JSON.parse(s)); } catch {} setModalOpen(true); }}
                 style={{
                   background: 'none', border: '1px solid var(--accent)',
                   borderRadius: 6, color: 'var(--accent)',
@@ -307,7 +307,7 @@ export default function NavBar() {
       </div>
       {modalOpen && (
         <PortfolioModal
-          holdings={(() => { try { const s = localStorage.getItem('stockdash_holdings'); return s ? JSON.parse(s) : savedHoldings; } catch { return savedHoldings; } })()}
+          holdings={savedHoldings}
           onSave={savePortfolio}
           onClose={() => setModalOpen(false)}
         />
