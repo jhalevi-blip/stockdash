@@ -116,6 +116,7 @@ export default function DashboardPage() {
         }
 
         setHoldings(h);
+        localStorage.setItem('stockdash_holdings', JSON.stringify(h));
         if (!h.length) { setLoading(false); return; }
 
         const tickers = h.map(x => x.t).join(',');
