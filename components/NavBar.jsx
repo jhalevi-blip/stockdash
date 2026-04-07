@@ -87,6 +87,7 @@ export default function NavBar() {
       body: JSON.stringify({ holdings }),
     });
     if (!res.ok) throw new Error('Save failed');
+    await new Promise(r => setTimeout(r, 300));
     window.dispatchEvent(new CustomEvent('portfolio-saved'));
   }
 
