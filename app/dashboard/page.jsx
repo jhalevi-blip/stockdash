@@ -105,16 +105,14 @@ export default function DashboardPage() {
       .then(r => r.json())
       .then(data => {
         let h;
-        if (data.signedIn && data.holdings?.length) {
-          const localMap = {};
-          localAtLoad.forEach(lh => { localMap[lh.t] = lh; });
-          h = data.holdings.map(sh => ({
-            ...sh,
-            c: sh.c > 0 ? sh.c : (localMap[sh.t]?.c ?? 0),
-          }));
-          console.log('[dashboard] merged holdings (Supabase + localStorage):', JSON.stringify(h));
-        } else {
+        if (localAtLoad.length) {
+          // localStorage is source of truth (updated by Edit Portfolio)
           h = localAtLoad;
+        } else if (data.signedIn && data.holdings?.length) {
+          h = data.holdings;
+          localStorage.setItem('stockdash_holdings', JSON.stringify(h));
+        } else {
+          h = [];
         }
 
         setHoldings(h);
