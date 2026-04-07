@@ -46,7 +46,6 @@ export default function NavBar() {
     hasSynced.current = true;
     // Clear demo mode — real account takes over
     localStorage.removeItem('stockdash_demo');
-    localStorage.removeItem('stockdash_holdings');
     setIsDemo(false);
     fetch('/api/portfolio')
       .then(r => r.json())
