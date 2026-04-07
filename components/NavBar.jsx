@@ -309,7 +309,7 @@ export default function NavBar() {
       </div>
       {modalOpen && (
         <PortfolioModal
-          holdings={savedHoldings}
+          holdings={(() => { try { const s = localStorage.getItem('stockdash_holdings'); return s ? JSON.parse(s) : savedHoldings; } catch { return savedHoldings; } })()}
           onSave={savePortfolio}
           onClose={() => setModalOpen(false)}
         />
