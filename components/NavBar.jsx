@@ -51,6 +51,8 @@ export default function NavBar() {
       .then(r => r.json())
       .then(data => {
         if (data.signedIn && data.holdings?.length) {
+          const existing = localStorage.getItem('stockdash_holdings');
+          if (!existing) localStorage.setItem('stockdash_holdings', JSON.stringify(data.holdings));
           setSavedHoldings(data.holdings);
         } else {
           // No Supabase record yet — load from localStorage if present
