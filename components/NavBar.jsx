@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUser, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
 import PortfolioModal from './PortfolioModal';
 import { startDemo } from '@/lib/startDemo';
@@ -29,6 +29,7 @@ export default function NavBar() {
   const [savedHoldings, setSavedHoldings] = useState([]);
   const [isDemo,       setIsDemo]       = useState(false);
   const { isLoaded, isSignedIn } = useUser();
+  const hasSynced = useRef(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('stockdash_theme');
@@ -41,6 +42,8 @@ export default function NavBar() {
   // Sync portfolio from Supabase → localStorage when user signs in
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
+    if (hasSynced.current) return;
+    hasSynced.current = true;
     // Clear demo mode — real account takes over
     localStorage.removeItem('stockdash_demo');
     localStorage.removeItem('stockdash_holdings');
