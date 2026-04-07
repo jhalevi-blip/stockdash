@@ -113,7 +113,6 @@ export default function DashboardPage() {
             c: sh.c > 0 ? sh.c : (localMap[sh.t]?.c ?? 0),
           }));
           console.log('[dashboard] merged holdings (Supabase + localStorage):', JSON.stringify(h));
-          localStorage.setItem('stockdash_holdings', JSON.stringify(h));
         } else {
           h = localAtLoad;
         }
