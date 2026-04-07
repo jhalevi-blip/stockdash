@@ -173,7 +173,7 @@ export default function NavBar() {
           {showEditPortfolio && (
             <button
               data-tour="edit-portfolio"
-              onClick={() => { try { const stored = localStorage.getItem('stockdash_holdings'); if (stored) setSavedHoldings(JSON.parse(stored)); } catch {} setModalOpen(true); }}
+              onClick={() => setModalOpen(true)}
               style={{
                 background: 'none', border: '1px solid var(--accent)',
                 borderRadius: 6, color: 'var(--accent)',
@@ -217,7 +217,7 @@ export default function NavBar() {
             {showEditPortfolio && (
               <button
                 data-tour="edit-portfolio"
-                onClick={() => { try { const stored = localStorage.getItem('stockdash_holdings'); if (stored) setSavedHoldings(JSON.parse(stored)); } catch {} setModalOpen(true); }}
+                onClick={() => setModalOpen(true)}
                 style={{
                   background: 'none', border: '1px solid var(--accent)',
                   borderRadius: 6, color: 'var(--accent)',
