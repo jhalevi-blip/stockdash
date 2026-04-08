@@ -51,9 +51,14 @@ export default function NavBar() {
       .then(r => r.json())
       .then(data => {
         if (data.signedIn && data.holdings?.length) {
-          localStorage.setItem('stockdash_holdings', JSON.stringify(data.holdings));
-          setSavedHoldings(data.holdings);
-          window.dispatchEvent(new CustomEvent('portfolio-saved'));
+          const existing = localStorage.getItem('stockdash_holdings');
+          if (!existing) {
+            localStorage.setItem('stockdash_holdings', JSON.stringify(data.holdings));
+            window.dispatchEvent(new CustomEvent('portfolio-saved'));
+          }
+          setSavedHoldings(
+            existing ? JSON.parse(existing) : data.holdings
+          );
         } else {
           // No Supabase record yet — load from localStorage if present
           try {
