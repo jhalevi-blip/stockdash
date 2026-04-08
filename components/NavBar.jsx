@@ -51,14 +51,21 @@ export default function NavBar() {
       .then(r => r.json())
       .then(data => {
         if (data.signedIn && data.holdings?.length) {
-          const existing = localStorage.getItem('stockdash_holdings');
-          if (!existing) {
+          const justSaved = localStorage.getItem('portfolio_just_saved');
+          if (justSaved) {
+            // Reload came from savePortfolio — localStorage already has the
+            // user's new data. Skip the Supabase overwrite to avoid a
+            // GET-before-upsert-settles race, and clear the flag.
+            localStorage.removeItem('portfolio_just_saved');
+            try {
+              const stored = localStorage.getItem('stockdash_holdings');
+              if (stored) setSavedHoldings(JSON.parse(stored));
+            } catch {}
+          } else {
             localStorage.setItem('stockdash_holdings', JSON.stringify(data.holdings));
+            setSavedHoldings(data.holdings);
             window.dispatchEvent(new CustomEvent('portfolio-saved'));
           }
-          setSavedHoldings(
-            existing ? JSON.parse(existing) : data.holdings
-          );
         } else {
           // No Supabase record yet — load from localStorage if present
           try {
@@ -92,6 +99,7 @@ export default function NavBar() {
       body: JSON.stringify({ holdings }),
     });
     if (!res.ok) throw new Error('Save failed');
+    localStorage.setItem('portfolio_just_saved', 'true');
     window.location.reload();
   }
 
