@@ -117,22 +117,24 @@ export default function NavBar() {
       <UserButton afterSignOutUrl="/" />
     ) : (
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <button
-          onClick={() => startDemo()}
-          onMouseEnter={() => setDemoHovered(true)}
-          onMouseLeave={() => setDemoHovered(false)}
-          style={{
-            background: 'var(--bg-primary)',
-            border: `1px solid ${demoHovered ? 'var(--text-primary)' : 'var(--accent)'}`,
-            borderRadius: 6, color: 'var(--text-primary)',
-            fontSize: 12, fontWeight: 600, cursor: 'pointer',
-            padding: '4px 12px', whiteSpace: 'nowrap',
-            display: 'inline-flex', alignItems: 'center', gap: 5,
-            transition: 'border-color 0.15s',
-          }}>
-          <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
-          Try Demo
-        </button>
+        {!isDemo && (
+          <button
+            onClick={() => startDemo()}
+            onMouseEnter={() => setDemoHovered(true)}
+            onMouseLeave={() => setDemoHovered(false)}
+            style={{
+              background: 'var(--bg-primary)',
+              border: `1px solid ${demoHovered ? 'var(--text-primary)' : 'var(--accent)'}`,
+              borderRadius: 6, color: 'var(--text-primary)',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              padding: '4px 12px', whiteSpace: 'nowrap',
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              transition: 'border-color 0.15s',
+            }}>
+            <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
+            Try Demo
+          </button>
+        )}
         <SignInButton mode="modal">
           <button style={{
             background: 'none', border: '1px solid var(--border-color)',
@@ -283,21 +285,23 @@ export default function NavBar() {
             ))}
             {isLoaded && !isSignedIn && (
               <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid var(--border-color)' }}>
-                <button
-                  onClick={() => { setOpen(false); startDemo(); }}
-                  onMouseEnter={() => setDemoHovered(true)}
-                  onMouseLeave={() => setDemoHovered(false)}
-                  style={{
-                    background: 'var(--bg-primary)',
-                    border: `1px solid ${demoHovered ? 'var(--text-primary)' : 'var(--accent)'}`,
-                    borderRadius: 6, color: 'var(--text-primary)',
-                    fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '8px',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                    transition: 'border-color 0.15s',
-                  }}>
-                  <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#22c55e' }} />
-                  Try Demo
-                </button>
+                {!isDemo && (
+                  <button
+                    onClick={() => { setOpen(false); startDemo(); }}
+                    onMouseEnter={() => setDemoHovered(true)}
+                    onMouseLeave={() => setDemoHovered(false)}
+                    style={{
+                      background: 'var(--bg-primary)',
+                      border: `1px solid ${demoHovered ? 'var(--text-primary)' : 'var(--accent)'}`,
+                      borderRadius: 6, color: 'var(--text-primary)',
+                      fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '8px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      transition: 'border-color 0.15s',
+                    }}>
+                    <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#22c55e' }} />
+                    Try Demo
+                  </button>
+                )}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <SignInButton mode="modal">
                     <button style={{
