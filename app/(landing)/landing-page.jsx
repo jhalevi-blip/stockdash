@@ -181,6 +181,20 @@ function VideoSection() {
   const videoRef = useRef(null);
   const [hovered, setHovered] = useState(false);
 
+  const handleFullscreen = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.requestFullscreen) {
+      video.requestFullscreen();
+    } else if (video.webkitRequestFullscreen) {
+      video.webkitRequestFullscreen();
+    } else if (video.mozRequestFullScreen) {
+      video.mozRequestFullScreen();
+    } else if (video.msRequestFullscreen) {
+      video.msRequestFullscreen();
+    }
+  };
+
   return (
     <div
       style={{
@@ -200,9 +214,10 @@ function VideoSection() {
         muted
         loop
         playsInline
+        controls
       />
       <button
-        onClick={() => videoRef.current?.requestFullscreen()}
+        onClick={handleFullscreen}
         style={{
           position: "absolute", bottom: 14, right: 14,
           width: 36, height: 36, borderRadius: 8, border: "none", cursor: "pointer",
