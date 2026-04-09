@@ -238,31 +238,7 @@ export default function DashboardPage() {
 
       {/* Holdings table */}
       <section data-tour="holdings-table">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div className="section-title" style={{ marginBottom: 0 }}>Holdings</div>
-          <button
-            onClick={() => setTourRun(true)}
-            style={{
-              background: 'var(--bg-secondary, #161b22)',
-              border: '1px solid var(--accent, #2563eb)',
-              color: 'var(--text-primary, #e6edf3)',
-              padding: '6px 16px',
-              borderRadius: 6,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              transition: 'background 0.15s, border-color 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent, #2563eb)'; e.currentTarget.style.color = '#fff'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-secondary, #161b22)'; e.currentTarget.style.color = 'var(--text-primary, #e6edf3)'; }}
-          >
-            <span style={{ fontSize: 16 }}>🗺</span> Take the Tour
-          </button>
-        </div>
+        <div className="section-title">Holdings</div>
         <div className="table-wrap">
           <table>
             <thead>
