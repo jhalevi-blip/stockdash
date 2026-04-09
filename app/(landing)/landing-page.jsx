@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const HOLDINGS = [
   { ticker: "NVDA", name: "Nvidia", shares: 200, price: 177.39, change: 1.64, changePercent: 0.93, costBasis: 10000, sector: "Technology" },
@@ -178,14 +178,22 @@ function HoldingsTable() {
 }
 
 function VideoSection() {
+  const videoRef = useRef(null);
+  const [hovered, setHovered] = useState(false);
+
   return (
-    <div style={{
-      borderRadius: 16, overflow: "hidden",
-      width: "100%",
-      boxShadow: "0 0 80px rgba(34,211,238,0.12), 0 20px 60px rgba(0,0,0,0.6)",
-      border: "1px solid rgba(34,211,238,0.12)",
-    }}>
+    <div
+      style={{
+        position: "relative", borderRadius: 16, overflow: "hidden",
+        width: "100%",
+        boxShadow: "0 0 80px rgba(34,211,238,0.12), 0 20px 60px rgba(0,0,0,0.6)",
+        border: "1px solid rgba(34,211,238,0.12)",
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <video
+        ref={videoRef}
         src="/demo-video.mp4"
         style={{ width: "100%", display: "block" }}
         autoPlay
@@ -193,6 +201,25 @@ function VideoSection() {
         loop
         playsInline
       />
+      <button
+        onClick={() => videoRef.current?.requestFullscreen()}
+        style={{
+          position: "absolute", bottom: 14, right: 14,
+          width: 36, height: 36, borderRadius: 8, border: "none", cursor: "pointer",
+          background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          opacity: hovered ? 1 : 0, transition: "opacity 0.2s",
+          padding: 0,
+        }}
+        aria-label="Fullscreen"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1 6V1H6" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M15 6V1H10" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M1 10V15H6" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M15 10V15H10" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
     </div>
   );
 }
