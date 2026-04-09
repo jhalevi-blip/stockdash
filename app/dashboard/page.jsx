@@ -278,17 +278,30 @@ export default function DashboardPage() {
                   { label: 'P&L %',      field: 'pnlPct'               },
                 ].map(({ label, field, cls }) => {
                   const active = sortField === field;
-                  const indicator = active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : <span style={{ opacity: 0.3 }}> ↕</span>;
+                  const arrow = active
+                    ? <span style={{ fontSize: 14, lineHeight: 1 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
+                    : <span style={{ fontSize: 14, lineHeight: 1, opacity: 0.4 }}>↕</span>;
                   return (
                     <th
                       key={field}
                       className={cls}
                       onClick={() => handleSort(field)}
-                      style={{ cursor: 'pointer', userSelect: 'none', color: active ? 'var(--accent, #2563eb)' : undefined, transition: 'color 0.15s' }}
-                      onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--text-primary, #e6edf3)'; }}
-                      onMouseLeave={e => { if (!active) e.currentTarget.style.color = ''; }}
+                      style={{
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        padding: '10px 12px',
+                        color: active ? '#22d3ee' : undefined,
+                        background: active ? 'rgba(34,211,238,0.06)' : undefined,
+                        borderBottom: active ? '2px solid #22d3ee' : undefined,
+                        transition: 'color 0.15s, background 0.15s',
+                        whiteSpace: 'nowrap',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = active ? 'rgba(34,211,238,0.1)' : 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = active ? '#22d3ee' : 'var(--text-primary, #e6edf3)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = active ? 'rgba(34,211,238,0.06)' : ''; e.currentTarget.style.color = active ? '#22d3ee' : ''; }}
                     >
-                      {label}{indicator}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>{label}{arrow}</span>
                     </th>
                   );
                 })}
