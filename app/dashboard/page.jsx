@@ -30,6 +30,8 @@ export default function DashboardPage() {
   const [period,         setPeriod]         = useState('1Y');
   const [loading,        setLoading]        = useState(true);
   const [tourRun,        setTourRun]        = useState(false);
+  const [sortField,      setSortField]      = useState(null);
+  const [sortDir,        setSortDir]        = useState('desc');
 
   const loadChart = useCallback(async (ticker) => {
     setSelected(ticker);
@@ -164,6 +166,22 @@ export default function DashboardPage() {
     return { ...h, price, chgPct: q?.chgPct ?? null, mktVal, costVal, pnlAmt, pnlPct };
   });
 
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('desc');
+    }
+  };
+
+  const sortedRows = sortField ? [...rows].sort((a, b) => {
+    const valA = a[sortField] ?? (sortDir === 'asc' ? Infinity : -Infinity);
+    const valB = b[sortField] ?? (sortDir === 'asc' ? Infinity : -Infinity);
+    if (typeof valA === 'string') return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    return sortDir === 'asc' ? valA - valB : valB - valA;
+  }) : rows;
+
   const totalMkt  = rows.reduce((s, r) => s + (r.mktVal  ?? 0), 0);
   const totalCost = rows.reduce((s, r) => s + (r.costVal ?? 0), 0);
   const totalPnl  = totalMkt - totalCost;
@@ -249,18 +267,35 @@ export default function DashboardPage() {
           <table>
             <thead>
               <tr>
-                <th className="left">Ticker</th>
-                <th>Shares</th>
-                <th>Price</th>
-                <th>Chg %</th>
-                <th>Cost Basis</th>
-                <th>Mkt Value</th>
-                <th>P&L $</th>
-                <th>P&L %</th>
+                {[
+                  { label: 'Ticker',     field: 't',       cls: 'left' },
+                  { label: 'Shares',     field: 's'                    },
+                  { label: 'Price',      field: 'price'                },
+                  { label: 'Chg %',      field: 'chgPct'               },
+                  { label: 'Cost Basis', field: 'costVal'              },
+                  { label: 'Mkt Value',  field: 'mktVal'               },
+                  { label: 'P&L $',      field: 'pnlAmt'               },
+                  { label: 'P&L %',      field: 'pnlPct'               },
+                ].map(({ label, field, cls }) => {
+                  const active = sortField === field;
+                  const indicator = active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : <span style={{ opacity: 0.3 }}> ↕</span>;
+                  return (
+                    <th
+                      key={field}
+                      className={cls}
+                      onClick={() => handleSort(field)}
+                      style={{ cursor: 'pointer', userSelect: 'none', color: active ? 'var(--accent, #2563eb)' : undefined, transition: 'color 0.15s' }}
+                      onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--text-primary, #e6edf3)'; }}
+                      onMouseLeave={e => { if (!active) e.currentTarget.style.color = ''; }}
+                    >
+                      {label}{indicator}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
-              {rows.map(r => (
+              {sortedRows.map(r => (
                 <tr key={r.t} onClick={() => loadChart(r.t)} style={{ cursor: 'pointer' }}>
                   <td className="left tkr">{r.t}</td>
                   <td>{fmt(r.s, 0)}</td>
