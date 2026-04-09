@@ -15,6 +15,7 @@ const isPublicRoute = createRouteMatcher([
   "/valuation(.*)",
   "/earnings(.*)",
   "/analyst(.*)",
+  "/short-interest(.*)",
   "/api/(.*)",
 ]);
 
