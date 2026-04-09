@@ -30,18 +30,6 @@ const STATS = [
   { value: "100%", label: "Free, forever" },
 ];
 
-const NAV_LINKS = [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Performance", href: "/performance" },
-  { label: "Macro", href: "/macro" },
-  { label: "Insider", href: "/insider" },
-  { label: "Ownership", href: "/institutional" },
-  { label: "Peers", href: "/peers" },
-  { label: "Research", href: "/research" },
-  { label: "Valuation", href: "/valuation" },
-  { label: "Earnings", href: "/earnings" },
-  { label: "Analyst", href: "/analyst" },
-];
 
 function SortIcon({ direction }) {
   if (!direction) return (
@@ -193,7 +181,7 @@ function VideoSection() {
   return (
     <div style={{
       borderRadius: 16, overflow: "hidden",
-      maxWidth: 900, margin: "0 auto",
+      width: "100%",
       boxShadow: "0 0 80px rgba(34,211,238,0.12), 0 20px 60px rgba(0,0,0,0.6)",
       border: "1px solid rgba(34,211,238,0.12)",
     }}>
@@ -221,35 +209,6 @@ export default function LandingPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#fff", fontFamily: "'DM Sans', sans-serif", overflow: "hidden" }}>
-
-      {/* NAV */}
-      <nav style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        padding: "16px 32px", borderBottom: "1px solid rgba(255,255,255,0.06)",
-        position: "sticky", top: 0, zIndex: 100,
-        background: "rgba(10,10,10,0.9)", backdropFilter: "blur(20px)",
-      }}>
-        <a href="/" style={{ fontWeight: 800, fontSize: 16, letterSpacing: "0.08em", color: "#fff", textDecoration: "none", textTransform: "uppercase" }}>
-          STOCKDASHES
-        </a>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {NAV_LINKS.slice(0, 6).map(item => (
-            <a key={item.label} href={item.href} style={{
-              color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 13, fontWeight: 500,
-              padding: "6px 12px", borderRadius: 6, transition: "all 0.2s",
-            }}
-              onMouseEnter={e => { e.target.style.color = "#fff"; e.target.style.background = "rgba(255,255,255,0.06)"; }}
-              onMouseLeave={e => { e.target.style.color = "rgba(255,255,255,0.5)"; e.target.style.background = "transparent"; }}
-            >{item.label}</a>
-          ))}
-          <a href="/sign-up" style={{
-            padding: "8px 20px", borderRadius: 8, border: "none", marginLeft: 8,
-            background: "#22d3ee", color: "#0a0a0a", textDecoration: "none",
-            fontWeight: 700, fontSize: 13, transition: "all 0.2s",
-            boxShadow: "0 0 20px rgba(34,211,238,0.2)",
-          }}>Sign Up Free</a>
-        </div>
-      </nav>
 
       {/* HERO */}
       <section style={{ ...sectionStyle, textAlign: "center", paddingTop: 100, paddingBottom: 80, position: "relative" }}>
@@ -303,7 +262,7 @@ export default function LandingPage() {
       </section>
 
       {/* SEE IT IN ACTION */}
-      <section style={{ ...sectionStyle, paddingBottom: 100 }}>
+      <section style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", paddingBottom: 100 }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>See it in action</div>
           <h2 style={{ fontSize: "clamp(28px, 3vw, 42px)", fontWeight: 700, letterSpacing: "-0.02em", margin: "0 0 16px" }}>
