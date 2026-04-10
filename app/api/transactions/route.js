@@ -233,15 +233,18 @@ function calcFIFO(transactions) {
     }
 
     if (lastSell && closedShares > 0.001) {
+      const remainingShares = lots.reduce((s, l) => s + l.shares, 0);
       results.push({
         symbol,
-        closedShares:   Math.round(closedShares   * 100) / 100,
-        totalBoughtEur: Math.round(totalBoughtEur * 100) / 100,
-        totalSoldEur:   Math.round(totalSoldEur   * 100) / 100,
-        pnl:            Math.round(realizedPnl    * 100) / 100,
+        closedShares:    Math.round(closedShares    * 100) / 100,
+        totalBoughtEur:  Math.round(totalBoughtEur  * 100) / 100,
+        totalSoldEur:    Math.round(totalSoldEur    * 100) / 100,
+        pnl:             Math.round(realizedPnl     * 100) / 100,
         firstBuy,
         lastSell,
-        openLots: lots.length,
+        openLots:        lots.length,
+        remainingShares: Math.round(remainingShares * 100) / 100,
+        status:          remainingShares > 0.001 ? 'partial' : 'closed',
       });
     }
   }
@@ -315,13 +318,16 @@ export async function POST(request) {
     }
     console.log('[transactions] symbol summary:', JSON.stringify(bySymDbg));
 
-    const positions = calcFIFO(allTxs);
-    const totalPnl  = positions.reduce((s, p) => s + p.pnl, 0);
+    const allPositions    = calcFIFO(allTxs);
+    const positions       = allPositions.filter(p => p.status === 'closed');
+    const partialPositions = allPositions.filter(p => p.status === 'partial');
+    const totalPnl        = positions.reduce((s, p) => s + p.pnl, 0);
 
-    console.log(`[transactions] total ${allTxs.length} txs → ${positions.length} closed positions, P&L: ${totalPnl.toFixed(2)}`);
+    console.log(`[transactions] total ${allTxs.length} txs → ${positions.length} closed, ${partialPositions.length} partial, P&L: ${totalPnl.toFixed(2)}`);
 
     return Response.json({
       positions,
+      partialPositions,
       totalPnl: Math.round(totalPnl * 100) / 100,
       txCount:  allTxs.length,
       files:    fileStats,

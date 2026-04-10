@@ -111,7 +111,7 @@ export default function TransactionUpload({ onResults }) {
 
   // Loaded from localStorage — no File objects, show read-only file list from results.files
   const fromStorage = results && !fileList.length;
-  const { positions = [], totalPnl, txCount, files: resultFiles = [] } = results ?? {};
+  const { positions = [], partialPositions = [], totalPnl, txCount, files: resultFiles = [] } = results ?? {};
   const best  = positions.length ? positions.reduce((a, b) => b.pnl > a.pnl ? b : a) : null;
   const worst = positions.length ? positions.reduce((a, b) => b.pnl < a.pnl ? b : a) : null;
 
@@ -336,6 +336,55 @@ export default function TransactionUpload({ onResults }) {
                 </tbody>
               </table>
             </div>
+          )}
+
+          {/* Partial exits table */}
+          {partialPositions.length > 0 && (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 20, marginBottom: 8 }}>
+                Partial Exits — still holding shares
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      {[
+                        { label: 'Symbol',          align: 'left'  },
+                        { label: 'Shares Sold',     align: 'right' },
+                        { label: 'Shares Remaining',align: 'right' },
+                        { label: 'Cost Basis',      align: 'right' },
+                        { label: 'Proceeds',        align: 'right' },
+                        { label: 'Realized P&L',    align: 'right' },
+                        { label: 'Last Sell',       align: 'right' },
+                      ].map(({ label, align }) => (
+                        <th
+                          key={label}
+                          className={align === 'left' ? 'left' : ''}
+                          style={{ padding: '10px 16px', fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}
+                        >
+                          {label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {partialPositions.map((p, i) => (
+                      <tr key={i}>
+                        <td className="left" style={{ fontWeight: 700, color: '#e6edf3' }}>{p.symbol}</td>
+                        <td style={{ textAlign: 'right' }}>{fmt(p.closedShares, p.closedShares % 1 === 0 ? 0 : 2)}</td>
+                        <td style={{ textAlign: 'right', color: '#8b949e' }}>{fmt(p.remainingShares, p.remainingShares % 1 === 0 ? 0 : 2)}</td>
+                        <td style={{ textAlign: 'right', color: '#8b949e' }}>€{fmt(p.totalBoughtEur)}</td>
+                        <td style={{ textAlign: 'right' }}>€{fmt(p.totalSoldEur)}</td>
+                        <td style={{ textAlign: 'right', color: clr(p.pnl), fontWeight: 700 }}>
+                          {fmtEur(p.pnl)}
+                        </td>
+                        <td style={{ textAlign: 'right', color: '#8b949e', fontSize: 11 }}>{p.lastSell ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </>
       )}
