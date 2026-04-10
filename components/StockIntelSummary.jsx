@@ -58,7 +58,7 @@ function Card({ title, loading, children, span }) {
       background: 'var(--bg-card)',
       border: '1px solid var(--border-color)',
       borderRadius: 8,
-      padding: '14px 16px',
+      padding: '16px',
       display: 'flex',
       flexDirection: 'column',
       gap: 8,
@@ -412,7 +412,7 @@ export default function StockIntelSummary({ holdings, rows }) {
       {ticker && (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+          gridTemplateColumns: 'repeat(5, 1fr)',
           gap: 12,
           width: '100%',
         }}>
