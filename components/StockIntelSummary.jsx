@@ -412,7 +412,7 @@ export default function StockIntelSummary({ holdings, rows }) {
       {ticker && (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(5, 1fr)',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
           gap: 12,
           width: '100%',
         }}>
@@ -559,7 +559,7 @@ export default function StockIntelSummary({ holdings, rows }) {
           </Card>
 
           {/* 5 — Earnings History */}
-          <Card title="Earnings History" loading={loading}>
+          <Card title="Earnings History" loading={loading} span={2}>
             {earnHist.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {earnHist.map(e => {
@@ -701,7 +701,7 @@ export default function StockIntelSummary({ holdings, rows }) {
           </Card>
 
           {/* 7 — Peers */}
-          <Card title="Peer Comparison" loading={loading}>
+          <Card title="Peer Comparison" loading={loading} span={2}>
             {peersList.length > 0 ? (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -732,7 +732,7 @@ export default function StockIntelSummary({ holdings, rows }) {
           </Card>
 
           {/* 8 — News */}
-          <Card title="Recent News" loading={loading}>
+          <Card title="Recent News" loading={loading} span={2}>
             {newsList.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {newsList.map((n, i) => (
