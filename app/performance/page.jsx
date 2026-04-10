@@ -5,6 +5,7 @@ import {
   ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import DemoPrompt from '@/components/DemoPrompt';
+import TransactionUpload from '@/components/TransactionUpload';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
@@ -138,6 +139,7 @@ export default function PerformancePage() {
   const [rawData,        setRawData]        = useState(null);
   const [dataLoading,    setDataLoading]    = useState(false);
   const [error,          setError]          = useState(null);
+  const [realizedData,   setRealizedData]   = useState(null);
   const [startDate,      setStartDate]      = useState(null);  // YYYY-MM-DD or null
   const [dateInput,      setDateInput]      = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -530,6 +532,23 @@ export default function PerformancePage() {
           sub="vs SPY since start"
           valueColor={s ? clr(s.vsSpyAmt) : undefined}
         />
+        {realizedData && (() => {
+          const { positions = [], totalPnl } = realizedData;
+          const best  = positions.length ? positions.reduce((a, b) => b.pnl > a.pnl ? b : a) : null;
+          const worst = positions.length ? positions.reduce((a, b) => b.pnl < a.pnl ? b : a) : null;
+          return (
+            <MetricCard
+              label="Realized P&L"
+              value={totalPnl == null ? '—' : (totalPnl >= 0 ? '+€' : '-€') + fmt(Math.abs(totalPnl))}
+              sub={
+                positions.length
+                  ? `${positions.length} closed · best: ${best?.symbol ?? '—'} worst: ${worst?.symbol ?? '—'}`
+                  : 'No closed positions'
+              }
+              valueColor={clr(totalPnl)}
+            />
+          );
+        })()}
       </div>
 
       {/* EUR/USD chart */}
@@ -561,6 +580,20 @@ export default function PerformancePage() {
             </AreaChart>
           </ResponsiveContainer>
         )}
+      </div>
+
+      {/* Transaction Upload — Realized P&L */}
+      <div style={{
+        background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+        borderRadius: 10, padding: '20px 24px', marginBottom: 20,
+      }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+          Upload Transactions
+        </div>
+        <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 16 }}>
+          Upload your broker transaction export to calculate realized P&amp;L on closed positions using FIFO.
+        </div>
+        <TransactionUpload onResults={setRealizedData} />
       </div>
 
       {/* Disclaimer */}
