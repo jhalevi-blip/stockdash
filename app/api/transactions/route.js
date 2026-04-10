@@ -113,12 +113,12 @@ function parseFileBuffer(buffer, filename) {
       const rawActies = String(row[actiesCol] ?? '').trim();
       if (!rawActies) continue;
 
-      // Parse "Koop 10 @ 150,00 USD" or "Verkoop 5 @ 200,00 EUR"
-      const actiesMatch = rawActies.match(/^(koop|verkoop)\s+([\d.,]+)/i);
+      // Parse "Koop 1800 @ 17.30 USD" or "Verkoop -1800 @ 17.36 USD"
+      const actiesMatch = rawActies.match(/^(koop|verkoop)\s+(-?[\d.,]+)/i);
       if (!actiesMatch) continue;
 
       const action = actiesMatch[1].toLowerCase() === 'koop' ? 'buy' : 'sell';
-      const shares = parseNum(actiesMatch[2]);
+      const shares = Math.abs(parseNum(actiesMatch[2]));
       if (!shares || shares === 0) continue;
 
       const rawSymbol  = symbolCol  !== -1 ? String(row[symbolCol]  ?? '').trim() : '';
@@ -300,6 +300,20 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    console.log('[transactions] parsed sample:', JSON.stringify(
+      allTxs.slice(0, 10).map(t => ({
+        symbol: t.symbol, action: t.action, shares: t.shares, price: t.price, date: t.date,
+      }))
+    ));
+    // Per-symbol buy/sell summary for FIFO debugging
+    const bySymDbg = {};
+    for (const t of allTxs) {
+      if (!bySymDbg[t.symbol]) bySymDbg[t.symbol] = { buys: 0, sells: 0 };
+      if (t.action === 'buy') bySymDbg[t.symbol].buys += t.shares;
+      else bySymDbg[t.symbol].sells += t.shares;
+    }
+    console.log('[transactions] symbol summary:', JSON.stringify(bySymDbg));
 
     const positions = calcFIFO(allTxs);
     const totalPnl  = positions.reduce((s, p) => s + p.pnl, 0);
