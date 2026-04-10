@@ -93,22 +93,10 @@ export default function AnalystPage() {
                         padding: '10px 16px',
                         fontSize: 12,
                         fontWeight: 600,
-                        color: active ? '#22d3ee' : undefined,
-                        transition: 'background 0.15s',
+                        color: active ? '#22d3ee' : 'rgba(255,255,255,0.5)',
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = ''; }}
                     >
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                        {c.label}
-                        <span style={{
-                          fontSize: 14,
-                          lineHeight: 1,
-                          color: active ? '#22d3ee' : 'rgba(255,255,255,0.3)',
-                        }}>
-                          {active ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
-                        </span>
-                      </span>
+                      {c.label} {active ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
                     </th>
                   );
                 })}
