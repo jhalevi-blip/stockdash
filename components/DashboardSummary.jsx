@@ -32,9 +32,10 @@ function Card({ title, children, loading }) {
 }
 
 export default function DashboardSummary({ holdings, rows, earnings, news }) {
-  const [macro,   setMacro]   = useState(null);
-  const [insider, setInsider] = useState(null);
-  const [analyst, setAnalyst] = useState(null);
+  const [macro,          setMacro]          = useState(null);
+  const [insider,        setInsider]        = useState(null);
+  const [analyst,        setAnalyst]        = useState(null);
+  const [shortInterest,  setShortInterest]  = useState(null);
   const [fetched, setFetched] = useState(false);
 
   useEffect(() => {
@@ -44,10 +45,12 @@ export default function DashboardSummary({ holdings, rows, earnings, news }) {
       fetch('/api/macro').then(r => r.json()).catch(() => null),
       fetch(`/api/insider?tickers=${tickers}`).then(r => r.json()).catch(() => []),
       fetch(`/api/short-interest?tickers=${tickers}`).then(r => r.json()).catch(() => []),
-    ]).then(([m, ins, ana]) => {
+      fetch(`/api/short-interest-data?tickers=${tickers}`).then(r => r.json()).catch(() => []),
+    ]).then(([m, ins, ana, si]) => {
       setMacro(m);
       setInsider(Array.isArray(ins) ? ins : []);
       setAnalyst(Array.isArray(ana) ? ana : []);
+      setShortInterest(Array.isArray(si) ? si : []);
     }).finally(() => setFetched(true));
   }, [holdings]);
 
@@ -74,6 +77,13 @@ export default function DashboardSummary({ holdings, rows, earnings, news }) {
   const recentInsider = (insider ?? [])
     .filter(i => i.transactionDate)
     .sort((a, b) => new Date(b.transactionDate) - new Date(a.transactionDate))[0] ?? null;
+
+  // Short interest — most shorted holding
+  const mostShorted = (shortInterest ?? []).length
+    ? (shortInterest ?? []).reduce((best, cur) =>
+        (cur.shortPercentOfFloat ?? 0) > (best.shortPercentOfFloat ?? 0) ? cur : best
+      )
+    : null;
 
   // Macro
   const spy = macro?.indices?.SPY;
@@ -186,7 +196,36 @@ export default function DashboardSummary({ holdings, rows, earnings, news }) {
         )}
       </Card>
 
-      {/* 5 — Market Pulse */}
+      {/* 5 — Most Shorted */}
+      <Card title="Most Shorted" loading={loading}>
+        {mostShorted ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--accent)', fontWeight: 600, fontSize: 15 }}>{mostShorted.ticker}</span>
+              <span style={{
+                fontSize: 18, fontWeight: 700,
+                color: mostShorted.shortPercentOfFloat > 0.20 ? 'var(--negative)'
+                     : mostShorted.shortPercentOfFloat < 0.05 ? 'var(--positive)'
+                     : '#d97706',
+              }}>
+                {mostShorted.shortPercentOfFloat != null
+                  ? fmt(mostShorted.shortPercentOfFloat * 100, 1) + '%'
+                  : '—'}
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Short % of float</div>
+            {mostShorted.siChange != null && (
+              <div style={{ fontSize: 12, color: mostShorted.siChange > 0 ? 'var(--negative)' : 'var(--positive)', fontWeight: 600 }}>
+                {mostShorted.siChange > 0 ? '▲' : '▼'} {Math.abs(mostShorted.siChange).toFixed(1)}% MoM
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No short interest data</div>
+        )}
+      </Card>
+
+      {/* 6 — Market Pulse */}
       <Card title="Market Pulse" loading={loading}>
         {macro ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>

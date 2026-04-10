@@ -241,7 +241,7 @@ export default function StockIntelSummary({ holdings, rows }) {
     setFinPeriod('Annual');
     setFinQData(null);
 
-    const [analyst, insider, earningsHist, valuation, peers, financials, news, filings] =
+    const [analyst, insider, earningsHist, valuation, peers, financials, news, filings, shortInterest] =
       await Promise.all([
         fetch(`/api/short-interest?tickers=${t}`).then(r => r.json()).catch(() => []),
         fetch(`/api/insider?tickers=${t}`).then(r => r.json()).catch(() => []),
@@ -251,9 +251,10 @@ export default function StockIntelSummary({ holdings, rows }) {
         fetch(`/api/financials?ticker=${t}`).then(r => r.json()).catch(() => null),
         fetch(`/api/news?tickers=${t}`).then(r => r.json()).catch(() => []),
         fetch(`/api/research?symbol=${t}&type=filings`).then(r => r.json()).catch(() => []),
+        fetch(`/api/short-interest-data?tickers=${t}`).then(r => r.json()).catch(() => []),
       ]);
 
-    setData({ analyst, insider, earningsHist, valuation, peers, financials, news, filings });
+    setData({ analyst, insider, earningsHist, valuation, peers, financials, news, filings, shortInterest });
     setLoading(false);
   }, []);
 
@@ -355,6 +356,7 @@ export default function StockIntelSummary({ holdings, rows }) {
   const finD      = data?.financials ?? null;
   const newsList  = (data?.news ?? []).slice(0, 4);
   const filings   = (data?.filings ?? []).slice(0, 4);
+  const siD       = data?.shortInterest?.find?.(s => s.ticker === ticker) ?? null;
 
   const upside = row?.price && analystD?.lastQuarterTarget
     ? ((analystD.lastQuarterTarget - row.price) / row.price) * 100
@@ -483,6 +485,40 @@ export default function StockIntelSummary({ holdings, rows }) {
               </>
             ) : (
               <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No valuation data</div>
+            )}
+          </Card>
+
+          {/* 3.5 — Short Interest */}
+          <Card title="Short Interest" loading={loading}>
+            {siD ? (
+              <>
+                <KV
+                  label="Short % of Float"
+                  value={siD.shortPercentOfFloat != null ? fmt(siD.shortPercentOfFloat * 100, 2) + '%' : '—'}
+                  valueColor={
+                    siD.shortPercentOfFloat == null ? undefined
+                    : siD.shortPercentOfFloat > 0.20 ? 'var(--negative)'
+                    : siD.shortPercentOfFloat < 0.05 ? 'var(--positive)'
+                    : '#d97706'
+                  }
+                />
+                <KV label="Shares Short" value={(() => {
+                  const n = siD.sharesShort;
+                  if (n == null) return '—';
+                  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+                  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+                  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+                  return n.toLocaleString();
+                })()} />
+                <KV label="Short Ratio (DTC)" value={siD.shortRatio != null ? fmt(siD.shortRatio) : '—'} />
+                <KV
+                  label="MoM Change"
+                  value={siD.siChange != null ? (siD.siChange > 0 ? '+' : '') + fmt(siD.siChange) + '%' : '—'}
+                  valueColor={siD.siChange == null ? undefined : siD.siChange > 0 ? 'var(--negative)' : 'var(--positive)'}
+                />
+              </>
+            ) : (
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No short interest data</div>
             )}
           </Card>
 
