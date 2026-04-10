@@ -79,19 +79,39 @@ export default function AnalystPage() {
           <table>
             <thead>
               <tr>
-                {COLS.map(c => (
-                  <th
-                    key={c.key}
-                    className={c.align === 'left' ? 'left' : ''}
-                    onClick={() => handleSort(c.key)}
-                    style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
-                  >
-                    {c.label}
-                    {sortKey === c.key && (
-                      <span style={{ marginLeft: 4, fontSize: 10 }}>{sortDir === 'desc' ? '▼' : '▲'}</span>
-                    )}
-                  </th>
-                ))}
+                {COLS.map(c => {
+                  const active = sortKey === c.key;
+                  return (
+                    <th
+                      key={c.key}
+                      className={c.align === 'left' ? 'left' : ''}
+                      onClick={() => handleSort(c.key)}
+                      style={{
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        whiteSpace: 'nowrap',
+                        padding: '10px 16px',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: active ? '#22d3ee' : undefined,
+                        transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                        {c.label}
+                        <span style={{
+                          fontSize: 14,
+                          lineHeight: 1,
+                          color: active ? '#22d3ee' : 'rgba(255,255,255,0.3)',
+                        }}>
+                          {active ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
+                        </span>
+                      </span>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
