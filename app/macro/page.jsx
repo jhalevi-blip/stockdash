@@ -115,9 +115,9 @@ export default function MacroPage() {
           <div style={{ marginBottom: 24 }}>
             <SectionLabel>Market Indices</SectionLabel>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-              <Card label="S&P 500 (SPY)"    value={spy?.price}  changePct={spy?.changesPercentage}  change={spy?.change} />
-              <Card label="Nasdaq (QQQ)"     value={qqq?.price}  changePct={qqq?.changesPercentage}  change={qqq?.change} />
-              <Card label="Dow Jones (DIA)"  value={dia?.price}  changePct={dia?.changesPercentage}  change={dia?.change} />
+              <Card label="S&P 500"    value={spy?.price}  changePct={spy?.changesPercentage}  change={spy?.change} />
+              <Card label="NASDAQ"     value={qqq?.price}  changePct={qqq?.changesPercentage}  change={qqq?.change} />
+              <Card label="DOW JONES"  value={dia?.price}  changePct={dia?.changesPercentage}  change={dia?.change} />
               <Card label="VIX Fear Index"   value={vix?.price}  changePct={vix?.changesPercentage}  change={vix?.change}
                 prefix="" borderColor={vixBorderColor} />
               <FearGreedCard fearGreed={fearGreed} />

@@ -143,9 +143,9 @@ export async function GET() {
 
   try {
     const [spyRes, qqqRes, diaRes, dxyRes, goldRes, oilRes, irx, fvx, tnx, tyx, fmpTreasury] = await Promise.all([
-      fetch(`https://finnhub.io/api/v1/quote?symbol=SPY&token=${fhKey}`, opts).then(r => r.json()),
-      fetch(`https://finnhub.io/api/v1/quote?symbol=QQQ&token=${fhKey}`, opts).then(r => r.json()),
-      fetch(`https://finnhub.io/api/v1/quote?symbol=DIA&token=${fhKey}`, opts).then(r => r.json()),
+      fetchYahooQuote('%5EGSPC'),  // S&P 500 actual index
+      fetchYahooQuote('%5EIXIC'),  // NASDAQ actual index
+      fetchYahooQuote('%5EDJI'),   // Dow Jones actual index
       fetch(`https://finnhub.io/api/v1/quote?symbol=UUP&token=${fhKey}`, opts).then(r => r.json()),
       fetchYahooQuote('GC%3DF'),  // Gold futures (COMEX) — Finnhub OANDA:XAU_USD requires premium
       fetchYahooQuote('CL%3DF'),  // WTI crude futures — Finnhub USO ETF doesn't track spot price
@@ -197,9 +197,9 @@ export async function GET() {
 
     return Response.json({
       indices: {
-        SPY: makeIndex(spyRes, 'SPY'),
-        QQQ: makeIndex(qqqRes, 'QQQ'),
-        DIA: makeIndex(diaRes, 'DIA'),
+        SPY: spyRes ? { symbol: '^GSPC', ...spyRes } : null,
+        QQQ: qqqRes ? { symbol: '^IXIC', ...qqqRes } : null,
+        DIA: diaRes ? { symbol: '^DJI',  ...diaRes } : null,
         VIX: vix,
       },
       commodities: {
