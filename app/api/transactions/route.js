@@ -68,9 +68,15 @@ function parseFileBuffer(buffer, filename) {
   const sharesCol  = findCol(headers, ['aantal', 'quantity', 'shares', 'qty', 'units', 'hoeveelheid']);
   const priceCol   = findCol(headers, ['koers', 'price', 'unit price', 'prijs', 'execution price', 'koers eur']);
   const totalCol   = findCol(headers, ['totaal', 'total', 'boekingsbedrag', 'amount', 'net amount', 'waarde', 'consideration']);
-  const orderIdCol = findCol(headers, ['order id', 'orderid', 'order_id', 'reference', 'ref', 'trade id', 'tradeid']);
+  const orderIdCol = findCol(headers, ['order id', 'orderid', 'order_id', 'order-id', 'reference', 'ref', 'trade id', 'tradeid']);
 
-  if (dateCol === -1 || sharesCol === -1) {
+  // DeGiro account statement format: shares are embedded in "Acties" text ("Koop 10 @ 150,00 USD")
+  const actiesCol         = findCol(headers, ['acties']);
+  const boekingsbedragCol = findCol(headers, ['boekingsbedrag']);
+  const typeCol           = findCol(headers, ['type']);
+  const isDeGiroAccount   = actiesCol !== -1 && boekingsbedragCol !== -1;
+
+  if (isDeGiroAccount ? dateCol === -1 : (dateCol === -1 || sharesCol === -1)) {
     throw new Error(
       `${filename}: could not detect required columns. Headers found: ${headers.filter(Boolean).join(', ')}`
     );
@@ -81,38 +87,86 @@ function parseFileBuffer(buffer, filename) {
   for (const row of dataRows) {
     if (!row.some(v => v !== '')) continue;
 
-    const rawShares = parseNum(row[sharesCol]);
-    if (!rawShares || rawShares === 0) continue;
+    if (isDeGiroAccount) {
+      // Only process trade rows (Type = "Transactie")
+      const rowType = typeCol !== -1 ? String(row[typeCol] ?? '').trim().toLowerCase() : 'transactie';
+      if (rowType && rowType !== 'transactie') continue;
 
-    const rawDate    = row[dateCol];
-    const rawPrice   = priceCol   !== -1 ? parseNum(row[priceCol])             : null;
-    const rawTotal   = totalCol   !== -1 ? parseNum(row[totalCol])             : null;
-    const rawAction  = actionCol  !== -1 ? row[actionCol]                      : null;
-    const rawSymbol  = symbolCol  !== -1 ? String(row[symbolCol]  ?? '').trim(): null;
-    const rawProduct = productCol !== -1 ? String(row[productCol] ?? '').trim(): null;
-    const rawOrderId = orderIdCol !== -1 ? String(row[orderIdCol] ?? '').trim(): null;
+      const rawActies = String(row[actiesCol] ?? '').trim();
+      if (!rawActies) continue;
 
-    const symbol = (rawSymbol && rawSymbol.length >= 1 && rawSymbol.length <= 20 && !/^\d{12}$/.test(rawSymbol))
-      ? rawSymbol
-      : rawProduct ?? 'UNKNOWN';
+      // Parse "Koop 10 @ 150,00 USD" or "Verkoop 5 @ 200,00 EUR"
+      const actiesMatch = rawActies.match(/^(koop|verkoop)\s+([\d.,]+)/i);
+      if (!actiesMatch) continue;
 
-    let price = rawPrice != null && rawPrice > 0 ? rawPrice : null;
-    if (price == null && rawTotal != null && rawShares !== 0) {
-      price = Math.abs(rawTotal) / Math.abs(rawShares);
+      const action = actiesMatch[1].toLowerCase() === 'koop' ? 'buy' : 'sell';
+      const shares = parseNum(actiesMatch[2]);
+      if (!shares || shares === 0) continue;
+
+      const rawSymbol  = symbolCol  !== -1 ? String(row[symbolCol]  ?? '').trim() : '';
+      const rawProduct = productCol !== -1 ? String(row[productCol] ?? '').trim() : '';
+
+      // Skip options/derivatives (symbol contains "/")
+      if (rawSymbol.includes('/')) continue;
+
+      // Extract ticker before ":" (e.g. "SOFI:xnas" → "SOFI")
+      const symbol = rawSymbol
+        ? rawSymbol.split(':')[0].trim()
+        : rawProduct || 'UNKNOWN';
+
+      if (!symbol) continue;
+
+      const rawTotal = parseNum(row[boekingsbedragCol]);
+      if (rawTotal == null) continue;
+      const price = Math.abs(rawTotal) / shares;
+      if (!price) continue;
+
+      const rawOrderId = orderIdCol !== -1 ? String(row[orderIdCol] ?? '').trim() : null;
+
+      transactions.push({
+        date:    parseDate(row[dateCol]),
+        symbol,
+        action,
+        shares,
+        price,
+        orderId: rawOrderId || null,
+      });
+
+    } else {
+      // Generic / DeGiro transactions export format
+      const rawShares = parseNum(row[sharesCol]);
+      if (!rawShares || rawShares === 0) continue;
+
+      const rawDate    = row[dateCol];
+      const rawPrice   = priceCol   !== -1 ? parseNum(row[priceCol])             : null;
+      const rawTotal   = totalCol   !== -1 ? parseNum(row[totalCol])             : null;
+      const rawAction  = actionCol  !== -1 ? row[actionCol]                      : null;
+      const rawSymbol  = symbolCol  !== -1 ? String(row[symbolCol]  ?? '').trim(): null;
+      const rawProduct = productCol !== -1 ? String(row[productCol] ?? '').trim(): null;
+      const rawOrderId = orderIdCol !== -1 ? String(row[orderIdCol] ?? '').trim(): null;
+
+      const symbol = (rawSymbol && rawSymbol.length >= 1 && rawSymbol.length <= 20 && !/^\d{12}$/.test(rawSymbol))
+        ? rawSymbol
+        : rawProduct ?? 'UNKNOWN';
+
+      let price = rawPrice != null && rawPrice > 0 ? rawPrice : null;
+      if (price == null && rawTotal != null && rawShares !== 0) {
+        price = Math.abs(rawTotal) / Math.abs(rawShares);
+      }
+      if (!price) continue;
+
+      const action = detectAction(rawAction, rawShares);
+      if (!action) continue;
+
+      transactions.push({
+        date:    parseDate(rawDate),
+        symbol,
+        action,
+        shares:  rawShares,
+        price,
+        orderId: rawOrderId || null,
+      });
     }
-    if (!price) continue;
-
-    const action = detectAction(rawAction, rawShares);
-    if (!action) continue;
-
-    transactions.push({
-      date:    parseDate(rawDate),
-      symbol,
-      action,
-      shares:  rawShares,
-      price,
-      orderId: rawOrderId || null,
-    });
   }
 
   return transactions;
