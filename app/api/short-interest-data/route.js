@@ -18,8 +18,10 @@ async function fetchYahooCrumb() {
     const crumb = await crumbRes.text();
     if (!crumb || crumb.includes('{')) return null;
 
+    console.log('[short-interest-data] crumb ok:', crumb.trim().slice(0, 8) + '…');
     return { crumb: crumb.trim(), cookie };
-  } catch {
+  } catch (e) {
+    console.log('[short-interest-data] fetchYahooCrumb failed:', e?.message);
     return null;
   }
 }
@@ -32,14 +34,18 @@ async function fetchShortInterest(ticker, auth) {
     if (auth?.cookie) headers['Cookie'] = auth.cookie;
 
     const res = await fetch(url, { headers, cache: 'no-store' });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.log(`[short-interest-data] ${ticker} HTTP ${res.status}`);
+      return null;
+    }
     const data = await res.json();
     const ks = data?.quoteSummary?.result?.[0]?.defaultKeyStatistics;
-    if (!ks) return null;
-
-    if (ticker === 'NNE') {
-      console.log('[short-interest-data] raw ks for NNE:', JSON.stringify(ks, null, 2));
+    if (!ks) {
+      console.log(`[short-interest-data] ${ticker} no defaultKeyStatistics — error:`, data?.quoteSummary?.error);
+      return null;
     }
+
+    console.log(`[short-interest-data] ${ticker} shortPercentOfFloat:`, ks.shortPercentOfFloat?.raw, 'sharesShortPriorMonth:', ks.sharesShortPriorMonth?.raw);
 
     const sharesShort        = ks.sharesShort?.raw           ?? null;
     const sharesShortPriorMonth = ks.sharesShortPriorMonth?.raw ?? null;

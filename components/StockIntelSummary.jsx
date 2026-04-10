@@ -357,6 +357,7 @@ export default function StockIntelSummary({ holdings, rows }) {
   const newsList  = (data?.news ?? []).slice(0, 4);
   const filings   = (data?.filings ?? []).slice(0, 4);
   const siD       = data?.shortInterest?.find?.(s => s.ticker === ticker) ?? null;
+  if (ticker === 'SOFI') console.log('[StockIntel] shortInterest raw:', data?.shortInterest, '| siD:', siD);
 
   const upside = row?.price && analystD?.lastQuarterTarget
     ? ((analystD.lastQuarterTarget - row.price) / row.price) * 100
