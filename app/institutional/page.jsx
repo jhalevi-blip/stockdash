@@ -24,6 +24,36 @@ export default function InstitutionalPage() {
   const [loading,      setLoading]      = useState(true);
   const [expanded,     setExpanded]     = useState(null);
   const [selectedFund, setSelectedFund] = useState(0);
+  const [insSort,      setInsSort]      = useState({ key: 'netShares', dir: 'desc' });
+  const [instSort,     setInstSort]     = useState({ key: 'institutionsPctHeld', dir: 'desc' });
+
+  const handleInsSort  = (key) => setInsSort(s => ({ key, dir: s.key === key ? (s.dir === 'asc' ? 'desc' : 'asc') : 'desc' }));
+  const handleInstSort = (key) => setInstSort(s => ({ key, dir: s.key === key ? (s.dir === 'asc' ? 'desc' : 'asc') : 'desc' }));
+
+  const sortTh = (key, label, sortState, onSort, align = 'right') => {
+    const active = sortState.key === key;
+    return (
+      <th
+        className={align === 'left' ? 'left' : ''}
+        onClick={() => onSort(key)}
+        style={{
+          cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
+          padding: '10px 16px', fontSize: 12, fontWeight: 600,
+          color: active ? '#22d3ee' : undefined,
+          transition: 'background 0.15s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          {label}
+          <span style={{ fontSize: 14, lineHeight: 1, color: active ? '#22d3ee' : 'rgba(255,255,255,0.3)' }}>
+            {active ? (sortState.dir === 'desc' ? '↓' : '↑') : '↕'}
+          </span>
+        </span>
+      </th>
+    );
+  };
 
   useEffect(() => {
     let storedTickers = [];
@@ -67,7 +97,19 @@ export default function InstitutionalPage() {
     ticker: r.ticker,
     name:   r.name,
     ...(insiderByTicker[r.ticker] || { netShares: 0, netValue: 0 }),
-  })).sort((a, b) => b.netShares - a.netShares);
+  })).sort((a, b) => {
+    const av = a[insSort.key] ?? (insSort.dir === 'desc' ? -Infinity : Infinity);
+    const bv = b[insSort.key] ?? (insSort.dir === 'desc' ? -Infinity : Infinity);
+    if (typeof av === 'string') return insSort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    return insSort.dir === 'asc' ? av - bv : bv - av;
+  });
+
+  const instRows = [...inst].sort((a, b) => {
+    const av = a[instSort.key] ?? (instSort.dir === 'desc' ? -Infinity : Infinity);
+    const bv = b[instSort.key] ?? (instSort.dir === 'desc' ? -Infinity : Infinity);
+    if (typeof av === 'string') return instSort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    return instSort.dir === 'asc' ? av - bv : bv - av;
+  });
 
   const activeFund = funds[selectedFund];
 
@@ -83,11 +125,11 @@ export default function InstitutionalPage() {
           <table>
             <thead>
               <tr>
-                <th className="left">Ticker</th>
-                <th className="left">Name</th>
-                <th>Net Shares</th>
-                <th>Net Value</th>
-                <th>Activity</th>
+                {sortTh('ticker',    'Ticker',     insSort, handleInsSort, 'left')}
+                {sortTh('name',      'Name',       insSort, handleInsSort, 'left')}
+                {sortTh('netShares', 'Net Shares', insSort, handleInsSort)}
+                {sortTh('netValue',  'Net Value',  insSort, handleInsSort)}
+                <th style={{ padding: '10px 16px', fontSize: 12, fontWeight: 600 }}>Activity</th>
               </tr>
             </thead>
             <tbody>
@@ -124,17 +166,17 @@ export default function InstitutionalPage() {
           <table>
             <thead>
               <tr>
-                <th className="left">Ticker</th>
-                <th className="left">Name</th>
-                <th>Inst. Owned %</th>
-                <th># Institutions</th>
-                <th>Insider %</th>
-                <th>Top Holder</th>
+                {sortTh('ticker',              'Ticker',         instSort, handleInstSort, 'left')}
+                {sortTh('name',                'Name',           instSort, handleInstSort, 'left')}
+                {sortTh('institutionsPctHeld', 'Inst. Owned %',  instSort, handleInstSort)}
+                {sortTh('institutionsCount',   '# Institutions', instSort, handleInstSort)}
+                {sortTh('insidersPctHeld',     'Insider %',      instSort, handleInstSort)}
+                <th style={{ padding: '10px 16px', fontSize: 12, fontWeight: 600 }}>Top Holder</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {inst.map(r => (
+              {instRows.map(r => (
                 <>
                   <tr key={r.ticker} style={{ cursor: r.top5?.length ? 'pointer' : 'default' }}
                     onClick={() => r.top5?.length && setExpanded(expanded === r.ticker ? null : r.ticker)}>

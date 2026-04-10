@@ -62,6 +62,14 @@ export default function EarningsPage() {
     return { streak, type };
   };
 
+  const [sortKey, setSortKey] = useState('period');
+  const [sortDir, setSortDir] = useState('desc');
+
+  const handleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('desc'); }
+  };
+
   const streak = getStreak(data);
 
   const epsChartData = data.map(e => ({
@@ -182,13 +190,58 @@ export default function EarningsPage() {
               <table>
                 <thead>
                   <tr>
-                    <th className="left">Period</th>
-                    <th>EPS Est</th><th>EPS Actual</th><th>EPS Surprise</th>
-                    <th>Surprise %</th><th>Rev Est</th><th>Rev Actual</th><th>Beat?</th>
+                    {[
+                      { key: 'period',          label: 'Period',      align: 'left'  },
+                      { key: 'estimate',        label: 'EPS Est',     align: 'right' },
+                      { key: 'actual',          label: 'EPS Actual',  align: 'right' },
+                      { key: 'surprise',        label: 'EPS Surprise',align: 'right' },
+                      { key: 'surprisePct',     label: 'Surprise %',  align: 'right' },
+                      { key: 'revenueEstimate', label: 'Rev Est',     align: 'right' },
+                      { key: 'revenueActual',   label: 'Rev Actual',  align: 'right' },
+                      { key: 'beat',            label: 'Beat?',       align: 'right' },
+                    ].map(c => {
+                      const active = sortKey === c.key;
+                      return (
+                        <th
+                          key={c.key}
+                          className={c.align === 'left' ? 'left' : ''}
+                          onClick={() => handleSort(c.key)}
+                          style={{
+                            cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
+                            padding: '10px 16px', fontSize: 12, fontWeight: 600,
+                            color: active ? '#22d3ee' : undefined,
+                            transition: 'background 0.15s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                        >
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                            {c.label}
+                            <span style={{ fontSize: 14, lineHeight: 1, color: active ? '#22d3ee' : 'rgba(255,255,255,0.3)' }}>
+                              {active ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
+                            </span>
+                          </span>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((e, i) => {
+                  {[...data].sort((a, b) => {
+                    const getVal = (e, k) => {
+                      if (k === 'surprise') return (e.actual != null && e.estimate != null) ? e.actual - e.estimate : null;
+                      if (k === 'surprisePct') {
+                        const s = (e.actual != null && e.estimate != null) ? e.actual - e.estimate : null;
+                        return s != null && e.estimate ? s / Math.abs(e.estimate) * 100 : null;
+                      }
+                      if (k === 'beat') return (e.actual != null && e.estimate != null) ? (e.actual >= e.estimate ? 1 : 0) : null;
+                      return e[k] ?? null;
+                    };
+                    const av = getVal(a, sortKey) ?? (sortDir === 'desc' ? -Infinity : Infinity);
+                    const bv = getVal(b, sortKey) ?? (sortDir === 'desc' ? -Infinity : Infinity);
+                    if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+                    return sortDir === 'asc' ? av - bv : bv - av;
+                  }).map((e, i) => {
                     const surprise = e.actual != null && e.estimate != null ? e.actual - e.estimate : null;
                     const surprisePct = surprise != null && e.estimate ? surprise / Math.abs(e.estimate) * 100 : null;
                     const beat = surprise != null && surprise >= 0;

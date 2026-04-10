@@ -199,15 +199,14 @@ color: p.isBase ? '#1e3a8a' : '#6b7280',
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                   <th style={{
                     padding: '10px 16px', textAlign: 'left',
-                    fontSize: 10, color: '#555', letterSpacing: '0.08em',
-                    fontWeight: 600, textTransform: 'uppercase',
+                    fontSize: 12, color: '#8b949e',
+                    fontWeight: 600, whiteSpace: 'nowrap',
                   }}>Metric</th>
                   {data.map((p, i) => (
                     <th key={i} style={{
                       padding: '10px 12px', textAlign: 'right',
-                      fontSize: 11, letterSpacing: '0.04em',
-                      color: p.isBase ? '#58a6ff' : '#8b949e',
-                      fontWeight: p.isBase ? 700 : 500,
+                      fontSize: 12, fontWeight: p.isBase ? 700 : 600,
+                      color: p.isBase ? '#22d3ee' : '#8b949e',
                       background: p.isBase ? 'rgba(31,111,235,0.06)' : 'transparent',
                       whiteSpace: 'nowrap',
                     }}>

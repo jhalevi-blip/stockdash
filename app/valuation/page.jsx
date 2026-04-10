@@ -54,11 +54,29 @@ export default function ValuationPage() {
     return sortAsc ? av - bv : bv - av;
   });
 
-  const thStyle = (key) => ({
-    cursor: 'pointer',
-    color: sortKey === key ? '#58a6ff' : '#8b949e',
-    userSelect: 'none',
-  });
+  const sortTh = (key, label) => {
+    const active = sortKey === key;
+    return (
+      <th
+        onClick={() => handleSort(key)}
+        style={{
+          cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
+          padding: '10px 16px', fontSize: 12, fontWeight: 600,
+          color: active ? '#22d3ee' : undefined,
+          transition: 'background 0.15s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          {label}
+          <span style={{ fontSize: 14, lineHeight: 1, color: active ? '#22d3ee' : 'rgba(255,255,255,0.3)' }}>
+            {active ? (sortAsc ? '↑' : '↓') : '↕'}
+          </span>
+        </span>
+      </th>
+    );
+  };
 
   return (
     <main style={{ padding: '20px 24px' }}>
@@ -78,39 +96,17 @@ export default function ValuationPage() {
               <tr>
                 <th className="left">Ticker</th>
                 <th className="left">Name</th>
-                <th style={thStyle('marketCap')} onClick={() => handleSort('marketCap')}>
-                  Market Cap {sortKey === 'marketCap' ? (sortAsc ? '▲' : '▼') : ''}
-                </th>
-                <th style={thStyle('peRatio')} onClick={() => handleSort('peRatio')}>
-                  P/E {sortKey === 'peRatio' ? (sortAsc ? '▲' : '▼') : ''}
-                </th>
-                <th style={thStyle('forwardPE')} onClick={() => handleSort('forwardPE')}>
-                  Fwd P/E {sortKey === 'forwardPE' ? (sortAsc ? '▲' : '▼') : ''}
-                </th>
-                <th style={thStyle('psRatio')} onClick={() => handleSort('psRatio')}>
-                  P/S {sortKey === 'psRatio' ? (sortAsc ? '▲' : '▼') : ''}
-                </th>
-                <th style={thStyle('pbRatio')} onClick={() => handleSort('pbRatio')}>
-                  P/B {sortKey === 'pbRatio' ? (sortAsc ? '▲' : '▼') : ''}
-                </th>
-                <th style={thStyle('evEbitda')} onClick={() => handleSort('evEbitda')}>
-                  EV/EBITDA {sortKey === 'evEbitda' ? (sortAsc ? '▲' : '▼') : ''}
-                </th>
-                <th style={thStyle('debtEquity')} onClick={() => handleSort('debtEquity')}>
-                  Debt/Equity {sortKey === 'debtEquity' ? (sortAsc ? '▲' : '▼') : ''}
-                </th>
-                <th style={thStyle('roe')} onClick={() => handleSort('roe')}>
-                  ROE {sortKey === 'roe' ? (sortAsc ? '▲' : '▼') : ''}
-                </th>
-                <th style={thStyle('roa')} onClick={() => handleSort('roa')}>
-                  ROA {sortKey === 'roa' ? (sortAsc ? '▲' : '▼') : ''}
-                </th>
-                <th style={thStyle('grossMargin')} onClick={() => handleSort('grossMargin')}>
-                  Gross Margin {sortKey === 'grossMargin' ? (sortAsc ? '▲' : '▼') : ''}
-                </th>
-                <th style={thStyle('netMargin')} onClick={() => handleSort('netMargin')}>
-                  Net Margin {sortKey === 'netMargin' ? (sortAsc ? '▲' : '▼') : ''}
-                </th>
+                {sortTh('marketCap',  'Market Cap')}
+                {sortTh('peRatio',    'P/E')}
+                {sortTh('forwardPE',  'Fwd P/E')}
+                {sortTh('psRatio',    'P/S')}
+                {sortTh('pbRatio',    'P/B')}
+                {sortTh('evEbitda',   'EV/EBITDA')}
+                {sortTh('debtEquity', 'Debt/Equity')}
+                {sortTh('roe',        'ROE')}
+                {sortTh('roa',        'ROA')}
+                {sortTh('grossMargin','Gross Margin')}
+                {sortTh('netMargin',  'Net Margin')}
               </tr>
             </thead>
             <tbody>

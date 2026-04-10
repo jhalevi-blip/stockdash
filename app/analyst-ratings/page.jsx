@@ -9,6 +9,7 @@ export default function AnalystRatingsPage() {
   const [prices,  setPrices]  = useState({});
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState('upside');
+  const [sortDir, setSortDir] = useState('desc');
 
   useEffect(() => {
     let tickers = [];
@@ -45,29 +46,22 @@ export default function AnalystRatingsPage() {
     return { ...r, price, upside };
   });
 
+  const handleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('desc'); }
+  };
+
   const sorted = [...enriched].sort((a, b) => {
-    if (sortKey === 'upside') return (b.upside ?? -999) - (a.upside ?? -999);
-    if (sortKey === 'target') return (b.lastQuarterTarget ?? 0) - (a.lastQuarterTarget ?? 0);
-    if (sortKey === 'count')  return (b.lastQuarterCount ?? 0) - (a.lastQuarterCount ?? 0);
-    return 0;
+    const av = a[sortKey] ?? (sortDir === 'desc' ? -Infinity : Infinity);
+    const bv = b[sortKey] ?? (sortDir === 'desc' ? -Infinity : Infinity);
+    if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    return sortDir === 'asc' ? av - bv : bv - av;
   });
 
   return (
     <main style={{ padding: '20px 24px' }}>
-      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        <div className="section-title" style={{ marginBottom: 0 }}>Analyst Price Targets</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#8b949e' }}>
-          Sort by:
-          {[['upside', 'Upside %'], ['target', 'Target Price'], ['count', 'Analyst Count']].map(([key, label]) => (
-            <button key={key} onClick={() => setSortKey(key)} style={{
-              background: sortKey === key ? '#1f6feb' : '#21262d',
-              color: sortKey === key ? '#fff' : '#c9d1d9',
-              border: `1px solid ${sortKey === key ? '#58a6ff' : '#30363d'}`,
-              borderRadius: 4, padding: '4px 10px', fontSize: 11,
-              fontWeight: 600, cursor: 'pointer',
-            }}>{label}</button>
-          ))}
-        </div>
+      <div style={{ marginBottom: 16 }}>
+        <div className="section-title">Analyst Price Targets</div>
       </div>
 
       {loading && <div className="chart-placeholder">Loading analyst data…</div>}
@@ -77,15 +71,41 @@ export default function AnalystRatingsPage() {
           <table>
             <thead>
               <tr>
-                <th className="left">Ticker</th>
-                <th className="left">Name</th>
-                <th>Current Price</th>
-                <th>Last Quarter Target</th>
-                <th>Analysts (Q)</th>
-                <th>Upside %</th>
-                <th>Last Year Target</th>
-                <th>Analysts (Y)</th>
-                <th>All Time Target</th>
+                {[
+                  { key: 'ticker',            label: 'Ticker',               align: 'left'  },
+                  { key: 'name',              label: 'Name',                 align: 'left'  },
+                  { key: 'price',             label: 'Current Price',        align: 'right' },
+                  { key: 'lastQuarterTarget', label: 'Last Quarter Target',  align: 'right' },
+                  { key: 'lastQuarterCount',  label: 'Analysts (Q)',         align: 'right' },
+                  { key: 'upside',            label: 'Upside %',             align: 'right' },
+                  { key: 'lastYearTarget',    label: 'Last Year Target',     align: 'right' },
+                  { key: 'lastYearCount',     label: 'Analysts (Y)',         align: 'right' },
+                  { key: 'allTimeTarget',     label: 'All Time Target',      align: 'right' },
+                ].map(c => {
+                  const active = sortKey === c.key;
+                  return (
+                    <th
+                      key={c.key}
+                      className={c.align === 'left' ? 'left' : ''}
+                      onClick={() => handleSort(c.key)}
+                      style={{
+                        cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
+                        padding: '10px 16px', fontSize: 12, fontWeight: 600,
+                        color: active ? '#22d3ee' : undefined,
+                        transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                        {c.label}
+                        <span style={{ fontSize: 14, lineHeight: 1, color: active ? '#22d3ee' : 'rgba(255,255,255,0.3)' }}>
+                          {active ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
+                        </span>
+                      </span>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>

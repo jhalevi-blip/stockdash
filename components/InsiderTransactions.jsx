@@ -19,9 +19,26 @@ const BADGE_COLORS = {
 };
 const DEFAULT_BADGE_COLOR = '#6b7280'; // gray for Gift, Other, etc.
 
+const COLS = [
+  { key: 'ticker',           label: 'Ticker', align: 'left' },
+  { key: 'name',             label: 'Name',   align: 'left' },
+  { key: 'transactionCode',  label: 'Type',   align: 'left' },
+  { key: 'change',           label: 'Shares', align: 'right' },
+  { key: 'transactionPrice', label: 'Price',  align: 'right' },
+  { key: 'value',            label: 'Value',  align: 'right' },
+  { key: 'transactionDate',  label: 'Date',   align: 'right' },
+];
+
 export default function InsiderTransactions({ tickers }) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sortKey, setSortKey] = useState('transactionDate');
+  const [sortDir, setSortDir] = useState('desc');
+
+  const handleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('desc'); }
+  };
 
   useEffect(() => {
     if (!tickers?.length) {
@@ -40,22 +57,52 @@ export default function InsiderTransactions({ tickers }) {
   if (loading) return <div className="news-placeholder">Loading insider transactions…</div>;
   if (!transactions.length) return <div className="news-placeholder">No recent insider transactions found.</div>;
 
+  const sorted = [...transactions].sort((a, b) => {
+    let av = a[sortKey], bv = b[sortKey];
+    if (sortKey === 'value') {
+      av = a.change && a.transactionPrice ? Math.abs(a.change * a.transactionPrice) : null;
+      bv = b.change && b.transactionPrice ? Math.abs(b.change * b.transactionPrice) : null;
+    }
+    av = av ?? (sortDir === 'desc' ? -Infinity : Infinity);
+    bv = bv ?? (sortDir === 'desc' ? -Infinity : Infinity);
+    if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    return sortDir === 'asc' ? av - bv : bv - av;
+  });
+
   return (
     <div className="table-wrap">
       <table>
         <thead>
           <tr>
-            <th className="left">Ticker</th>
-            <th className="left">Name</th>
-            <th className="left">Type</th>
-            <th>Shares</th>
-            <th>Price</th>
-            <th>Value</th>
-            <th>Date</th>
+            {COLS.map(c => {
+              const active = sortKey === c.key;
+              return (
+                <th
+                  key={c.key}
+                  className={c.align === 'left' ? 'left' : ''}
+                  onClick={() => handleSort(c.key)}
+                  style={{
+                    cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
+                    padding: '10px 16px', fontSize: 12, fontWeight: 600,
+                    color: active ? '#22d3ee' : undefined,
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    {c.label}
+                    <span style={{ fontSize: 14, lineHeight: 1, color: active ? '#22d3ee' : 'rgba(255,255,255,0.3)' }}>
+                      {active ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
+                    </span>
+                  </span>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
-          {transactions.map((t, i) => {
+          {sorted.map((t, i) => {
             const isBuy = t.transactionCode === 'P';
             const isSell = t.transactionCode === 'S';
             const value = t.transactionPrice && t.change
