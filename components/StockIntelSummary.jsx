@@ -731,45 +731,46 @@ export default function StockIntelSummary({ holdings, rows }) {
             )}
           </Card>
 
-          {/* 8 — News */}
-          <Card title="Recent News" loading={loading} span={2}>
-            {newsList.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {newsList.map((n, i) => (
-                  <a key={i} href={n.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      {n.source} · {new Date(n.time * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.4 }}>{n.headline}</div>
-                  </a>
-                ))}
-              </div>
-            ) : (
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No news available</div>
-            )}
-          </Card>
+          {/* 8 + 9 — News and SEC Filings: always fill full width */}
+          <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Card title="Recent News" loading={loading}>
+              {newsList.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {newsList.map((n, i) => (
+                    <a key={i} href={n.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {n.source} · {new Date(n.time * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.4 }}>{n.headline}</div>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No news available</div>
+              )}
+            </Card>
 
-          {/* 9 — SEC Filings */}
-          <Card title="SEC Filings" loading={loading}>
-            {filings.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {filings.map((f, i) => (
-                  <a key={i} href={f.finalLink} target="_blank" rel="noopener noreferrer"
-                    style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
-                    <span style={{
-                      fontSize: 11, padding: '1px 6px', borderRadius: 3,
-                      background: 'var(--bg-secondary)', color: 'var(--accent)', fontWeight: 600, flexShrink: 0,
-                    }}>
-                      {f.type}
-                    </span>
-                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0 }}>{f.filingDate}</span>
-                  </a>
-                ))}
-              </div>
-            ) : (
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No filings found</div>
-            )}
-          </Card>
+            <Card title="SEC Filings" loading={loading}>
+              {filings.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {filings.map((f, i) => (
+                    <a key={i} href={f.finalLink} target="_blank" rel="noopener noreferrer"
+                      style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
+                      <span style={{
+                        fontSize: 11, padding: '1px 6px', borderRadius: 3,
+                        background: 'var(--bg-secondary)', color: 'var(--accent)', fontWeight: 600, flexShrink: 0,
+                      }}>
+                        {f.type}
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0 }}>{f.filingDate}</span>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No filings found</div>
+              )}
+            </Card>
+          </div>
 
         </div>
       )}
