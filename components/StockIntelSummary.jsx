@@ -412,7 +412,7 @@ export default function StockIntelSummary({ holdings, rows }) {
       {ticker && (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
           gap: 12,
           width: '100%',
         }}>
@@ -701,7 +701,7 @@ export default function StockIntelSummary({ holdings, rows }) {
           </Card>
 
           {/* 7 — Peers */}
-          <Card title="Peer Comparison" loading={loading} span={2}>
+          <Card title="Peer Comparison" loading={loading}>
             {peersList.length > 0 ? (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
