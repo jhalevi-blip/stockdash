@@ -17,7 +17,6 @@ const links = [
   { href: '/valuation',      label: 'Valuation',   icon: '📐' },
   { href: '/earnings',       label: 'Earnings',    icon: '📅' },
   { href: '/analyst',        label: 'Analyst',     icon: '🎯' },
-  { href: '/short-interest', label: 'Short Int.',  icon: '📉' },
 ];
 
 export default function NavBar() {
