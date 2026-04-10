@@ -31,7 +31,7 @@ function Card({ title, children, loading }) {
   );
 }
 
-export default function DashboardSummary({ holdings, rows, earnings, news }) {
+export default function DashboardSummary({ holdings, rows, earnings, news, onMacro }) {
   const [macro,          setMacro]          = useState(null);
   const [insider,        setInsider]        = useState(null);
   const [analyst,        setAnalyst]        = useState(null);
@@ -51,6 +51,7 @@ export default function DashboardSummary({ holdings, rows, earnings, news }) {
       setInsider(Array.isArray(ins) ? ins : []);
       setAnalyst(Array.isArray(ana) ? ana : []);
       setShortInterest(Array.isArray(si) ? si : []);
+      onMacro?.(m);
     }).finally(() => setFetched(true));
   }, [holdings]);
 

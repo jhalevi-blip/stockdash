@@ -32,6 +32,7 @@ export default function DashboardPage() {
   const [tourRun,        setTourRun]        = useState(false);
   const [sortField,      setSortField]      = useState(null);
   const [sortDir,        setSortDir]        = useState('desc');
+  const [spyChgPct,      setSpyChgPct]      = useState(null);
 
   const loadChart = useCallback(async (ticker) => {
     setSelected(ticker);
@@ -205,7 +206,8 @@ export default function DashboardPage() {
 
       <DashboardTour run={tourRun} onStop={() => setTourRun(false)} />
 
-      <DashboardSummary holdings={holdings} rows={rows} earnings={earnings} news={news} />
+      <DashboardSummary holdings={holdings} rows={rows} earnings={earnings} news={news}
+        onMacro={m => setSpyChgPct(m?.indices?.SPY?.changesPercentage ?? null)} />
 
       {/* Summary cards */}
       <div
@@ -235,6 +237,90 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* Daily Snapshot */}
+      {(() => {
+        const dailyRows = rows.filter(r => r.chgPct != null && r.mktVal != null);
+        if (!dailyRows.length) return null;
+
+        const totalDailyAmt = dailyRows.reduce((s, r) => s + r.mktVal * r.chgPct / 100, 0);
+        const totalMktNow   = dailyRows.reduce((s, r) => s + r.mktVal, 0);
+        const totalDailyPct = totalMktNow > 0 ? (totalDailyAmt / totalMktNow) * 100 : null;
+        const best  = dailyRows.reduce((a, b) => b.chgPct > a.chgPct ? b : a);
+        const worst = dailyRows.reduce((a, b) => b.chgPct < a.chgPct ? b : a);
+        const diff  = spyChgPct != null && totalDailyPct != null ? totalDailyPct - spyChgPct : null;
+
+        const pos = (n) => n == null ? '#8b949e' : n >= 0 ? '#3fb950' : '#f85149';
+        const cardStyle = {
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 8,
+          padding: '14px 18px',
+          flex: '1 1 200px',
+          minWidth: 0,
+        };
+        const labelStyle = { fontSize: 10, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 8 };
+
+        return (
+          <div style={{ marginBottom: 24 }}>
+            <div style={labelStyle}>Daily Snapshot</div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+
+              {/* Today's P&L */}
+              <div style={cardStyle}>
+                <div style={labelStyle}>Today's P&L</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: pos(totalDailyAmt), lineHeight: 1 }}>
+                  {totalDailyAmt >= 0 ? '+$' : '-$'}{fmt(Math.abs(totalDailyAmt))}
+                </div>
+                {totalDailyPct != null && (
+                  <div style={{ fontSize: 13, color: pos(totalDailyPct), marginTop: 4 }}>
+                    {totalDailyPct >= 0 ? '+' : ''}{fmt(totalDailyPct)}%
+                  </div>
+                )}
+              </div>
+
+              {/* Best Performer */}
+              <div style={cardStyle}>
+                <div style={labelStyle}>Best Today</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#3fb950' }}>{best.t}</div>
+                <div style={{ fontSize: 13, color: '#3fb950', marginTop: 2 }}>
+                  +{fmt(best.chgPct)}% · ${fmt(best.price)}
+                </div>
+              </div>
+
+              {/* Worst Performer */}
+              <div style={cardStyle}>
+                <div style={labelStyle}>Worst Today</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#f85149' }}>{worst.t}</div>
+                <div style={{ fontSize: 13, color: '#f85149', marginTop: 2 }}>
+                  {fmt(worst.chgPct)}% · ${fmt(worst.price)}
+                </div>
+              </div>
+
+              {/* Market Context */}
+              <div style={cardStyle}>
+                <div style={labelStyle}>vs S&P 500</div>
+                {diff != null ? (
+                  <>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: pos(diff), lineHeight: 1 }}>
+                      {diff >= 0 ? '+' : ''}{fmt(diff)}%
+                    </div>
+                    <div style={{ fontSize: 12, color: '#8b949e', marginTop: 4 }}>
+                      {diff >= 0 ? 'Outperforming' : 'Underperforming'} SPY
+                      {spyChgPct != null && ` (${spyChgPct >= 0 ? '+' : ''}${fmt(spyChgPct)}%)`}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 13, color: '#8b949e' }}>
+                    Portfolio {totalDailyPct != null ? `${totalDailyPct >= 0 ? '+' : ''}${fmt(totalDailyPct)}%` : '—'}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Holdings table */}
       <section data-tour="holdings-table">
