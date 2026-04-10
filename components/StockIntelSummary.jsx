@@ -412,8 +412,9 @@ export default function StockIntelSummary({ holdings, rows }) {
       {ticker && (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
           gap: 12,
+          width: '100%',
         }}>
 
           {/* 0 — AI Snapshot (full width, first) */}
