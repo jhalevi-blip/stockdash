@@ -1,21 +1,25 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 
 const fmt    = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const clr    = (n) => n == null ? '#8b949e' : n >= 0 ? '#3fb950' : '#f85149';
-const fmtEur = (n, forceSign = true) => {
+const fmtEur = (n) => {
   if (n == null) return '—';
-  const sign = forceSign ? (n >= 0 ? '+' : '-') : (n < 0 ? '-' : '');
-  return `${sign}€${fmt(Math.abs(n))}`;
+  return (n >= 0 ? '+' : '-') + '€' + fmt(Math.abs(n));
 };
+const truncate = (s, max = 28) => s.length > max ? s.slice(0, max - 1) + '…' : s;
 
 export default function TransactionUpload({ onResults }) {
-  const [dragOver, setDragOver] = useState(false);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState(null);
-  const [results,  setResults]  = useState(null);
+  // fileList: [{ id, name, file }] — held in memory for re-processing on remove
+  const [fileList,  setFileList]  = useState([]);
+  const [dragOver,  setDragOver]  = useState(false);
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState(null);
+  const [results,   setResults]   = useState(null);  // combined API response
   const inputRef = useRef(null);
+  const nextId   = useRef(1);
 
+  // Load persisted results from localStorage on mount (no File objects available)
   useEffect(() => {
     try {
       const saved = localStorage.getItem('realized_pnl');
@@ -27,24 +31,29 @@ export default function TransactionUpload({ onResults }) {
     } catch {}
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function processFile(file) {
-    if (!file) return;
-    const ext = file.name.split('.').pop().toLowerCase();
-    if (!['csv', 'xlsx', 'xls'].includes(ext)) {
-      setError('Please upload a CSV or XLSX file.');
+  // Send all current fileList files to the API and update results
+  const processFiles = useCallback(async (list) => {
+    if (!list.length) {
+      setResults(null);
+      setError(null);
+      onResults?.(null);
       return;
     }
     setLoading(true);
     setError(null);
     try {
       const body = new FormData();
-      body.append('file', file);
+      for (const { file } of list) body.append('file', file);
+
       const res  = await fetch('/api/transactions', { method: 'POST', body });
       const data = await res.json();
+
       if (!res.ok || data.error) {
         setError(data.error ?? 'Upload failed');
+        setLoading(false);
         return;
       }
+
       localStorage.setItem('realized_pnl', JSON.stringify(data));
       setResults(data);
       onResults?.(data);
@@ -53,15 +62,40 @@ export default function TransactionUpload({ onResults }) {
     } finally {
       setLoading(false);
     }
+  }, [onResults]);
+
+  function addFiles(incoming) {
+    const valid = [];
+    for (const file of incoming) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (!['csv', 'xlsx', 'xls'].includes(ext)) {
+        setError(`"${file.name}" is not a CSV or XLSX file.`);
+        continue;
+      }
+      valid.push({ id: nextId.current++, name: file.name, file });
+    }
+    if (!valid.length) return;
+    setError(null);
+    const next = [...fileList, ...valid];
+    setFileList(next);
+    processFiles(next);
   }
 
-  function handleDrop(e) {
-    e.preventDefault();
-    setDragOver(false);
-    processFile(e.dataTransfer.files[0]);
+  function removeFile(id) {
+    const next = fileList.filter(f => f.id !== id);
+    setFileList(next);
+    if (!next.length) {
+      localStorage.removeItem('realized_pnl');
+      setResults(null);
+      onResults?.(null);
+      setError(null);
+    } else {
+      processFiles(next);
+    }
   }
 
-  function handleClear() {
+  function handleClearAll() {
+    setFileList([]);
     localStorage.removeItem('realized_pnl');
     setResults(null);
     onResults?.(null);
@@ -69,72 +103,144 @@ export default function TransactionUpload({ onResults }) {
     if (inputRef.current) inputRef.current.value = '';
   }
 
-  const { positions = [], totalPnl, txCount } = results ?? {};
+  function handleDrop(e) {
+    e.preventDefault();
+    setDragOver(false);
+    addFiles(Array.from(e.dataTransfer.files));
+  }
+
+  // Loaded from localStorage — no File objects, show read-only file list from results.files
+  const fromStorage = results && !fileList.length;
+  const { positions = [], totalPnl, txCount, files: resultFiles = [] } = results ?? {};
   const best  = positions.length ? positions.reduce((a, b) => b.pnl > a.pnl ? b : a) : null;
   const worst = positions.length ? positions.reduce((a, b) => b.pnl < a.pnl ? b : a) : null;
 
   const cardStyle = {
     background: 'var(--bg-card)',
     border: '1px solid var(--border-color)',
-    borderRadius: 8,
-    padding: '14px 18px',
-    flex: '1 1 160px',
-    minWidth: 0,
+    borderRadius: 8, padding: '14px 18px',
+    flex: '1 1 160px', minWidth: 0,
   };
   const labelStyle = {
-    fontSize: 10,
-    color: '#8b949e',
-    textTransform: 'uppercase',
-    letterSpacing: '0.08em',
-    fontWeight: 600,
-    marginBottom: 6,
+    fontSize: 10, color: '#8b949e',
+    textTransform: 'uppercase', letterSpacing: '0.08em',
+    fontWeight: 600, marginBottom: 6,
   };
+
+  // Which file list to display for chips/labels
+  const displayFiles = fileList.length
+    ? fileList.map(f => ({
+        id:      f.id,
+        name:    f.name,
+        txCount: resultFiles.find(r => r.name === f.name)?.txCount ?? null,
+        canRemove: true,
+      }))
+    : resultFiles.map((r, i) => ({
+        id:      i,
+        name:    r.name,
+        txCount: r.txCount,
+        canRemove: false,
+      }));
 
   return (
     <div>
-      {!results && (
-        <div
-          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-          onClick={() => !loading && inputRef.current?.click()}
-          style={{
-            border: `2px dashed ${dragOver ? '#22d3ee' : '#30363d'}`,
-            borderRadius: 10,
-            padding: '40px 24px',
-            textAlign: 'center',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            background: dragOver ? 'rgba(34,211,238,0.04)' : 'var(--bg-card)',
-            transition: 'border-color 0.15s, background 0.15s',
-          }}
-        >
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".csv,.xlsx,.xls"
-            style={{ display: 'none' }}
-            onChange={e => processFile(e.target.files[0])}
-          />
-          {loading ? (
-            <div style={{ color: '#8b949e', fontSize: 14 }}>Processing transactions…</div>
-          ) : (
-            <>
-              <div style={{ fontSize: 32, marginBottom: 10 }}>📂</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
-                Drop your broker CSV / XLSX here
-              </div>
-              <div style={{ fontSize: 12, color: '#8b949e', lineHeight: 1.6 }}>
-                Supports DeGiro transactions export · click to browse<br />
-                Calculates realized P&amp;L using FIFO method
-              </div>
-            </>
+      {/* Drop zone — always shown so user can add more files */}
+      <div
+        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+        onClick={() => !loading && inputRef.current?.click()}
+        style={{
+          border: `2px dashed ${dragOver ? '#22d3ee' : '#30363d'}`,
+          borderRadius: 10,
+          padding: results ? '18px 24px' : '40px 24px',
+          textAlign: 'center',
+          cursor: loading ? 'not-allowed' : 'pointer',
+          background: dragOver ? 'rgba(34,211,238,0.04)' : 'var(--bg-card)',
+          transition: 'border-color 0.15s, background 0.15s',
+          marginBottom: 12,
+        }}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".csv,.xlsx,.xls"
+          multiple
+          style={{ display: 'none' }}
+          onChange={e => { addFiles(Array.from(e.target.files)); e.target.value = ''; }}
+        />
+        {loading ? (
+          <div style={{ color: '#8b949e', fontSize: 13 }}>
+            Processing {fileList.length} file{fileList.length !== 1 ? 's' : ''}…
+          </div>
+        ) : results ? (
+          <div style={{ fontSize: 12, color: '#8b949e' }}>
+            + Drop or click to add more files
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 30, marginBottom: 8 }}>📂</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
+              Drop your broker CSV / XLSX here
+            </div>
+            <div style={{ fontSize: 12, color: '#8b949e', lineHeight: 1.6 }}>
+              Supports DeGiro transactions export · multiple files supported<br />
+              Calculates realized P&amp;L using FIFO · duplicates removed by Order ID
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* File chips */}
+      {displayFiles.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+          {displayFiles.map((f, i) => (
+            <div key={f.id} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: '#21262d', border: '1px solid #30363d',
+              borderRadius: 6, padding: '5px 10px', fontSize: 12,
+            }}>
+              <span style={{ color: '#8b949e', fontWeight: 600, flexShrink: 0 }}>
+                File {i + 1}:
+              </span>
+              <span style={{ color: '#c9d1d9' }} title={f.name}>
+                {truncate(f.name)}
+              </span>
+              {f.txCount != null && (
+                <span style={{ color: '#484f58' }}>({f.txCount} txs)</span>
+              )}
+              {f.canRemove && (
+                <button
+                  onClick={e => { e.stopPropagation(); removeFile(f.id); }}
+                  style={{
+                    background: 'none', border: 'none', color: '#484f58',
+                    cursor: 'pointer', padding: '0 2px', fontSize: 14, lineHeight: 1,
+                    borderRadius: 3,
+                  }}
+                  title="Remove file"
+                  onMouseEnter={e => { e.currentTarget.style.color = '#f85149'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = '#484f58'; }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+          {txCount != null && displayFiles.length > 1 && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center',
+              background: 'rgba(34,211,238,0.06)', border: '1px solid rgba(34,211,238,0.2)',
+              borderRadius: 6, padding: '5px 10px', fontSize: 12, color: '#22d3ee',
+            }}>
+              Total: {txCount} transactions
+            </div>
           )}
         </div>
       )}
 
       {error && (
         <div style={{
-          marginTop: 12, padding: '10px 14px', borderRadius: 6,
+          marginBottom: 12, padding: '10px 14px', borderRadius: 6,
           background: 'rgba(248,81,73,0.08)', border: '1px solid rgba(248,81,73,0.2)',
           color: '#f85149', fontSize: 13,
         }}>
@@ -146,7 +252,10 @@ export default function TransactionUpload({ onResults }) {
         <>
           {/* Summary cards */}
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16, alignItems: 'flex-end' }}>
-            <div style={{ ...cardStyle, borderColor: totalPnl >= 0 ? 'rgba(63,185,80,0.3)' : 'rgba(248,81,73,0.3)' }}>
+            <div style={{
+              ...cardStyle,
+              borderColor: totalPnl >= 0 ? 'rgba(63,185,80,0.3)' : 'rgba(248,81,73,0.3)',
+            }}>
               <div style={labelStyle}>Total Realized P&L</div>
               <div style={{ fontSize: 24, fontWeight: 700, color: clr(totalPnl), lineHeight: 1 }}>
                 {fmtEur(totalPnl)}
@@ -173,16 +282,15 @@ export default function TransactionUpload({ onResults }) {
             )}
 
             <button
-              onClick={handleClear}
+              onClick={handleClearAll}
               style={{
                 alignSelf: 'flex-end',
                 background: '#21262d', color: '#8b949e',
                 border: '1px solid #30363d', borderRadius: 6,
-                padding: '8px 16px', fontSize: 12, cursor: 'pointer',
-                fontWeight: 600, marginBottom: 0,
+                padding: '8px 16px', fontSize: 12, cursor: 'pointer', fontWeight: 600,
               }}
             >
-              Clear / Re-upload
+              Clear all
             </button>
           </div>
 

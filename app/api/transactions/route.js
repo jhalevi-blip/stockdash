@@ -17,20 +17,16 @@ function findCol(headers, candidates) {
 
 function parseDate(raw) {
   if (raw == null || raw === '') return null;
-  // XLSX may return a JS Date if cellDates:true
   if (raw instanceof Date) return raw.toISOString().slice(0, 10);
   const s = String(raw).trim();
-  // DD-MM-YYYY (DeGiro)
   if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
     const [d, m, y] = s.split('-');
     return `${y}-${m}-${d}`;
   }
-  // MM/DD/YYYY
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
     const [m, d, y] = s.split('/');
     return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
   }
-  // Already YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
   const dt = new Date(s);
   return isNaN(dt) ? s : dt.toISOString().slice(0, 10);
@@ -54,6 +50,74 @@ function detectAction(rawAction, rawShares) {
   return null;
 }
 
+/** Parse one file buffer → array of transaction objects (with optional orderId). */
+function parseFileBuffer(buffer, filename) {
+  const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+  const sheet    = workbook.Sheets[workbook.SheetNames[0]];
+  const raw      = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+  if (raw.length < 2) throw new Error(`${filename}: file appears to be empty`);
+
+  const headers  = raw[0];
+  const dataRows = raw.slice(1);
+
+  const dateCol    = findCol(headers, ['datum', 'date', 'transactiedatum', 'trade date', 'transaction date', 'trade_date']);
+  const symbolCol  = findCol(headers, ['symbool/isin', 'instrumentsymbool', 'symbool', 'symbol', 'ticker', 'isin']);
+  const productCol = findCol(headers, ['product', 'description', 'name', 'instrument', 'security', 'omschrijving']);
+  const actionCol  = findCol(headers, ['acties', 'action', 'type', 'transaction type', 'buy/sell', 'side']);
+  const sharesCol  = findCol(headers, ['aantal', 'quantity', 'shares', 'qty', 'units', 'hoeveelheid']);
+  const priceCol   = findCol(headers, ['koers', 'price', 'unit price', 'prijs', 'execution price', 'koers eur']);
+  const totalCol   = findCol(headers, ['totaal', 'total', 'boekingsbedrag', 'amount', 'net amount', 'waarde', 'consideration']);
+  const orderIdCol = findCol(headers, ['order id', 'orderid', 'order_id', 'reference', 'ref', 'trade id', 'tradeid']);
+
+  if (dateCol === -1 || sharesCol === -1) {
+    throw new Error(
+      `${filename}: could not detect required columns. Headers found: ${headers.filter(Boolean).join(', ')}`
+    );
+  }
+
+  const transactions = [];
+
+  for (const row of dataRows) {
+    if (!row.some(v => v !== '')) continue;
+
+    const rawShares = parseNum(row[sharesCol]);
+    if (!rawShares || rawShares === 0) continue;
+
+    const rawDate    = row[dateCol];
+    const rawPrice   = priceCol   !== -1 ? parseNum(row[priceCol])             : null;
+    const rawTotal   = totalCol   !== -1 ? parseNum(row[totalCol])             : null;
+    const rawAction  = actionCol  !== -1 ? row[actionCol]                      : null;
+    const rawSymbol  = symbolCol  !== -1 ? String(row[symbolCol]  ?? '').trim(): null;
+    const rawProduct = productCol !== -1 ? String(row[productCol] ?? '').trim(): null;
+    const rawOrderId = orderIdCol !== -1 ? String(row[orderIdCol] ?? '').trim(): null;
+
+    const symbol = (rawSymbol && rawSymbol.length >= 1 && rawSymbol.length <= 20 && !/^\d{12}$/.test(rawSymbol))
+      ? rawSymbol
+      : rawProduct ?? 'UNKNOWN';
+
+    let price = rawPrice != null && rawPrice > 0 ? rawPrice : null;
+    if (price == null && rawTotal != null && rawShares !== 0) {
+      price = Math.abs(rawTotal) / Math.abs(rawShares);
+    }
+    if (!price) continue;
+
+    const action = detectAction(rawAction, rawShares);
+    if (!action) continue;
+
+    transactions.push({
+      date:    parseDate(rawDate),
+      symbol,
+      action,
+      shares:  rawShares,
+      price,
+      orderId: rawOrderId || null,
+    });
+  }
+
+  return transactions;
+}
+
 function calcFIFO(transactions) {
   const bySymbol = {};
   for (const tx of transactions) {
@@ -67,7 +131,7 @@ function calcFIFO(transactions) {
   for (const [symbol, txs] of Object.entries(bySymbol)) {
     txs.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    const lots = []; // { shares, costPerShare }
+    const lots = [];
     let totalBoughtEur = 0, totalSoldEur = 0, realizedPnl = 0;
     let firstBuy = null, lastSell = null, closedShares = 0;
 
@@ -116,94 +180,65 @@ function calcFIFO(transactions) {
 export async function POST(request) {
   try {
     const formData = await request.formData();
-    const file = formData.get('file');
-    if (!file) return Response.json({ error: 'No file provided' }, { status: 400 });
+    const files    = formData.getAll('file');
 
-    const ext = file.name?.split('.').pop()?.toLowerCase();
-    if (!['csv', 'xlsx', 'xls'].includes(ext)) {
-      return Response.json({ error: 'Unsupported file type. Use CSV or XLSX.' }, { status: 400 });
+    if (!files.length) {
+      return Response.json({ error: 'No files provided' }, { status: 400 });
     }
 
-    const buffer   = Buffer.from(await file.arrayBuffer());
-    const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
-    const sheet    = workbook.Sheets[workbook.SheetNames[0]];
-    const raw      = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    const fileStats   = [];  // { name, txCount } per file
+    const allTxs      = [];  // merged across all files
+    const seenOrderIds = new Set();
 
-    if (raw.length < 2) {
-      return Response.json({ error: 'File appears to be empty' }, { status: 400 });
-    }
-
-    const headers  = raw[0];
-    const dataRows = raw.slice(1);
-
-    // Detect columns — supports DeGiro and generic formats
-    const dateCol    = findCol(headers, ['datum', 'date', 'transactiedatum', 'trade date', 'transaction date', 'trade_date']);
-    const symbolCol  = findCol(headers, ['symbool/isin', 'instrumentsymbool', 'symbool', 'symbol', 'ticker', 'isin']);
-    const productCol = findCol(headers, ['product', 'description', 'name', 'instrument', 'security', 'omschrijving']);
-    const actionCol  = findCol(headers, ['acties', 'action', 'type', 'transaction type', 'buy/sell', 'side']);
-    const sharesCol  = findCol(headers, ['aantal', 'quantity', 'shares', 'qty', 'units', 'hoeveelheid', 'acties']);
-    const priceCol   = findCol(headers, ['koers', 'price', 'unit price', 'prijs', 'execution price', 'koers eur']);
-    const totalCol   = findCol(headers, ['totaal', 'total', 'boekingsbedrag', 'amount', 'net amount', 'waarde', 'consideration']);
-
-    if (dateCol === -1 || sharesCol === -1) {
-      return Response.json({
-        error: `Could not detect required columns (date, shares). Headers found: ${headers.filter(Boolean).join(', ')}`,
-      }, { status: 400 });
-    }
-
-    const transactions = [];
-    for (const row of dataRows) {
-      if (!row.some(v => v !== '')) continue;
-
-      const rawShares  = parseNum(row[sharesCol]);
-      if (!rawShares || rawShares === 0) continue;
-
-      const rawDate    = row[dateCol];
-      const rawPrice   = priceCol  !== -1 ? parseNum(row[priceCol])            : null;
-      const rawTotal   = totalCol  !== -1 ? parseNum(row[totalCol])            : null;
-      const rawAction  = actionCol !== -1 ? row[actionCol]                     : null;
-      const rawSymbol  = symbolCol !== -1 ? String(row[symbolCol] ?? '').trim(): null;
-      const rawProduct = productCol!== -1 ? String(row[productCol]?? '').trim(): null;
-
-      // Use explicit symbol if short (ticker-like), else fall back to product name
-      const symbol = (rawSymbol && rawSymbol.length >= 1 && rawSymbol.length <= 20 && !/^\d{12}$/.test(rawSymbol))
-        ? rawSymbol
-        : rawProduct ?? 'UNKNOWN';
-
-      // Derive price: explicit price col, or |total| / |shares|
-      let price = rawPrice != null && rawPrice > 0 ? rawPrice : null;
-      if (price == null && rawTotal != null && rawShares !== 0) {
-        price = Math.abs(rawTotal) / Math.abs(rawShares);
+    for (const file of files) {
+      const ext = file.name?.split('.').pop()?.toLowerCase();
+      if (!['csv', 'xlsx', 'xls'].includes(ext)) {
+        return Response.json(
+          { error: `Unsupported file type "${file.name}". Use CSV or XLSX.` },
+          { status: 400 }
+        );
       }
-      if (!price) continue;
 
-      const action = detectAction(rawAction, rawShares);
-      if (!action) continue;
+      const buffer = Buffer.from(await file.arrayBuffer());
+      let txs;
+      try {
+        txs = parseFileBuffer(buffer, file.name);
+      } catch (e) {
+        return Response.json({ error: e.message }, { status: 400 });
+      }
 
-      transactions.push({
-        date:   parseDate(rawDate),
-        symbol,
-        action,
-        shares: rawShares,
-        price,
-      });
+      // Deduplicate by Order ID across files
+      let added = 0;
+      for (const tx of txs) {
+        if (tx.orderId) {
+          if (seenOrderIds.has(tx.orderId)) continue;
+          seenOrderIds.add(tx.orderId);
+        }
+        allTxs.push(tx);
+        added++;
+      }
+
+      fileStats.push({ name: file.name, txCount: added });
+      console.log(`[transactions] ${file.name}: ${added} txs (${txs.length - added} deduped)`);
     }
 
-    if (!transactions.length) {
-      return Response.json({
-        error: 'No valid transactions found. Check that the file has date, shares, and price data.',
-      }, { status: 400 });
+    if (!allTxs.length) {
+      return Response.json(
+        { error: 'No valid transactions found across uploaded files.' },
+        { status: 400 }
+      );
     }
 
-    const positions = calcFIFO(transactions);
+    const positions = calcFIFO(allTxs);
     const totalPnl  = positions.reduce((s, p) => s + p.pnl, 0);
 
-    console.log(`[transactions] parsed ${transactions.length} txs → ${positions.length} closed positions, total P&L: ${totalPnl.toFixed(2)}`);
+    console.log(`[transactions] total ${allTxs.length} txs → ${positions.length} closed positions, P&L: ${totalPnl.toFixed(2)}`);
 
     return Response.json({
       positions,
-      totalPnl:  Math.round(totalPnl * 100) / 100,
-      txCount:   transactions.length,
+      totalPnl: Math.round(totalPnl * 100) / 100,
+      txCount:  allTxs.length,
+      files:    fileStats,
     });
 
   } catch (e) {
