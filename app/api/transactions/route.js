@@ -61,20 +61,38 @@ function parseFileBuffer(buffer, filename) {
   const headers  = raw[0];
   const dataRows = raw.slice(1);
 
-  const dateCol    = findCol(headers, ['datum', 'date', 'transactiedatum', 'trade date', 'transaction date', 'trade_date']);
-  const symbolCol  = findCol(headers, ['symbool/isin', 'instrumentsymbool', 'symbool', 'symbol', 'ticker', 'isin']);
-  const productCol = findCol(headers, ['product', 'description', 'name', 'instrument', 'security', 'omschrijving']);
-  const actionCol  = findCol(headers, ['acties', 'action', 'type', 'transaction type', 'buy/sell', 'side']);
-  const sharesCol  = findCol(headers, ['aantal', 'quantity', 'shares', 'qty', 'units', 'hoeveelheid']);
-  const priceCol   = findCol(headers, ['koers', 'price', 'unit price', 'prijs', 'execution price', 'koers eur']);
-  const totalCol   = findCol(headers, ['totaal', 'total', 'boekingsbedrag', 'amount', 'net amount', 'waarde', 'consideration']);
-  const orderIdCol = findCol(headers, ['order id', 'orderid', 'order_id', 'order-id', 'reference', 'ref', 'trade id', 'tradeid']);
+  let dateCol    = findCol(headers, ['datum', 'date', 'transactiedatum', 'trade date', 'transaction date', 'trade_date']);
+  let symbolCol  = findCol(headers, ['symbool/isin', 'instrumentsymbool', 'symbool', 'symbol', 'ticker', 'isin']);
+  let productCol = findCol(headers, ['product', 'description', 'name', 'instrument', 'security', 'omschrijving']);
+  let actionCol  = findCol(headers, ['acties', 'action', 'type', 'transaction type', 'buy/sell', 'side']);
+  let sharesCol  = findCol(headers, ['aantal', 'quantity', 'shares', 'qty', 'units', 'hoeveelheid']);
+  let priceCol   = findCol(headers, ['koers', 'price', 'unit price', 'prijs', 'execution price', 'koers eur']);
+  let totalCol   = findCol(headers, ['totaal', 'total', 'boekingsbedrag', 'amount', 'net amount', 'waarde', 'consideration']);
+  let orderIdCol = findCol(headers, ['order id', 'orderid', 'order_id', 'order-id', 'reference', 'ref', 'trade id', 'tradeid']);
+  let actiesCol         = findCol(headers, ['acties']);
+  let boekingsbedragCol = findCol(headers, ['boekingsbedrag']);
+  let typeCol           = findCol(headers, ['type']);
+
+  // Exact-match fallback: DeGiro Dutch headers may have encoding quirks that trip norm()
+  headers.forEach((h, i) => {
+    const lh = String(h ?? '').toLowerCase().trim();
+    if (lh === 'transactiedatum'  && dateCol           === -1) dateCol           = i;
+    if (lh === 'instrumentsymbool'&& symbolCol         === -1) symbolCol         = i;
+    if (lh === 'acties'           && actiesCol         === -1) actiesCol         = i;
+    if (lh === 'boekingsbedrag'   && boekingsbedragCol === -1) boekingsbedragCol = i;
+    if ((lh === 'order-id' || lh === 'orderid') && orderIdCol === -1) orderIdCol = i;
+    if (lh === 'type'             && typeCol           === -1) typeCol           = i;
+  });
 
   // DeGiro account statement format: shares are embedded in "Acties" text ("Koop 10 @ 150,00 USD")
-  const actiesCol         = findCol(headers, ['acties']);
-  const boekingsbedragCol = findCol(headers, ['boekingsbedrag']);
-  const typeCol           = findCol(headers, ['type']);
-  const isDeGiroAccount   = actiesCol !== -1 && boekingsbedragCol !== -1;
+  const isDeGiroAccount = actiesCol !== -1 && boekingsbedragCol !== -1;
+
+  console.log(`[transactions] ${filename} columns:`, {
+    dateCol, symbolCol, productCol, actionCol, sharesCol,
+    priceCol, totalCol, orderIdCol, actiesCol, boekingsbedragCol, typeCol,
+    isDeGiroAccount,
+    headers: headers.map((h, i) => `${i}:${JSON.stringify(h)}`).join(' '),
+  });
 
   if (isDeGiroAccount ? dateCol === -1 : (dateCol === -1 || sharesCol === -1)) {
     throw new Error(
