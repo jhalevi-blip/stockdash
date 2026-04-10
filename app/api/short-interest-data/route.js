@@ -37,11 +37,23 @@ async function fetchShortInterest(ticker, auth) {
     const ks = data?.quoteSummary?.result?.[0]?.defaultKeyStatistics;
     if (!ks) return null;
 
+    if (ticker === 'NNE') {
+      console.log('[short-interest-data] raw ks for NNE:', JSON.stringify(ks, null, 2));
+    }
+
+    const sharesShort        = ks.sharesShort?.raw           ?? null;
+    const sharesShortPriorMonth = ks.sharesShortPriorMonth?.raw ?? null;
+
+    const siChange = sharesShort != null && sharesShortPriorMonth != null && sharesShortPriorMonth !== 0
+      ? ((sharesShort - sharesShortPriorMonth) / sharesShortPriorMonth) * 100
+      : null;
+
     return {
-      shortPercentOfFloat:    ks.shortPercentOfFloat?.raw         ?? null,
-      sharesShort:            ks.sharesShort?.raw                 ?? null,
-      shortRatio:             ks.shortRatio?.raw                  ?? null,
-      sharesShortPriorMonth:  ks.sharesShortPreviousMonth?.raw    ?? null,
+      shortPercentOfFloat:  ks.shortPercentOfFloat?.raw ?? null,
+      sharesShort,
+      shortRatio:           ks.shortRatio?.raw          ?? null,
+      sharesShortPriorMonth,
+      siChange,
     };
   } catch {
     return null;
@@ -59,11 +71,12 @@ export async function GET(request) {
     holdings.map(async h => {
       const si = await fetchShortInterest(h.t, auth);
       return {
-        ticker:                 h.t,
-        shortPercentOfFloat:    si?.shortPercentOfFloat   ?? null,
-        sharesShort:            si?.sharesShort           ?? null,
-        shortRatio:             si?.shortRatio            ?? null,
-        sharesShortPriorMonth:  si?.sharesShortPriorMonth ?? null,
+        ticker:               h.t,
+        shortPercentOfFloat:  si?.shortPercentOfFloat  ?? null,
+        sharesShort:          si?.sharesShort          ?? null,
+        shortRatio:           si?.shortRatio           ?? null,
+        sharesShortPriorMonth: si?.sharesShortPriorMonth ?? null,
+        siChange:             si?.siChange             ?? null,
       };
     })
   );

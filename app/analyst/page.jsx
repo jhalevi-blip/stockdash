@@ -51,12 +51,7 @@ export default function AnalystPage() {
       .then(r => r.json())
       .then(d => {
         if (!Array.isArray(d)) return;
-        setRows(d.map(r => ({
-          ...r,
-          siChange: r.sharesShort != null && r.sharesShortPriorMonth != null && r.sharesShortPriorMonth !== 0
-            ? ((r.sharesShort - r.sharesShortPriorMonth) / r.sharesShortPriorMonth) * 100
-            : null,
-        })));
+        setRows(d);
       })
       .finally(() => setLoading(false));
   }, []);
