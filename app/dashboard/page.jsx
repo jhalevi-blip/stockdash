@@ -308,6 +308,12 @@ export default function DashboardPage() {
         <div className="note">Click a row to load its price chart below.</div>
       </section>
 
+      {/* Stock Intel */}
+      <section data-tour="stock-intel">
+        <div className="section-title">Stock Intel</div>
+        <StockIntelSummary holdings={holdings} rows={rows} />
+      </section>
+
       {/* Price chart */}
       {selected && (() => {
         const PERIODS = ['1M', '3M', '6M', 'YTD', '1Y'];
@@ -427,12 +433,6 @@ export default function DashboardPage() {
           </section>
         );
       })()}
-
-      {/* Stock Intel */}
-      <section data-tour="stock-intel">
-        <div className="section-title">Stock Intel</div>
-        <StockIntelSummary holdings={holdings} rows={rows} />
-      </section>
 
       {/* Earnings calendar */}
       {earnings.length > 0 && (
