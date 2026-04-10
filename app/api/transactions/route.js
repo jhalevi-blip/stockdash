@@ -254,8 +254,9 @@ function calcFIFO(transactions) {
 
 export async function POST(request) {
   try {
-    const formData = await request.formData();
-    const files    = formData.getAll('file');
+    const formData   = await request.formData();
+    const files      = formData.getAll('file');
+    const reqStartDate = formData.get('startDate') || null;
 
     if (!files.length) {
       return Response.json({ error: 'No files provided' }, { status: 400 });
@@ -318,19 +319,37 @@ export async function POST(request) {
     }
     console.log('[transactions] symbol summary:', JSON.stringify(bySymDbg));
 
-    const allPositions    = calcFIFO(allTxs);
-    const positions       = allPositions.filter(p => p.status === 'closed');
-    const partialPositions = allPositions.filter(p => p.status === 'partial');
-    const totalPnl        = positions.reduce((s, p) => s + p.pnl, 0);
+    // Cash flows for client-side capitalAtStart recalculation on date changes
+    const cashFlows = allTxs.map(tx => ({
+      date:   tx.date,
+      action: tx.action,
+      amount: Math.round(Math.abs(tx.shares) * Math.abs(tx.price) * 100) / 100,
+    }));
 
-    console.log(`[transactions] total ${allTxs.length} txs → ${positions.length} closed, ${partialPositions.length} partial, P&L: ${totalPnl.toFixed(2)}`);
+    // Server-side capitalAtStart when startDate is provided
+    let capitalAtStart = null;
+    if (reqStartDate) {
+      const net = cashFlows
+        .filter(cf => cf.date && cf.date <= reqStartDate)
+        .reduce((s, cf) => s + (cf.action === 'buy' ? cf.amount : -cf.amount), 0);
+      capitalAtStart = Math.round(Math.max(0, net) * 100) / 100;
+    }
+
+    const allPositions     = calcFIFO(allTxs);
+    const positions        = allPositions.filter(p => p.status === 'closed');
+    const partialPositions = allPositions.filter(p => p.status === 'partial');
+    const totalPnl         = positions.reduce((s, p) => s + p.pnl, 0);
+
+    console.log(`[transactions] total ${allTxs.length} txs → ${positions.length} closed, ${partialPositions.length} partial, P&L: ${totalPnl.toFixed(2)}, capitalAtStart: ${capitalAtStart}`);
 
     return Response.json({
       positions,
       partialPositions,
-      totalPnl: Math.round(totalPnl * 100) / 100,
-      txCount:  allTxs.length,
-      files:    fileStats,
+      totalPnl:       Math.round(totalPnl * 100) / 100,
+      txCount:        allTxs.length,
+      files:          fileStats,
+      cashFlows,
+      capitalAtStart,
     });
 
   } catch (e) {

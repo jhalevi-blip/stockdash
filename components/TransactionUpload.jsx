@@ -9,7 +9,7 @@ const fmtEur = (n) => {
 };
 const truncate = (s, max = 28) => s.length > max ? s.slice(0, max - 1) + '…' : s;
 
-export default function TransactionUpload({ onResults }) {
+export default function TransactionUpload({ onResults, startDate }) {
   // fileList: [{ id, name, file }] — held in memory for re-processing on remove
   const [fileList,  setFileList]  = useState([]);
   const [dragOver,  setDragOver]  = useState(false);
@@ -44,6 +44,7 @@ export default function TransactionUpload({ onResults }) {
     try {
       const body = new FormData();
       for (const { file } of list) body.append('file', file);
+      if (startDate) body.append('startDate', startDate);
 
       const res  = await fetch('/api/transactions', { method: 'POST', body });
       const data = await res.json();

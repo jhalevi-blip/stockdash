@@ -140,6 +140,7 @@ export default function PerformancePage() {
   const [dataLoading,    setDataLoading]    = useState(false);
   const [error,          setError]          = useState(null);
   const [realizedData,   setRealizedData]   = useState(null);
+  const [capitalAtStart, setCapitalAtStart]  = useState(null);
   const [startDate,      setStartDate]      = useState(null);  // YYYY-MM-DD or null
   const [dateInput,      setDateInput]      = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -150,6 +151,8 @@ export default function PerformancePage() {
     async function loadHoldings() {
       const saved = localStorage.getItem('stockdash_start_date');
       if (saved) setStartDate(saved);
+      const savedCap = localStorage.getItem('capital_at_start');
+      if (savedCap) setCapitalAtStart(parseFloat(savedCap));
 
       const isDemo = localStorage.getItem('stockdash_demo') === 'true';
       if (isDemo) {
@@ -248,6 +251,20 @@ export default function PerformancePage() {
     return () => { cancelled = true; };
   }, [holdings]);
 
+  // Recompute capitalAtStart from stored cashFlows whenever the start date changes
+  useEffect(() => {
+    const flows = realizedData?.cashFlows;
+    if (!flows?.length) return;
+    const dateToUse = startDate ?? dateInput;
+    if (!dateToUse) return;
+    const net = flows
+      .filter(cf => cf.date && cf.date <= dateToUse)
+      .reduce((s, cf) => s + (cf.action === 'buy' ? cf.amount : -cf.amount), 0);
+    const cap = Math.round(Math.max(0, net) * 100) / 100;
+    setCapitalAtStart(cap);
+    localStorage.setItem('capital_at_start', String(cap));
+  }, [realizedData, startDate, dateInput]);
+
   // Derive chart data and stats from rawData + startDate (re-runs when startDate changes)
   const { chartData, eurData, stats } = useMemo(() => {
     if (!rawData || !holdings?.length) return { chartData: [], eurData: [], stats: null };
@@ -278,10 +295,11 @@ export default function PerformancePage() {
       }
     }
 
-    // SPY mirror: total cost basis → SPY shares at start
+    // SPY mirror: use transaction-derived capital if available, else fall back to cost basis
     const totalCostBasis  = holdings.reduce((sum, h) => sum + h.s * h.c, 0);
+    const spyBase         = capitalAtStart != null ? capitalAtStart : totalCostBasis;
     const spyPriceAtStart = spyCandles[startIdx]?.close ?? spyCandles[0].close;
-    const spyShares       = spyPriceAtStart > 0 ? totalCostBasis / spyPriceAtStart : 0;
+    const spyShares       = spyPriceAtStart > 0 ? spyBase / spyPriceAtStart : 0;
 
     // Build portfolio vs SPY chart from startIdx onward
     const chartPoints = [];
@@ -339,7 +357,7 @@ export default function PerformancePage() {
       eurData,
       stats: { portNow, spyMirrorNow, vsSpyAmt, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis },
     };
-  }, [rawData, holdings, startDate]);
+  }, [rawData, holdings, startDate, capitalAtStart]);
 
   function handleDateSave() {
     if (!dateInput) return;
@@ -449,7 +467,12 @@ export default function PerformancePage() {
         <StatCard
           label="SPY Mirror"
           value={s ? `$${fmt(s.spyMirrorNow)}` : '…'}
-          sub={s?.spyReturn != null ? `SPY return: ${fmtD(s.spyReturn, 1)}` : null}
+          sub={
+            s == null ? null :
+            capitalAtStart != null
+              ? `Based on €${fmt(capitalAtStart, 0)} invested · SPY ${fmtD(s.spyReturn, 1)}`
+              : s.spyReturn != null ? `SPY return: ${fmtD(s.spyReturn, 1)}` : null
+          }
         />
         <StatCard
           label="vs SPY"
@@ -593,7 +616,19 @@ export default function PerformancePage() {
         <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 16 }}>
           Upload your broker transaction export to calculate realized P&amp;L on closed positions using FIFO.
         </div>
-        <TransactionUpload onResults={setRealizedData} />
+        <TransactionUpload
+          startDate={startDate ?? dateInput}
+          onResults={(data) => {
+            setRealizedData(data);
+            if (data?.capitalAtStart != null) {
+              setCapitalAtStart(data.capitalAtStart);
+              localStorage.setItem('capital_at_start', String(data.capitalAtStart));
+            } else if (!data) {
+              setCapitalAtStart(null);
+              localStorage.removeItem('capital_at_start');
+            }
+          }}
+        />
       </div>
 
       {/* Disclaimer */}
