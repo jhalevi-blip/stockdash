@@ -156,7 +156,8 @@ export default function PerformancePage() {
   const [dateInput,      setDateInput]      = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [estimatedDate,  setEstimatedDate]  = useState('');
-  const [startingCash,   setStartingCash]   = useState(0);  // EUR cash balance at start date
+  const [startingCash,    setStartingCash]    = useState(0);
+  const [cashCurrency,    setCashCurrency]    = useState('EUR'); // 'EUR' | 'USD'
 
   // Load holdings (demo or real) and saved start date
   useEffect(() => {
@@ -165,6 +166,8 @@ export default function PerformancePage() {
       if (saved) setStartDate(saved);
       const savedCash = localStorage.getItem('starting_cash_eur');
       if (savedCash) setStartingCash(parseFloat(savedCash) || 0);
+      const savedCashCcy = localStorage.getItem('starting_cash_currency');
+      if (savedCashCcy === 'EUR' || savedCashCcy === 'USD') setCashCurrency(savedCashCcy);
 
       const isDemo = localStorage.getItem('stockdash_demo') === 'true';
       if (isDemo) {
@@ -284,8 +287,10 @@ export default function PerformancePage() {
     // Cost basis in USD (avg costs entered in USD).
     const totalCostBasis = holdings.reduce((sum, h) => sum + h.s * h.c, 0);
 
-    // Starting cash (EUR) converted to USD, subtracted from cost basis.
-    const startingCashUSD    = (startingCash || 0) * eurUsd;
+    // Starting cash converted to USD (EUR input needs rate conversion; USD input is already USD).
+    const startingCashUSD    = cashCurrency === 'USD'
+      ? (startingCash || 0)
+      : (startingCash || 0) * eurUsd;
     const adjustedCostBasis  = Math.max(0, totalCostBasis - startingCashUSD);
 
     // Current portfolio value: Finnhub real-time USD prices, fall back to last Yahoo candle.
@@ -385,7 +390,7 @@ export default function PerformancePage() {
       eurData,
       stats: { portNow, spyMirrorNow, vsSpyAmt, vsSpyPct, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, adjustedCostBasis, startingCashUSD, netCapital, hasRealizedData: realizedData != null },
     };
-  }, [rawData, holdings, startDate, realizedData, startingCash]);
+  }, [rawData, holdings, startDate, realizedData, startingCash, cashCurrency]);
 
   function handleDateSave() {
     if (!dateInput) return;
@@ -448,15 +453,15 @@ export default function PerformancePage() {
         )}
 
         {/* Starting cash input */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
-          <span
-            style={{ fontSize: 11, color: 'var(--text-secondary)', cursor: 'default' }}
-            title="Enter your cash balance at the start date to subtract it from cost basis for accurate P&L calculations"
-          >
-            Starting cash:
-          </span>
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}
+          title="Enter your cash balance at the start date to subtract it from cost basis for accurate P&L calculations"
+        >
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Starting cash:</span>
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <span style={{ position: 'absolute', left: 8, fontSize: 12, color: 'var(--text-secondary)', pointerEvents: 'none' }}>€</span>
+            <span style={{ position: 'absolute', left: 8, fontSize: 12, color: 'var(--text-secondary)', pointerEvents: 'none' }}>
+              {cashCurrency === 'EUR' ? '€' : '$'}
+            </span>
             <input
               type="number"
               min="0"
@@ -472,16 +477,30 @@ export default function PerformancePage() {
               style={{
                 background: 'var(--bg-card)', border: '1px solid var(--border-color)',
                 borderRadius: 6, padding: '4px 8px 4px 22px', fontSize: 12,
-                color: 'var(--text-primary)', outline: 'none', width: 110,
+                color: 'var(--text-primary)', outline: 'none', width: 100,
               }}
             />
           </div>
-          <span
-            style={{ fontSize: 11, color: 'var(--text-muted)', cursor: 'help' }}
-            title="Enter your cash balance at the start date to subtract it from cost basis for accurate P&L calculations"
-          >
-            ?
-          </span>
+          {/* Currency toggle */}
+          {['EUR', 'USD'].map(ccy => (
+            <button
+              key={ccy}
+              onClick={() => {
+                setCashCurrency(ccy);
+                localStorage.setItem('starting_cash_currency', ccy);
+              }}
+              style={{
+                background: 'none',
+                border: `1px solid ${cashCurrency === ccy ? '#22d3ee' : 'var(--border-color)'}`,
+                borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer',
+                color: cashCurrency === ccy ? '#22d3ee' : 'var(--text-muted)',
+                fontWeight: cashCurrency === ccy ? 600 : 400,
+                lineHeight: 1,
+              }}
+            >
+              {ccy === 'EUR' ? '€' : '$'}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -529,7 +548,7 @@ export default function PerformancePage() {
           sub={
             s == null ? null :
             s.startingCashUSD > 0
-              ? `$${fmt(s.totalCostBasis)} − $${fmt(s.startingCashUSD)} cash = $${fmt(s.adjustedCostBasis)}`
+              ? `$${fmt(s.totalCostBasis)} − ${cashCurrency === 'EUR' ? '€' : '$'}${fmt(startingCash)} cash = $${fmt(s.adjustedCostBasis)}`
               : `Cost basis: $${fmt(s.totalCostBasis)}`
           }
           valueColor={s && s.portNow >= s.adjustedCostBasis ? 'var(--positive)' : s ? 'var(--negative)' : undefined}
