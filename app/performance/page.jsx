@@ -312,22 +312,21 @@ export default function PerformancePage() {
     let totalInvestedUSD = null;
     let startIdx = 0;
 
-    // --- Dollar-weighted SPY mirror (when transaction cash flows are available) ---
-    const buyFlows = (realizedData?.cashFlows ?? [])
-      .filter(cf => cf.action === 'buy' && cf.date)
-      .sort((a, b) => a.date.localeCompare(b.date));
+    // --- Dollar-weighted SPY mirror (when net flow data is available) ---
+    // netFlows = per-date net (buys − sells), only positive entries = genuinely new capital
+    const netFlowList = (realizedData?.netFlows ?? []).filter(cf => cf.date);
 
-    if (buyFlows.length > 0 && eurCandles.length > 0) {
+    if (netFlowList.length > 0 && eurCandles.length > 0) {
       isDollarWeighted = true;
-      totalInvestedEUR = buyFlows.reduce((s, cf) => s + cf.amount, 0);
+      totalInvestedEUR = netFlowList.reduce((s, cf) => s + cf.amountEUR, 0);
 
-      // For each buy: find SPY price and EUR/USD rate on that date → compute SPY shares bought
-      const purchases = buyFlows.map(cf => {
+      // For each net inflow: find SPY price and EUR/USD rate on that date → compute SPY shares bought
+      const purchases = netFlowList.map(cf => {
         const si      = findCandleByDate(spyCandles, cf.date);
         const ei      = findCandleByDate(eurCandles,  cf.date);
         const spyPx   = spyCandles[si]?.close ?? 0;
         const eurRate = eurCandles[ei]?.close  ?? 1.0;
-        const amtUSD  = cf.amount * eurRate;
+        const amtUSD  = cf.amountEUR * eurRate;
         return { date: cf.date, shares: spyPx > 0 ? amtUSD / spyPx : 0, amtUSD };
       });
 

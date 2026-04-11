@@ -326,6 +326,18 @@ export async function POST(request) {
       amount: Math.round(Math.abs(tx.shares) * Math.abs(tx.price) * 100) / 100,
     }));
 
+    // Net flows per date (buys − sells). Only positive = genuinely new capital entering
+    // the portfolio, not recycled proceeds from earlier sales.
+    const netByDate = {};
+    for (const cf of cashFlows) {
+      if (!cf.date) continue;
+      netByDate[cf.date] = (netByDate[cf.date] ?? 0) + (cf.action === 'buy' ? cf.amount : -cf.amount);
+    }
+    const netFlows = Object.entries(netByDate)
+      .filter(([, net]) => net > 0.01)
+      .map(([date, net]) => ({ date, amountEUR: Math.round(net * 100) / 100 }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
     // Server-side capitalAtStart when startDate is provided
     let capitalAtStart = null;
     if (reqStartDate) {
@@ -349,6 +361,7 @@ export async function POST(request) {
       txCount:        allTxs.length,
       files:          fileStats,
       cashFlows,
+      netFlows,
       capitalAtStart,
     });
 
