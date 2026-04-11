@@ -9,6 +9,14 @@ import DashboardTour from '@/components/DashboardTour';
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
 
+const SAMPLE_HOLDINGS = [
+  { t: 'NVDA', s: 50,  c: 133.67 },
+  { t: 'TSLA', s: 30,  c: 247.08 },
+  { t: 'AAPL', s: 20,  c: 223.19 },
+  { t: 'AMZN', s: 15,  c: 196.35 },
+  { t: 'AMD',  s: 10,  c: 96.46  },
+];
+
 function getLocalHoldings() {
   try {
     const stored = localStorage.getItem('stockdash_holdings');
@@ -33,6 +41,7 @@ export default function DashboardPage() {
   const [sortField,      setSortField]      = useState(null);
   const [sortDir,        setSortDir]        = useState('desc');
   const [spyChgPct,      setSpyChgPct]      = useState(null);
+  const [sampleBanner,   setSampleBanner]   = useState(false);
 
   const loadChart = useCallback(async (ticker) => {
     setSelected(ticker);
@@ -114,9 +123,20 @@ export default function DashboardPage() {
         } else if (data.signedIn && data.holdings?.length) {
           h = data.holdings;
           localStorage.setItem('stockdash_holdings', JSON.stringify(h));
+        } else if (data.signedIn) {
+          // First-time signed-in user with no portfolio — pre-fill with sample
+          h = SAMPLE_HOLDINGS;
+          localStorage.setItem('stockdash_holdings', JSON.stringify(h));
+          localStorage.setItem('stockdash_sample_portfolio', 'true');
+          fetch('/api/portfolio', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ holdings: h }),
+          }).catch(() => {});
         } else {
           h = [];
         }
+        if (localStorage.getItem('stockdash_sample_portfolio') === 'true') setSampleBanner(true);
 
         setHoldings(h);
         localStorage.setItem('stockdash_holdings', JSON.stringify(h));
@@ -205,6 +225,29 @@ export default function DashboardPage() {
     <main style={{ padding: '20px 24px' }}>
 
       <DashboardTour run={tourRun} onStop={() => setTourRun(false)} />
+
+      {sampleBanner && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.25)',
+          borderRadius: 8, padding: '10px 16px', marginBottom: 16, gap: 12,
+        }}>
+          <span style={{ fontSize: 13, color: '#22d3ee' }}>
+            This is a sample portfolio — edit it to add your own holdings
+          </span>
+          <button
+            onClick={() => {
+              setSampleBanner(false);
+              localStorage.removeItem('stockdash_sample_portfolio');
+            }}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#22d3ee', fontSize: 18, lineHeight: 1, padding: '0 4px', flexShrink: 0,
+            }}
+            aria-label="Dismiss"
+          >×</button>
+        </div>
+      )}
 
       <DashboardSummary holdings={holdings} rows={rows} earnings={earnings} news={news}
         onMacro={m => setSpyChgPct(m?.indices?.SPY?.changesPercentage ?? null)} />
