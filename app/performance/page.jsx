@@ -306,8 +306,9 @@ export default function PerformancePage() {
       return v;
     }
 
+    // totalPnl from DeGiro is EUR — convert to USD before subtracting from USD adjustedCostBasis.
     const netCapital = realizedData?.totalPnl != null
-      ? Math.max(0, adjustedCostBasis - Math.max(0, realizedData.totalPnl))
+      ? Math.max(0, adjustedCostBasis - Math.max(0, realizedData.totalPnl * eurUsd))
       : adjustedCostBasis;
 
     // Determine start index
@@ -538,7 +539,7 @@ export default function PerformancePage() {
           sub={
             s == null ? null :
             s.hasRealizedData
-              ? `Based on €${fmt(s.netCapital, 0)} net capital deployed · SPY ${fmtD(s.spyReturn, 1)}`
+              ? `Based on $${fmt(s.netCapital, 0)} net capital deployed · SPY ${fmtD(s.spyReturn, 1)}`
               : s.spyReturn != null ? `SPY return: ${fmtD(s.spyReturn, 1)}` : null
           }
         />
