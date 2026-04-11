@@ -311,7 +311,7 @@ export default function PerformancePage() {
       return v;
     }
 
-    const realizedGainsUSD   = (realizedData?.totalPnlSinceStart ?? 0) * eurUsd;
+    const realizedGainsUSD   = (realizedData?.totalPnl ?? 0) * eurUsd;
     const totalCostWithGains = adjustedCostBasis + realizedGainsUSD;
     const netCapital         = totalCostWithGains;
 
