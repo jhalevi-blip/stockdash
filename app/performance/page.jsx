@@ -343,12 +343,13 @@ export default function PerformancePage() {
     }
     const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
 
-    // Normalize chart to percentage returns relative to cost basis — both lines start at 0%
+    // Normalize chart to percentage returns — both lines start at 0%
+    const portChartBase = chartPoints[0]?.portfolio;
     const spyChartBase  = chartPoints[0]?.spy;
-    const chartData = adjustedCostBasis > 0 && spyChartBase > 0
+    const chartData = portChartBase > 0 && spyChartBase > 0
       ? chartPoints.map(p => ({
           date:      p.date,
-          portfolio: (p.portfolio / adjustedCostBasis - 1) * 100,
+          portfolio: (p.portfolio / portChartBase - 1) * 100,
           spy:       (p.spy       / spyChartBase  - 1) * 100,
         }))
       : chartPoints;
@@ -374,11 +375,12 @@ export default function PerformancePage() {
     });
     const portfolioBeta = totalMktCap > 0 ? weightedBeta / totalMktCap : null;
 
-    const portReturn = adjustedCostBasis > 0 ? ((portNow - adjustedCostBasis) / adjustedCostBasis) * 100 : null;
-    const vsSpyAmt  = spyMirrorNow != null ? portNow - spyMirrorNow : null;
-    const vsSpyPct  = portReturn != null && spyReturn != null ? portReturn - spyReturn : null;
+    const portStart  = chartPoints[0]?.portfolio ?? adjustedCostBasis;
+    const portReturn = portStart > 0 ? ((portNow - portStart) / portStart) * 100 : null;
+    const vsSpyAmt   = spyMirrorNow != null ? portNow - spyMirrorNow : null;
     const spyStart   = chartPoints[0]?.spy ?? netCapital;
     const spyReturn  = spyStart > 0 ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
+    const vsSpyPct   = portReturn != null && spyReturn != null ? portReturn - spyReturn : null;
 
     return {
       chartData,
