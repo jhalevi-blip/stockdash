@@ -1,6 +1,7 @@
 import './globals.css';
 import Script from 'next/script';
 import AppShell from '@/components/AppShell';
+import DevMode from '@/components/DevMode';
 import { ClerkProvider } from '@clerk/nextjs';
 import { Analytics } from '@vercel/analytics/react';
 
@@ -23,11 +24,12 @@ export default function RootLayout({ children }) {
       },
     }}>
       <html lang="en">
-        <Script id="theme-init" strategy="beforeInteractive">{`try{var t=localStorage.getItem('stockdash_theme');document.documentElement.setAttribute('data-theme',t==='light'?'light':'dark')}catch(e){document.documentElement.setAttribute('data-theme','dark')}`}</Script>
+        <Script id="theme-init" strategy="beforeInteractive">{`try{var t=localStorage.getItem('stockdash_theme');document.documentElement.setAttribute('data-theme',t==='light'?'light':'dark')}catch(e){document.documentElement.setAttribute('data-theme','dark')}try{if(localStorage.getItem('dev_mode')==='true')document.documentElement.setAttribute('data-va-disable','true')}catch(e){}`}</Script>
         <body>
           <AppShell />
           {children}
           <Analytics />
+          <DevMode />
         </body>
       </html>
     </ClerkProvider>
