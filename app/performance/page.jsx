@@ -152,7 +152,6 @@ export default function PerformancePage() {
   const [dataLoading,    setDataLoading]    = useState(false);
   const [error,          setError]          = useState(null);
   const [realizedData,   setRealizedData]   = useState(null);
-  const [capitalAtStart, setCapitalAtStart]  = useState(null);
   const [startDate,      setStartDate]      = useState(null);  // YYYY-MM-DD or null
   const [dateInput,      setDateInput]      = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -163,8 +162,6 @@ export default function PerformancePage() {
     async function loadHoldings() {
       const saved = localStorage.getItem('stockdash_start_date');
       if (saved) setStartDate(saved);
-      const savedCap = localStorage.getItem('capital_at_start');
-      if (savedCap) setCapitalAtStart(parseFloat(savedCap));
 
       const isDemo = localStorage.getItem('stockdash_demo') === 'true';
       if (isDemo) {
@@ -263,20 +260,6 @@ export default function PerformancePage() {
     return () => { cancelled = true; };
   }, [holdings]);
 
-  // Recompute capitalAtStart from stored cashFlows whenever the start date changes
-  useEffect(() => {
-    const flows = realizedData?.cashFlows;
-    if (!flows?.length) return;
-    const dateToUse = startDate ?? dateInput;
-    if (!dateToUse) return;
-    const net = flows
-      .filter(cf => cf.date && cf.date <= dateToUse)
-      .reduce((s, cf) => s + (cf.action === 'buy' ? cf.amount : -cf.amount), 0);
-    const cap = Math.round(Math.max(0, net) * 100) / 100;
-    setCapitalAtStart(cap);
-    localStorage.setItem('capital_at_start', String(cap));
-  }, [realizedData, startDate, dateInput]);
-
   // Derive chart data and stats from rawData + startDate (re-runs when startDate/realizedData changes)
   const { chartData, eurData, stats } = useMemo(() => {
     if (!rawData || !holdings?.length) return { chartData: [], eurData: [], stats: null };
@@ -305,77 +288,41 @@ export default function PerformancePage() {
       return v;
     }
 
-    const chartPoints = [];
-    let spyMirrorNow  = null;
-    let isDollarWeighted = false;
-    let totalInvestedEUR = null;
-    let totalInvestedUSD = null;
-    let startIdx = 0;
+    // Net capital = cost basis minus realised gains (proceeds that came back as profit,
+    // not new money). Falls back to raw cost basis when no transaction data is loaded.
+    const netCapital = realizedData?.totalPnl != null
+      ? Math.max(0, totalCostBasis - Math.max(0, realizedData.totalPnl))
+      : totalCostBasis;
 
-    // --- Dollar-weighted SPY mirror (when net flow data is available) ---
-    // netFlows = per-date net (buys − sells), only positive entries = genuinely new capital
-    const netFlowList = (realizedData?.netFlows ?? []).filter(cf => cf.date);
-
-    if (netFlowList.length > 0 && eurCandles.length > 0) {
-      isDollarWeighted = true;
-      totalInvestedEUR = netFlowList.reduce((s, cf) => s + cf.amountEUR, 0);
-
-      // For each net inflow: find SPY price and EUR/USD rate on that date → compute SPY shares bought
-      const purchases = netFlowList.map(cf => {
-        const si      = findCandleByDate(spyCandles, cf.date);
-        const ei      = findCandleByDate(eurCandles,  cf.date);
-        const spyPx   = spyCandles[si]?.close ?? 0;
-        const eurRate = eurCandles[ei]?.close  ?? 1.0;
-        const amtUSD  = cf.amountEUR * eurRate;
-        return { date: cf.date, shares: spyPx > 0 ? amtUSD / spyPx : 0, amtUSD };
-      });
-
-      totalInvestedUSD = purchases.reduce((s, p) => s + p.amtUSD, 0);
-      startIdx = findCandleByDate(spyCandles, purchases[0].date);
-
-      let cumSpyShares = 0, pPtr = 0;
-      for (let i = startIdx; i < spyLen; i++) {
-        const cd = spyCandles[i].date;
-        while (pPtr < purchases.length && purchases[pPtr].date <= cd) {
-          cumSpyShares += purchases[pPtr].shares;
-          pPtr++;
-        }
-        chartPoints.push({ date: cd, portfolio: portValAt(i), spy: cumSpyShares * spyCandles[i].close });
-      }
-
-      spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
-
+    // Determine start index
+    let startIdx;
+    if (startDate) {
+      startIdx = findStartIdx(spyCandles, startDate);
     } else {
-      // --- Fallback: single-investment SPY mirror ---
-      if (startDate) {
-        startIdx = findStartIdx(spyCandles, startDate);
+      const explicitDates = holdings.map(h => h.d).filter(Boolean);
+      const earliestDate  = explicitDates.length
+        ? explicitDates.reduce((a, b) => a < b ? a : b) : null;
+      if (earliestDate) {
+        startIdx = findStartIdx(spyCandles, earliestDate);
       } else {
-        const explicitDates = holdings.map(h => h.d).filter(Boolean);
-        const earliestDate  = explicitDates.length
-          ? explicitDates.reduce((a, b) => a < b ? a : b) : null;
-        if (earliestDate) {
-          startIdx = findStartIdx(spyCandles, earliestDate);
-        } else {
-          const spyStartIndices = holdings.map(h => {
-            const pIdx = estimatePurchaseIdx(tickerCandles[h.t], h.c);
-            const tLen = tickerCandles[h.t].length;
-            if (!tLen) return 0;
-            return Math.round((pIdx / tLen) * spyLen);
-          });
-          startIdx = Math.min(...spyStartIndices, spyLen - 1);
-        }
+        const spyStartIndices = holdings.map(h => {
+          const pIdx = estimatePurchaseIdx(tickerCandles[h.t], h.c);
+          const tLen = tickerCandles[h.t].length;
+          if (!tLen) return 0;
+          return Math.round((pIdx / tLen) * spyLen);
+        });
+        startIdx = Math.min(...spyStartIndices, spyLen - 1);
       }
-
-      const spyBase         = capitalAtStart != null ? capitalAtStart : totalCostBasis;
-      const spyPriceAtStart = spyCandles[startIdx]?.close ?? spyCandles[0].close;
-      const spyShares       = spyPriceAtStart > 0 ? spyBase / spyPriceAtStart : 0;
-
-      for (let i = startIdx; i < spyLen; i++) {
-        chartPoints.push({ date: spyCandles[i].date, portfolio: portValAt(i), spy: spyShares * spyCandles[i].close });
-      }
-
-      spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
     }
+
+    const spyPriceAtStart = spyCandles[startIdx]?.close ?? spyCandles[0].close;
+    const spyShares       = spyPriceAtStart > 0 ? netCapital / spyPriceAtStart : 0;
+
+    const chartPoints = [];
+    for (let i = startIdx; i < spyLen; i++) {
+      chartPoints.push({ date: spyCandles[i].date, portfolio: portValAt(i), spy: spyShares * spyCandles[i].close });
+    }
+    const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
 
     // EUR/USD — slice from startIdx
     const eurStartIdx  = Math.min(startIdx, eurCandles.length - 1);
@@ -401,16 +348,15 @@ export default function PerformancePage() {
     const vsSpyAmt  = portNow != null && spyMirrorNow != null ? portNow - spyMirrorNow : null;
     const portStart = chartPoints[0]?.portfolio ?? totalCostBasis;
     const portReturn = portStart > 0 ? ((portNow - portStart) / portStart) * 100 : null;
-    const spyReturn  = isDollarWeighted
-      ? (totalInvestedUSD > 0 ? ((spyMirrorNow - totalInvestedUSD) / totalInvestedUSD) * 100 : null)
-      : (() => { const ss = chartPoints[0]?.spy ?? totalCostBasis; return ss > 0 ? ((spyMirrorNow - ss) / ss) * 100 : null; })();
+    const spyStart   = chartPoints[0]?.spy ?? netCapital;
+    const spyReturn  = spyStart > 0 ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
 
     return {
       chartData: chartPoints,
       eurData,
-      stats: { portNow, spyMirrorNow, vsSpyAmt, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, isDollarWeighted, totalInvestedEUR },
+      stats: { portNow, spyMirrorNow, vsSpyAmt, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, netCapital, hasRealizedData: realizedData != null },
     };
-  }, [rawData, holdings, startDate, capitalAtStart, realizedData]);
+  }, [rawData, holdings, startDate, realizedData]);
 
   function handleDateSave() {
     if (!dateInput) return;
@@ -522,11 +468,9 @@ export default function PerformancePage() {
           value={s ? `$${fmt(s.spyMirrorNow)}` : '…'}
           sub={
             s == null ? null :
-            s.isDollarWeighted
-              ? `€${fmt(s.totalInvestedEUR, 0)} invested across all buys · SPY ${fmtD(s.spyReturn, 1)}`
-              : capitalAtStart != null
-                ? `Based on €${fmt(capitalAtStart, 0)} at ${startDate ?? dateInput} · SPY ${fmtD(s.spyReturn, 1)}`
-                : s.spyReturn != null ? `SPY return: ${fmtD(s.spyReturn, 1)}` : null
+            s.hasRealizedData
+              ? `Based on €${fmt(s.netCapital, 0)} net capital deployed · SPY ${fmtD(s.spyReturn, 1)}`
+              : s.spyReturn != null ? `SPY return: ${fmtD(s.spyReturn, 1)}` : null
           }
         />
         <StatCard
@@ -674,14 +618,7 @@ export default function PerformancePage() {
         <TransactionUpload
           startDate={startDate ?? dateInput}
           onResults={(data) => {
-            setRealizedData(data);
-            if (data?.capitalAtStart != null) {
-              setCapitalAtStart(data.capitalAtStart);
-              localStorage.setItem('capital_at_start', String(data.capitalAtStart));
-            } else if (!data) {
-              setCapitalAtStart(null);
-              localStorage.removeItem('capital_at_start');
-            }
+            setRealizedData(data ?? null);
           }}
         />
       </div>

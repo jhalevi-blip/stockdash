@@ -326,26 +326,6 @@ export async function POST(request) {
       amount: Math.round(Math.abs(tx.shares) * Math.abs(tx.price) * 100) / 100,
     }));
 
-    // Running cash balance: sells replenish available cash, buys draw it down first.
-    // Only the portion of a buy that exceeds available cash is genuinely new capital.
-    const sortedFlows = [...cashFlows]
-      .filter(cf => cf.date)
-      .sort((a, b) => a.date.localeCompare(b.date) || (a.action === 'sell' ? -1 : 1));
-
-    let cashBalance = 0;
-    const netFlows = [];
-    for (const cf of sortedFlows) {
-      if (cf.action === 'sell') {
-        cashBalance += cf.amount;
-      } else if (cf.action === 'buy') {
-        const newCapital = Math.max(0, cf.amount - cashBalance);
-        cashBalance = Math.max(0, cashBalance - cf.amount);
-        if (newCapital > 0.01) {
-          netFlows.push({ date: cf.date, amountEUR: Math.round(newCapital * 100) / 100 });
-        }
-      }
-    }
-
     // Server-side capitalAtStart when startDate is provided
     let capitalAtStart = null;
     if (reqStartDate) {
@@ -369,7 +349,6 @@ export async function POST(request) {
       txCount:        allTxs.length,
       files:          fileStats,
       cashFlows,
-      netFlows,
       capitalAtStart,
     });
 
