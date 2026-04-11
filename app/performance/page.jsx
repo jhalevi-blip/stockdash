@@ -156,12 +156,15 @@ export default function PerformancePage() {
   const [dateInput,      setDateInput]      = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [estimatedDate,  setEstimatedDate]  = useState('');
+  const [startingCash,   setStartingCash]   = useState(0);  // EUR cash balance at start date
 
   // Load holdings (demo or real) and saved start date
   useEffect(() => {
     async function loadHoldings() {
       const saved = localStorage.getItem('stockdash_start_date');
       if (saved) setStartDate(saved);
+      const savedCash = localStorage.getItem('starting_cash_eur');
+      if (savedCash) setStartingCash(parseFloat(savedCash) || 0);
 
       const isDemo = localStorage.getItem('stockdash_demo') === 'true';
       if (isDemo) {
@@ -275,11 +278,15 @@ export default function PerformancePage() {
     const spyLen = spyCandles.length;
     if (!spyLen) return { chartData: [], eurData: [], stats: null };
 
-    // EUR/USD rate — used for SPY mirror base conversion only.
+    // EUR/USD rate — used for cash adjustment and SPY mirror base.
     const eurUsd = eurCandles[eurCandles.length - 1]?.close ?? 1;
 
     // Cost basis in USD (avg costs entered in USD).
     const totalCostBasis = holdings.reduce((sum, h) => sum + h.s * h.c, 0);
+
+    // Starting cash (EUR) converted to USD, subtracted from cost basis.
+    const startingCashUSD    = (startingCash || 0) * eurUsd;
+    const adjustedCostBasis  = Math.max(0, totalCostBasis - startingCashUSD);
 
     // Current portfolio value: Finnhub real-time USD prices, fall back to last Yahoo candle.
     let portNow = 0;
@@ -300,8 +307,8 @@ export default function PerformancePage() {
     }
 
     const netCapital = realizedData?.totalPnl != null
-      ? Math.max(0, totalCostBasis - Math.max(0, realizedData.totalPnl))
-      : totalCostBasis;
+      ? Math.max(0, adjustedCostBasis - Math.max(0, realizedData.totalPnl))
+      : adjustedCostBasis;
 
     // Determine start index
     let startIdx;
@@ -366,7 +373,7 @@ export default function PerformancePage() {
     const portfolioBeta = totalMktCap > 0 ? weightedBeta / totalMktCap : null;
 
     const vsSpyAmt  = portNow != null && spyMirrorNow != null ? portNow - spyMirrorNow : null;
-    const portStart = chartPoints[0]?.portfolio ?? totalCostBasis;
+    const portStart = chartPoints[0]?.portfolio ?? adjustedCostBasis;
     const portReturn = portStart > 0 ? ((portNow - portStart) / portStart) * 100 : null;
     const spyStart   = chartPoints[0]?.spy ?? netCapital;
     const spyReturn  = spyStart > 0 ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
@@ -374,9 +381,9 @@ export default function PerformancePage() {
     return {
       chartData,
       eurData,
-      stats: { portNow, spyMirrorNow, vsSpyAmt, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, netCapital, hasRealizedData: realizedData != null },
+      stats: { portNow, spyMirrorNow, vsSpyAmt, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, adjustedCostBasis, startingCashUSD, netCapital, hasRealizedData: realizedData != null },
     };
-  }, [rawData, holdings, startDate, realizedData]);
+  }, [rawData, holdings, startDate, realizedData, startingCash]);
 
   function handleDateSave() {
     if (!dateInput) return;
@@ -437,6 +444,43 @@ export default function PerformancePage() {
             Reset to estimated
           </button>
         )}
+
+        {/* Starting cash input */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+          <span
+            style={{ fontSize: 11, color: 'var(--text-secondary)', cursor: 'default' }}
+            title="Enter your cash balance at the start date to subtract it from cost basis for accurate P&L calculations"
+          >
+            Starting cash:
+          </span>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <span style={{ position: 'absolute', left: 8, fontSize: 12, color: 'var(--text-secondary)', pointerEvents: 'none' }}>€</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={startingCash || ''}
+              placeholder="0.00"
+              onChange={e => {
+                const v = parseFloat(e.target.value) || 0;
+                setStartingCash(v);
+                if (v > 0) localStorage.setItem('starting_cash_eur', String(v));
+                else localStorage.removeItem('starting_cash_eur');
+              }}
+              style={{
+                background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+                borderRadius: 6, padding: '4px 8px 4px 22px', fontSize: 12,
+                color: 'var(--text-primary)', outline: 'none', width: 110,
+              }}
+            />
+          </div>
+          <span
+            style={{ fontSize: 11, color: 'var(--text-muted)', cursor: 'help' }}
+            title="Enter your cash balance at the start date to subtract it from cost basis for accurate P&L calculations"
+          >
+            ?
+          </span>
+        </div>
       </div>
 
       {/* Inline date picker */}
@@ -480,8 +524,13 @@ export default function PerformancePage() {
         <StatCard
           label="Portfolio Value"
           value={s ? `$${fmt(s.portNow)}` : '…'}
-          sub={s ? `Cost basis: $${fmt(s.totalCostBasis)}` : null}
-          valueColor={s && s.portNow >= s.totalCostBasis ? 'var(--positive)' : s ? 'var(--negative)' : undefined}
+          sub={
+            s == null ? null :
+            s.startingCashUSD > 0
+              ? `$${fmt(s.totalCostBasis)} − $${fmt(s.startingCashUSD)} cash = $${fmt(s.adjustedCostBasis)}`
+              : `Cost basis: $${fmt(s.totalCostBasis)}`
+          }
+          valueColor={s && s.portNow >= s.adjustedCostBasis ? 'var(--positive)' : s ? 'var(--negative)' : undefined}
         />
         <StatCard
           label="SPY Mirror"
