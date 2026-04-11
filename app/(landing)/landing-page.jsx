@@ -208,7 +208,7 @@ function VideoSection() {
     >
       <video
         ref={videoRef}
-        src="/demo-video.mp4"
+        src="/demo.mp4"
         style={{ width: "100%", display: "block" }}
         autoPlay
         muted
