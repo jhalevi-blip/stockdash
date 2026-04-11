@@ -545,7 +545,9 @@ export default function PerformancePage() {
           value={s ? `$${fmt(s.portNow)}` : '…'}
           sub={
             s == null ? null :
-            s.startingCashUSD > 0
+            s.startingCashUSD > 0 && s.realizedGainsUSD > 0
+              ? `$${fmt(s.totalCostBasis)} − ${cashCurrency === 'EUR' ? '€' : '$'}${fmt(startingCash)} cash = $${fmt(s.adjustedCostBasis)} + $${fmt(s.realizedGainsUSD, 0)} reinvested = $${fmt(s.netCapital, 0)}`
+              : s.startingCashUSD > 0
               ? `$${fmt(s.totalCostBasis)} − ${cashCurrency === 'EUR' ? '€' : '$'}${fmt(startingCash)} cash = $${fmt(s.adjustedCostBasis)}`
               : `Cost basis: $${fmt(s.totalCostBasis)}`
           }
