@@ -374,6 +374,7 @@ export default function PerformancePage() {
     const portfolioBeta = totalMktCap > 0 ? weightedBeta / totalMktCap : null;
 
     const vsSpyAmt  = portNow != null && spyMirrorNow != null ? portNow - spyMirrorNow : null;
+    const vsSpyPct  = portReturn != null && spyReturn != null ? portReturn - spyReturn : null;
     const portStart = chartPoints[0]?.portfolio ?? adjustedCostBasis;
     const portReturn = portStart > 0 ? ((portNow - portStart) / portStart) * 100 : null;
     const spyStart   = chartPoints[0]?.spy ?? netCapital;
@@ -382,7 +383,7 @@ export default function PerformancePage() {
     return {
       chartData,
       eurData,
-      stats: { portNow, spyMirrorNow, vsSpyAmt, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, adjustedCostBasis, startingCashUSD, netCapital, hasRealizedData: realizedData != null },
+      stats: { portNow, spyMirrorNow, vsSpyAmt, vsSpyPct, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, adjustedCostBasis, startingCashUSD, netCapital, hasRealizedData: realizedData != null },
     };
   }, [rawData, holdings, startDate, realizedData, startingCash]);
 
@@ -545,9 +546,9 @@ export default function PerformancePage() {
         />
         <StatCard
           label="vs SPY"
-          value={s?.vsSpyAmt == null ? '—' : (s.vsSpyAmt >= 0 ? '+$' : '-$') + fmt(Math.abs(s.vsSpyAmt))}
-          sub={s?.portReturn != null ? `Portfolio: ${fmtD(s.portReturn, 1)}` : null}
-          valueColor={s ? clr(s.vsSpyAmt) : undefined}
+          value={s?.vsSpyPct == null ? '—' : (s.vsSpyPct >= 0 ? '+' : '') + s.vsSpyPct.toFixed(1) + '%'}
+          sub={s?.portReturn != null && s?.spyReturn != null ? `Portfolio ${fmtD(s.portReturn, 1)} · SPY ${fmtD(s.spyReturn, 1)}` : null}
+          valueColor={s ? clr(s.vsSpyPct) : undefined}
         />
       </div>
 
@@ -623,10 +624,10 @@ export default function PerformancePage() {
           valueColor={s?.currencyImpact != null ? clr(s.currencyImpact) : undefined}
         />
         <MetricCard
-          label={s?.vsSpyAmt != null && s.vsSpyAmt >= 0 ? 'Outperforming' : 'Underperforming'}
-          value={s?.vsSpyAmt == null ? '—' : (s.vsSpyAmt >= 0 ? '+$' : '-$') + fmt(Math.abs(s.vsSpyAmt))}
+          label={s?.vsSpyPct != null && s.vsSpyPct >= 0 ? 'Outperforming' : 'Underperforming'}
+          value={s?.vsSpyPct == null ? '—' : (s.vsSpyPct >= 0 ? '+' : '') + s.vsSpyPct.toFixed(1) + '%'}
           sub="vs SPY since start"
-          valueColor={s ? clr(s.vsSpyAmt) : undefined}
+          valueColor={s ? clr(s.vsSpyPct) : undefined}
         />
         {realizedData && (() => {
           const { positions = [], totalPnl } = realizedData;
