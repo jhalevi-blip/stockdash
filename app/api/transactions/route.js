@@ -326,17 +326,25 @@ export async function POST(request) {
       amount: Math.round(Math.abs(tx.shares) * Math.abs(tx.price) * 100) / 100,
     }));
 
-    // Net flows per date (buys − sells). Only positive = genuinely new capital entering
-    // the portfolio, not recycled proceeds from earlier sales.
-    const netByDate = {};
-    for (const cf of cashFlows) {
-      if (!cf.date) continue;
-      netByDate[cf.date] = (netByDate[cf.date] ?? 0) + (cf.action === 'buy' ? cf.amount : -cf.amount);
+    // Running cash balance: sells replenish available cash, buys draw it down first.
+    // Only the portion of a buy that exceeds available cash is genuinely new capital.
+    const sortedFlows = [...cashFlows]
+      .filter(cf => cf.date)
+      .sort((a, b) => a.date.localeCompare(b.date) || (a.action === 'sell' ? -1 : 1));
+
+    let cashBalance = 0;
+    const netFlows = [];
+    for (const cf of sortedFlows) {
+      if (cf.action === 'sell') {
+        cashBalance += cf.amount;
+      } else if (cf.action === 'buy') {
+        const newCapital = Math.max(0, cf.amount - cashBalance);
+        cashBalance = Math.max(0, cashBalance - cf.amount);
+        if (newCapital > 0.01) {
+          netFlows.push({ date: cf.date, amountEUR: Math.round(newCapital * 100) / 100 });
+        }
+      }
     }
-    const netFlows = Object.entries(netByDate)
-      .filter(([, net]) => net > 0.01)
-      .map(([date, net]) => ({ date, amountEUR: Math.round(net * 100) / 100 }))
-      .sort((a, b) => a.date.localeCompare(b.date));
 
     // Server-side capitalAtStart when startDate is provided
     let capitalAtStart = null;
