@@ -470,7 +470,7 @@ export default function PerformancePage() {
           sub={
             s == null ? null :
             capitalAtStart != null
-              ? `Based on €${fmt(capitalAtStart, 0)} invested · SPY ${fmtD(s.spyReturn, 1)}`
+              ? `Based on €${fmt(capitalAtStart, 0)} invested at ${startDate ?? dateInput} · SPY ${fmtD(s.spyReturn, 1)}`
               : s.spyReturn != null ? `SPY return: ${fmtD(s.spyReturn, 1)}` : null
           }
         />
