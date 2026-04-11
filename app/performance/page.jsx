@@ -311,10 +311,7 @@ export default function PerformancePage() {
       return v;
     }
 
-    // totalPnl from DeGiro is EUR — convert to USD before subtracting from USD adjustedCostBasis.
-    const netCapital = realizedData?.totalPnl != null
-      ? Math.max(0, adjustedCostBasis - Math.max(0, realizedData.totalPnl * eurUsd))
-      : adjustedCostBasis;
+    const netCapital = adjustedCostBasis;
 
     // Determine start index
     let startIdx;
