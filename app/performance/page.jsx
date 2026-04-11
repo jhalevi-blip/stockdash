@@ -275,12 +275,11 @@ export default function PerformancePage() {
     const spyLen = spyCandles.length;
     if (!spyLen) return { chartData: [], eurData: [], stats: null };
 
-    // EUR/USD rate (1 EUR = X USD). Used to convert EUR cost basis → USD.
+    // EUR/USD rate — used for SPY mirror base conversion only.
     const eurUsd = eurCandles[eurCandles.length - 1]?.close ?? 1;
 
-    // Cost basis entered in EUR (DeGiro/Saxo shows EUR). Convert to USD for comparison.
-    const totalCostBasisEUR = holdings.reduce((sum, h) => sum + h.s * h.c, 0);
-    const totalCostBasis    = totalCostBasisEUR * eurUsd;
+    // Cost basis in USD (avg costs entered in USD).
+    const totalCostBasis = holdings.reduce((sum, h) => sum + h.s * h.c, 0);
 
     // Current portfolio value: Finnhub real-time USD prices, fall back to last Yahoo candle.
     let portNow = 0;
@@ -300,9 +299,8 @@ export default function PerformancePage() {
       return v;
     }
 
-    // Net capital in USD. totalPnl from DeGiro is EUR → convert.
     const netCapital = realizedData?.totalPnl != null
-      ? Math.max(0, totalCostBasis - Math.max(0, realizedData.totalPnl * eurUsd))
+      ? Math.max(0, totalCostBasis - Math.max(0, realizedData.totalPnl))
       : totalCostBasis;
 
     // Determine start index
@@ -376,7 +374,7 @@ export default function PerformancePage() {
     return {
       chartData,
       eurData,
-      stats: { portNow, spyMirrorNow, vsSpyAmt, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, totalCostBasisEUR, netCapital, hasRealizedData: realizedData != null },
+      stats: { portNow, spyMirrorNow, vsSpyAmt, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, netCapital, hasRealizedData: realizedData != null },
     };
   }, [rawData, holdings, startDate, realizedData]);
 
@@ -482,7 +480,7 @@ export default function PerformancePage() {
         <StatCard
           label="Portfolio Value"
           value={s ? `$${fmt(s.portNow)}` : '…'}
-          sub={s ? `Cost basis: €${fmt(s.totalCostBasisEUR)} = $${fmt(s.totalCostBasis)}` : null}
+          sub={s ? `Cost basis: $${fmt(s.totalCostBasis)}` : null}
           valueColor={s && s.portNow >= s.totalCostBasis ? 'var(--positive)' : s ? 'var(--negative)' : undefined}
         />
         <StatCard
