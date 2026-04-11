@@ -5,6 +5,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useUser, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
 import PortfolioModal from './PortfolioModal';
 import { startDemo } from '@/lib/startDemo';
+import {
+  migrateIfNeeded, loadUserHoldings, saveUserHoldings, clearHoldingsCache, CACHE_KEY,
+} from '@/lib/holdingsStorage';
 
 const links = [
   { href: '/dashboard',      label: 'Dashboard',   icon: '📊' },
@@ -29,8 +32,9 @@ export default function NavBar() {
   const [modalOpen,    setModalOpen]    = useState(false);
   const [savedHoldings, setSavedHoldings] = useState([]);
   const [isDemo,       setIsDemo]       = useState(false);
-  const { isLoaded, isSignedIn } = useUser();
-  const hasSynced = useRef(false);
+  const { isLoaded, isSignedIn, user } = useUser();
+  const hasSynced  = useRef(false);
+  const wasSignedIn = useRef(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('stockdash_theme');
@@ -40,55 +44,66 @@ export default function NavBar() {
     setIsDemo(localStorage.getItem('stockdash_demo') === 'true');
   }, []);
 
+  // Clear shared cache when user signs out so the next user starts clean
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (wasSignedIn.current && !isSignedIn) {
+      clearHoldingsCache();
+    }
+    wasSignedIn.current = isSignedIn ?? false;
+  }, [isLoaded, isSignedIn]);
+
   // Sync portfolio from Supabase → localStorage when user signs in
   useEffect(() => {
-    if (!isLoaded || !isSignedIn) return;
+    if (!isLoaded || !isSignedIn || !user?.id) return;
     if (hasSynced.current) return;
     hasSynced.current = true;
+    const userId = user.id;
+    // Migrate any pre-scoping data to this user's key
+    migrateIfNeeded(userId);
     // Clear demo mode — real account takes over
     localStorage.removeItem('stockdash_demo');
     setIsDemo(false);
+
+    const justSaved = localStorage.getItem('portfolio_just_saved');
+    if (justSaved) {
+      // Reload came from savePortfolio — scoped key already has correct data.
+      localStorage.removeItem('portfolio_just_saved');
+      const local = loadUserHoldings(userId);
+      if (local) { saveUserHoldings(userId, local); setSavedHoldings(local); }
+      return;
+    }
+
     fetch('/api/portfolio')
       .then(r => r.json())
       .then(data => {
         if (data.signedIn && data.holdings?.length) {
-          const justSaved = localStorage.getItem('portfolio_just_saved');
-          if (justSaved) {
-            // Reload came from savePortfolio — localStorage already has the
-            // user's new data. Skip the Supabase overwrite to avoid a
-            // GET-before-upsert-settles race, and clear the flag.
-            localStorage.removeItem('portfolio_just_saved');
-            try {
-              const stored = localStorage.getItem('stockdash_holdings');
-              if (stored) setSavedHoldings(JSON.parse(stored));
-            } catch {}
-          } else {
-            localStorage.setItem('stockdash_holdings', JSON.stringify(data.holdings));
-            setSavedHoldings(data.holdings);
-            window.dispatchEvent(new CustomEvent('portfolio-saved'));
-          }
+          saveUserHoldings(userId, data.holdings);
+          setSavedHoldings(data.holdings);
+          window.dispatchEvent(new CustomEvent('portfolio-saved'));
         } else {
-          // No Supabase record yet — load from localStorage if present
-          try {
-            const stored = localStorage.getItem('stockdash_holdings');
-            if (stored) setSavedHoldings(JSON.parse(stored));
-          } catch {}
+          // No Supabase record — use scoped localStorage if present
+          const local = loadUserHoldings(userId);
+          if (local?.length) {
+            saveUserHoldings(userId, local);
+            setSavedHoldings(local);
+          }
         }
       })
       .catch(() => {});
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, user?.id]);
 
   // Load holdings from localStorage in demo mode
   useEffect(() => {
     if (!isDemo) return;
     try {
-      const stored = localStorage.getItem('stockdash_holdings');
+      const stored = localStorage.getItem(CACHE_KEY);
       if (stored) setSavedHoldings(JSON.parse(stored));
     } catch {}
   }, [isDemo]);
 
   async function savePortfolio(holdings) {
-    localStorage.setItem('stockdash_holdings', JSON.stringify(holdings));
+    saveUserHoldings(user?.id, holdings);
     setSavedHoldings(holdings);
     if (isDemo) {
       window.dispatchEvent(new CustomEvent('portfolio-saved'));
@@ -192,7 +207,7 @@ export default function NavBar() {
           {showEditPortfolio && (
             <button
               data-tour="edit-portfolio"
-              onClick={() => { try { const s = localStorage.getItem('stockdash_holdings'); if (s) setSavedHoldings(JSON.parse(s)); } catch {} setModalOpen(true); }}
+              onClick={() => { const h = loadUserHoldings(user?.id); if (h) setSavedHoldings(h); setModalOpen(true); }}
               style={{
                 background: 'none', border: '1px solid var(--accent)',
                 borderRadius: 6, color: 'var(--accent)',
@@ -236,7 +251,7 @@ export default function NavBar() {
             {showEditPortfolio && (
               <button
                 data-tour="edit-portfolio"
-                onClick={() => { try { const s = localStorage.getItem('stockdash_holdings'); if (s) setSavedHoldings(JSON.parse(s)); } catch {} setModalOpen(true); }}
+                onClick={() => { const h = loadUserHoldings(user?.id); if (h) setSavedHoldings(h); setModalOpen(true); }}
                 style={{
                   background: 'none', border: '1px solid var(--accent)',
                   borderRadius: 6, color: 'var(--accent)',

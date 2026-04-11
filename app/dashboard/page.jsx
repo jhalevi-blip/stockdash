@@ -1,10 +1,12 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useUser } from '@clerk/nextjs';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import DashboardSummary from '@/components/DashboardSummary';
 import StockIntelSummary from '@/components/StockIntelSummary';
 import DemoPrompt from '@/components/DemoPrompt';
 import DashboardTour from '@/components/DashboardTour';
+import { saveUserHoldings } from '@/lib/holdingsStorage';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
@@ -42,6 +44,9 @@ export default function DashboardPage() {
   const [sortDir,        setSortDir]        = useState('desc');
   const [spyChgPct,      setSpyChgPct]      = useState(null);
   const [sampleBanner,   setSampleBanner]   = useState(false);
+  const { user } = useUser();
+  const userIdRef = useRef(null);
+  useEffect(() => { userIdRef.current = user?.id ?? null; }, [user?.id]);
 
   const loadChart = useCallback(async (ticker) => {
     setSelected(ticker);
@@ -122,11 +127,11 @@ export default function DashboardPage() {
           h = localAtLoad;
         } else if (data.signedIn && data.holdings?.length) {
           h = data.holdings;
-          localStorage.setItem('stockdash_holdings', JSON.stringify(h));
+          saveUserHoldings(userIdRef.current, h);
         } else if (data.signedIn) {
           // First-time signed-in user with no portfolio — pre-fill with sample
           h = SAMPLE_HOLDINGS;
-          localStorage.setItem('stockdash_holdings', JSON.stringify(h));
+          saveUserHoldings(userIdRef.current, h);
           localStorage.setItem('stockdash_sample_portfolio', 'true');
           fetch('/api/portfolio', {
             method: 'POST',
@@ -139,7 +144,7 @@ export default function DashboardPage() {
         if (localStorage.getItem('stockdash_sample_portfolio') === 'true') setSampleBanner(true);
 
         setHoldings(h);
-        localStorage.setItem('stockdash_holdings', JSON.stringify(h));
+        saveUserHoldings(userIdRef.current, h);
         if (!h.length) { setLoading(false); return; }
 
         const tickers = h.map(x => x.t).join(',');
