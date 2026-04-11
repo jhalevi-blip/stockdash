@@ -210,10 +210,11 @@ export default function PerformancePage() {
     async function fetchAll() {
       try {
         const tickers = holdings.map(h => h.t);
-        const [spyRes, eurRes, valRes, ...tickerChartRes] = await Promise.all([
+        const [spyRes, eurRes, valRes, pricesRes, ...tickerChartRes] = await Promise.all([
           fetch('/api/chart?symbol=SPY').then(r => r.json()),
           fetch('/api/chart?symbol=EURUSD%3DX').then(r => r.json()),
           fetch(`/api/valuation?${tickers.map(t => `tickers=${t}`).join('&')}`).then(r => r.json()),
+          fetch(`/api/prices?tickers=${tickers.join(',')}`).then(r => r.json()),
           ...tickers.map(t => fetch(`/api/chart?symbol=${t}`).then(r => r.json())),
         ]);
         if (cancelled) return;
@@ -223,6 +224,12 @@ export default function PerformancePage() {
         const valArr        = Array.isArray(valRes) ? valRes : [];
         const tickerCandles = {};
         tickers.forEach((t, i) => { tickerCandles[t] = tickerChartRes[i]?.candles ?? []; });
+
+        // Finnhub real-time prices: { TICKER → USD price }
+        const livePrices = {};
+        if (Array.isArray(pricesRes)) {
+          pricesRes.forEach(p => { if (p.ticker && p.price != null) livePrices[p.ticker] = p.price; });
+        }
 
         // Compute Option B estimated start index (per-holding fallback when no h.d)
         const spyLen = spyCandles.length;
@@ -244,7 +251,7 @@ export default function PerformancePage() {
         const optionBDate = earliestExplicit ?? candleIdxToDate(spyCandles, optionBIdx);
 
         if (!cancelled) {
-          setRawData({ spyCandles, eurCandles, valArr, tickerCandles });
+          setRawData({ spyCandles, eurCandles, valArr, tickerCandles, livePrices });
           setEstimatedDate(optionBDate);
           setDateInput(d => d || optionBDate);
           setDataLoading(false);
@@ -264,17 +271,22 @@ export default function PerformancePage() {
   const { chartData, eurData, stats } = useMemo(() => {
     if (!rawData || !holdings?.length) return { chartData: [], eurData: [], stats: null };
 
-    const { spyCandles, eurCandles, valArr, tickerCandles } = rawData;
+    const { spyCandles, eurCandles, valArr, tickerCandles, livePrices = {} } = rawData;
     const spyLen = spyCandles.length;
     if (!spyLen) return { chartData: [], eurData: [], stats: null };
 
-    const totalCostBasis = holdings.reduce((sum, h) => sum + h.s * h.c, 0);
+    // EUR/USD rate (1 EUR = X USD). Used to convert EUR cost basis → USD.
+    const eurUsd = eurCandles[eurCandles.length - 1]?.close ?? 1;
 
-    // Current portfolio value
+    // Cost basis entered in EUR (DeGiro/Saxo shows EUR). Convert to USD for comparison.
+    const totalCostBasisEUR = holdings.reduce((sum, h) => sum + h.s * h.c, 0);
+    const totalCostBasis    = totalCostBasisEUR * eurUsd;
+
+    // Current portfolio value: Finnhub real-time USD prices, fall back to last Yahoo candle.
     let portNow = 0;
     holdings.forEach(h => {
-      const tc = tickerCandles[h.t];
-      portNow += h.s * (tc.length ? (tc[tc.length - 1]?.close ?? h.c) : h.c);
+      const price = livePrices[h.t] ?? tickerCandles[h.t]?.[tickerCandles[h.t].length - 1]?.close;
+      if (price != null) portNow += h.s * price;
     });
 
     // Helper: build portfolio value at candle index i
@@ -288,10 +300,9 @@ export default function PerformancePage() {
       return v;
     }
 
-    // Net capital = cost basis minus realised gains (proceeds that came back as profit,
-    // not new money). Falls back to raw cost basis when no transaction data is loaded.
+    // Net capital in USD. totalPnl from DeGiro is EUR → convert.
     const netCapital = realizedData?.totalPnl != null
-      ? Math.max(0, totalCostBasis - Math.max(0, realizedData.totalPnl))
+      ? Math.max(0, totalCostBasis - Math.max(0, realizedData.totalPnl * eurUsd))
       : totalCostBasis;
 
     // Determine start index
@@ -365,7 +376,7 @@ export default function PerformancePage() {
     return {
       chartData,
       eurData,
-      stats: { portNow, spyMirrorNow, vsSpyAmt, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, netCapital, hasRealizedData: realizedData != null },
+      stats: { portNow, spyMirrorNow, vsSpyAmt, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, totalCostBasisEUR, netCapital, hasRealizedData: realizedData != null },
     };
   }, [rawData, holdings, startDate, realizedData]);
 
@@ -471,7 +482,7 @@ export default function PerformancePage() {
         <StatCard
           label="Portfolio Value"
           value={s ? `$${fmt(s.portNow)}` : '…'}
-          sub={s ? `Cost basis: $${fmt(s.totalCostBasis)}` : null}
+          sub={s ? `Cost basis: €${fmt(s.totalCostBasisEUR)} = $${fmt(s.totalCostBasis)}` : null}
           valueColor={s && s.portNow >= s.totalCostBasis ? 'var(--positive)' : s ? 'var(--negative)' : undefined}
         />
         <StatCard

@@ -62,7 +62,7 @@ export default function PortfolioModal({ holdings, onSave, onClose }) {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 116px 28px', gap: 8, marginBottom: 6 }}>
-          {['Ticker', 'Shares', 'Avg Cost ($)'].map(h => (
+          {['Ticker', 'Shares', 'Avg Cost (€)'].map(h => (
             <div key={h} style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 1 }}>{h}</div>
           ))}
           <div style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: 0.5 }}>Date bought <span style={{ fontStyle: 'italic' }}>(optional)</span></div>
