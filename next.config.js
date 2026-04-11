@@ -43,6 +43,14 @@ const nextConfig = {
         headers: [{ key: 'Cache-Control', value: 's-maxage=14400, stale-while-revalidate=3600' }],
       },
       {
+        // Video files — correct MIME type + long cache
+        source: '/:path*.mp4',
+        headers: [
+          { key: 'Content-Type', value: 'video/mp4' },
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
         // Health — never cache
         source: '/api/health',
         headers: [{ key: 'Cache-Control', value: 'no-store' }],

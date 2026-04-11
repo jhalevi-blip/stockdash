@@ -208,14 +208,15 @@ function VideoSection() {
     >
       <video
         ref={videoRef}
-        src="/demo.mp4"
         style={{ width: "100%", display: "block" }}
         autoPlay
         muted
         loop
         playsInline
         controls
-      />
+      >
+        <source src="/demo.mp4" type="video/mp4" />
+      </video>
       <button
         onClick={handleFullscreen}
         style={{
