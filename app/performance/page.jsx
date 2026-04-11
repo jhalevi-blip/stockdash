@@ -124,7 +124,7 @@ function PortTooltip({ active, payload, label }) {
       <div style={{ color: 'var(--text-secondary)', marginBottom: 6 }}>{label}</div>
       {payload.map((p, i) => (
         <div key={i} style={{ color: p.color, fontWeight: 600, lineHeight: 1.7 }}>
-          {p.name}: ${fmt(p.value)}
+          {p.name}: {p.value >= 0 ? '+' : ''}{p.value?.toFixed(2)}%
         </div>
       ))}
     </div>
@@ -324,6 +324,17 @@ export default function PerformancePage() {
     }
     const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
 
+    // Normalize chart to percentage returns — both lines start at 0%
+    const portChartBase = chartPoints[0]?.portfolio;
+    const spyChartBase  = chartPoints[0]?.spy;
+    const chartData = portChartBase > 0 && spyChartBase > 0
+      ? chartPoints.map(p => ({
+          date:      p.date,
+          portfolio: (p.portfolio / portChartBase - 1) * 100,
+          spy:       (p.spy       / spyChartBase  - 1) * 100,
+        }))
+      : chartPoints;
+
     // EUR/USD — slice from startIdx
     const eurStartIdx  = Math.min(startIdx, eurCandles.length - 1);
     const eurData      = eurCandles.slice(eurStartIdx).map(c => ({ date: c.date, rate: c.close }));
@@ -352,7 +363,7 @@ export default function PerformancePage() {
     const spyReturn  = spyStart > 0 ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
 
     return {
-      chartData: chartPoints,
+      chartData,
       eurData,
       stats: { portNow, spyMirrorNow, vsSpyAmt, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, netCapital, hasRealizedData: realizedData != null },
     };
@@ -508,7 +519,7 @@ export default function PerformancePage() {
               </defs>
               <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
               <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} interval={xInterval} />
-              <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} width={52} />
+              <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} tickFormatter={v => `${v >= 0 ? '+' : ''}${v.toFixed(0)}%`} width={52} domain={['auto', 'auto']} />
               <Tooltip content={<PortTooltip />} />
               <Area type="monotone" dataKey="portfolio" name="Portfolio" stroke="#58a6ff" strokeWidth={2} fill="url(#perfPortGrad)" dot={false} activeDot={{ r: 4 }} />
               <Area type="monotone" dataKey="spy" name="SPY Mirror" stroke="#4ade80" strokeWidth={2} fill="url(#perfSpyGrad)" dot={false} activeDot={{ r: 4 }} />
@@ -516,8 +527,12 @@ export default function PerformancePage() {
           </ResponsiveContainer>
         )}
         <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 12 }}>
-          <span style={{ color: '#58a6ff', fontWeight: 600 }}>— Portfolio</span>
-          <span style={{ color: '#4ade80', fontWeight: 600 }}>— SPY Mirror</span>
+          <span style={{ color: '#58a6ff', fontWeight: 600 }}>
+            — Portfolio {s?.portReturn != null ? `(${s.portReturn >= 0 ? '+' : ''}${s.portReturn.toFixed(1)}%)` : ''}
+          </span>
+          <span style={{ color: '#4ade80', fontWeight: 600 }}>
+            — SPY Mirror {s?.spyReturn != null ? `(${s.spyReturn >= 0 ? '+' : ''}${s.spyReturn.toFixed(1)}%)` : ''}
+          </span>
         </div>
       </div>
 
