@@ -286,17 +286,17 @@ export default function LandingPage() {
         </p>
 
         <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
-          <a href="/sign-up" style={{
+          <a href="/dashboard" style={{
             padding: "14px 32px", borderRadius: 10, border: "none", textDecoration: "none",
             background: "#22d3ee", color: "#0a0a0a",
             fontWeight: 700, fontSize: 16, fontFamily: "'DM Sans', sans-serif",
             boxShadow: "0 0 40px rgba(34,211,238,0.25), 0 4px 20px rgba(0,0,0,0.3)",
-          }}>Get Started — It's Free</a>
-          <a href="/dashboard" style={{
+          }}>Try Live Demo</a>
+          <a href="/sign-up" style={{
             padding: "14px 32px", borderRadius: 10, textDecoration: "none",
             border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.04)", color: "#fff",
             fontWeight: 600, fontSize: 16, fontFamily: "'DM Sans', sans-serif",
-          }}>Try Live Demo</a>
+          }}>Get Started — It's Free</a>
         </div>
 
         <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, marginTop: 20 }}>
