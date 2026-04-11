@@ -313,6 +313,11 @@ export default function PerformancePage() {
 
     const netCapital = adjustedCostBasis;
 
+    // Realized gains since start (EUR → USD) — added to portfolio value for true total return.
+    const realizedGainsUSD = realizedData?.totalPnlSinceStart != null
+      ? realizedData.totalPnlSinceStart * eurUsd
+      : 0;
+
     // Determine start index
     let startIdx;
     if (startDate) {
@@ -339,7 +344,7 @@ export default function PerformancePage() {
 
     const chartPoints = [];
     for (let i = startIdx; i < spyLen; i++) {
-      chartPoints.push({ date: spyCandles[i].date, portfolio: portValAt(i), spy: spyShares * spyCandles[i].close });
+      chartPoints.push({ date: spyCandles[i].date, portfolio: portValAt(i) + realizedGainsUSD, spy: spyShares * spyCandles[i].close });
     }
     const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
 
@@ -375,17 +380,18 @@ export default function PerformancePage() {
     });
     const portfolioBeta = totalMktCap > 0 ? weightedBeta / totalMktCap : null;
 
-    const vsSpyAmt  = portNow != null && spyMirrorNow != null ? portNow - spyMirrorNow : null;
-    const vsSpyPct  = portReturn != null && spyReturn != null ? portReturn - spyReturn : null;
+    const totalReturnValue = portNow + realizedGainsUSD;
     const portStart = chartPoints[0]?.portfolio ?? adjustedCostBasis;
-    const portReturn = portStart > 0 ? ((portNow - portStart) / portStart) * 100 : null;
+    const portReturn = portStart > 0 ? ((totalReturnValue - portStart) / portStart) * 100 : null;
+    const vsSpyAmt  = spyMirrorNow != null ? totalReturnValue - spyMirrorNow : null;
+    const vsSpyPct  = portReturn != null && spyReturn != null ? portReturn - spyReturn : null;
     const spyStart   = chartPoints[0]?.spy ?? netCapital;
     const spyReturn  = spyStart > 0 ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
 
     return {
       chartData,
       eurData,
-      stats: { portNow, spyMirrorNow, vsSpyAmt, vsSpyPct, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, adjustedCostBasis, startingCashUSD, netCapital, hasRealizedData: realizedData != null },
+      stats: { portNow, totalReturnValue, spyMirrorNow, vsSpyAmt, vsSpyPct, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, adjustedCostBasis, startingCashUSD, netCapital, realizedGainsUSD, hasRealizedData: realizedData != null },
     };
   }, [rawData, holdings, startDate, realizedData, startingCash, cashCurrency]);
 
