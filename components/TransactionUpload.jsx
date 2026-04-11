@@ -63,7 +63,7 @@ export default function TransactionUpload({ onResults, startDate }) {
     } finally {
       setLoading(false);
     }
-  }, [onResults]);
+  }, [onResults, startDate]);
 
   function addFiles(incoming) {
     const valid = [];
@@ -112,7 +112,7 @@ export default function TransactionUpload({ onResults, startDate }) {
 
   // Loaded from localStorage — no File objects, show read-only file list from results.files
   const fromStorage = results && !fileList.length;
-  const { positions = [], partialPositions = [], totalPnl, txCount, files: resultFiles = [] } = results ?? {};
+  const { positions = [], partialPositions = [], totalPnl, totalPnlSinceStart, txCount, files: resultFiles = [] } = results ?? {};
   const best  = positions.length ? positions.reduce((a, b) => b.pnl > a.pnl ? b : a) : null;
   const worst = positions.length ? positions.reduce((a, b) => b.pnl < a.pnl ? b : a) : null;
 
@@ -261,6 +261,11 @@ export default function TransactionUpload({ onResults, startDate }) {
               <div style={{ fontSize: 24, fontWeight: 700, color: clr(totalPnl), lineHeight: 1 }}>
                 {fmtEur(totalPnl)}
               </div>
+              {totalPnlSinceStart != null && (
+                <div style={{ fontSize: 12, color: clr(totalPnlSinceStart), marginTop: 4 }}>
+                  Since start: {fmtEur(totalPnlSinceStart)}
+                </div>
+              )}
               <div style={{ fontSize: 12, color: '#8b949e', marginTop: 4 }}>
                 {positions.length} closed position{positions.length !== 1 ? 's' : ''} · {txCount} transactions
               </div>

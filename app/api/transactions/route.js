@@ -340,14 +340,22 @@ export async function POST(request) {
     const partialPositions = allPositions.filter(p => p.status === 'partial');
     const totalPnl         = positions.reduce((s, p) => s + p.pnl, 0);
 
-    console.log(`[transactions] total ${allTxs.length} txs → ${positions.length} closed, ${partialPositions.length} partial, P&L: ${totalPnl.toFixed(2)}, capitalAtStart: ${capitalAtStart}`);
+    const positionsSinceStart = reqStartDate
+      ? positions.filter(p => p.firstBuy != null && p.firstBuy >= reqStartDate)
+      : null;
+    const totalPnlSinceStart = positionsSinceStart != null
+      ? Math.round(positionsSinceStart.reduce((s, p) => s + p.pnl, 0) * 100) / 100
+      : null;
+
+    console.log(`[transactions] total ${allTxs.length} txs → ${positions.length} closed, ${partialPositions.length} partial, P&L: ${totalPnl.toFixed(2)}, sinceStart: ${totalPnlSinceStart}, capitalAtStart: ${capitalAtStart}`);
 
     return Response.json({
       positions,
       partialPositions,
-      totalPnl:       Math.round(totalPnl * 100) / 100,
-      txCount:        allTxs.length,
-      files:          fileStats,
+      totalPnl:            Math.round(totalPnl * 100) / 100,
+      totalPnlSinceStart,
+      txCount:             allTxs.length,
+      files:               fileStats,
       cashFlows,
       capitalAtStart,
     });
