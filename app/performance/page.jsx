@@ -311,7 +311,9 @@ export default function PerformancePage() {
       return v;
     }
 
-    const netCapital = adjustedCostBasis;
+    const realizedGainsUSD   = (realizedData?.totalPnlSinceStart ?? 0) * eurUsd;
+    const totalCostWithGains = adjustedCostBasis + realizedGainsUSD;
+    const netCapital         = totalCostWithGains;
 
     // Determine start index
     let startIdx;
@@ -375,8 +377,7 @@ export default function PerformancePage() {
     });
     const portfolioBeta = totalMktCap > 0 ? weightedBeta / totalMktCap : null;
 
-    const portStart  = chartPoints[0]?.portfolio ?? adjustedCostBasis;
-    const portReturn = portStart > 0 ? ((portNow - portStart) / portStart) * 100 : null;
+    const portReturn = totalCostWithGains > 0 ? ((portNow - totalCostWithGains) / totalCostWithGains) * 100 : null;
     const vsSpyAmt   = spyMirrorNow != null ? portNow - spyMirrorNow : null;
     const spyStart   = chartPoints[0]?.spy ?? netCapital;
     const spyReturn  = spyStart > 0 ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
@@ -385,7 +386,7 @@ export default function PerformancePage() {
     return {
       chartData,
       eurData,
-      stats: { portNow, spyMirrorNow, vsSpyAmt, vsSpyPct, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, adjustedCostBasis, startingCashUSD, netCapital, hasRealizedData: realizedData != null },
+      stats: { portNow, spyMirrorNow, vsSpyAmt, vsSpyPct, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, adjustedCostBasis, startingCashUSD, netCapital, realizedGainsUSD, hasRealizedData: realizedData != null },
     };
   }, [rawData, holdings, startDate, realizedData, startingCash, cashCurrency]);
 
@@ -555,7 +556,9 @@ export default function PerformancePage() {
           value={s ? `$${fmt(s.spyMirrorNow)}` : '…'}
           sub={
             s == null ? null :
-            s.hasRealizedData
+            s.hasRealizedData && s.realizedGainsUSD > 0
+              ? `Based on $${fmt(s.adjustedCostBasis, 0)} net capital + $${fmt(s.realizedGainsUSD, 0)} reinvested gains · SPY ${fmtD(s.spyReturn, 1)}`
+              : s.hasRealizedData
               ? `Based on $${fmt(s.netCapital, 0)} net capital deployed · SPY ${fmtD(s.spyReturn, 1)}`
               : s.spyReturn != null ? `SPY return: ${fmtD(s.spyReturn, 1)}` : null
           }
