@@ -1,6 +1,6 @@
 import '../globals.css';
 import { ClerkProvider } from '@clerk/nextjs';
-import { Analytics } from '@vercel/analytics/react';
+import DevModeAnalytics from './DevModeAnalytics';
 
 export const metadata = { title: 'StockDashes — Research your portfolio like a professional' };
 
@@ -23,7 +23,7 @@ export default function LandingLayout({ children }: { children: React.ReactNode 
       <html lang="en">
         <body>
           {children}
-          <Analytics />
+          <DevModeAnalytics />
         </body>
       </html>
     </ClerkProvider>
