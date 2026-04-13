@@ -210,8 +210,9 @@ export default function DashboardPage() {
 
   const totalMkt  = rows.reduce((s, r) => s + (r.mktVal  ?? 0), 0);
   const totalCost = rows.reduce((s, r) => s + (r.costVal ?? 0), 0);
-  const totalPnl  = totalMkt - totalCost;
-  const totalPct  = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+  const totalPnl  = rows.reduce((s, r) => s + (r.pnlAmt  ?? 0), 0);
+  const pricedCost = rows.reduce((s, r) => s + (r.pnlAmt != null ? r.costVal : 0), 0);
+  const totalPct  = pricedCost > 0 ? (totalPnl / pricedCost) * 100 : 0;
   const isLive    = Object.values(prices).some(p => p?.marketOpen);
 
   if (loading) return (
