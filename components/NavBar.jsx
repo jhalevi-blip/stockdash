@@ -173,41 +173,21 @@ export default function NavBar() {
 
   return (
     <>
-      {/* Desktop nav */}
-      <nav
-        data-tour="nav-tabs"
+      {/* Desktop top bar — nav links live in the sidebar */}
+      <div
         style={{
           background: 'var(--bg-card)',
           borderBottom: '1px solid var(--border-color)',
-          padding: '0 24px',
+          padding: '0 16px',
           display: 'flex',
           alignItems: 'center',
-          gap: '4px',
-          overflowX: 'auto',
+          justifyContent: 'flex-end',
+          height: 44,
           boxShadow: '0 1px 4px var(--shadow-sm)',
         }}
         className="desktop-nav"
       >
-        {links.map(l => (
-          <Link
-            key={l.href}
-            href={l.href}
-            {...(l.dataTour ? { 'data-tour': l.dataTour } : {})}
-            style={{
-              padding: '10px 16px',
-              fontSize: 12,
-              fontWeight: 600,
-              color: path === l.href ? 'var(--text-primary)' : 'var(--text-secondary)',
-              borderBottom: path === l.href ? '2px solid var(--accent)' : '2px solid transparent',
-              textDecoration: 'none',
-              transition: 'color .2s',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {l.label}
-          </Link>
-        ))}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {showEditPortfolio && (
             <button
               data-tour="edit-portfolio"
@@ -219,21 +199,9 @@ export default function NavBar() {
                 padding: '4px 12px', whiteSpace: 'nowrap',
               }}>🛠 Edit Portfolio</button>
           )}
-          <button onClick={toggleTheme} style={{
-            background: 'none',
-            border: '1px solid var(--border-color)',
-            borderRadius: 6,
-            color: 'var(--text-secondary)',
-            fontSize: 16,
-            cursor: 'pointer',
-            padding: '4px 10px',
-            lineHeight: 1,
-          }} title={dark ? 'Switch to light mode' : 'Switch to dark mode'}>
-            {dark ? '🌙' : '🌔'}
-          </button>
           {authSection}
         </div>
-      </nav>
+      </div>
 
       {/* Mobile nav */}
       <div className="mobile-nav">
