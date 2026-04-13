@@ -23,25 +23,21 @@ export default function DevModeAnalytics() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  return (
-    <>
-      <Analytics disabled={devMode} />
-      {devMode && (
-        <div
-          title="Dev mode — analytics disabled (Ctrl+Shift+D to toggle)"
-          style={{
-            position: 'fixed',
-            bottom: 8,
-            right: 8,
-            width: 10,
-            height: 10,
-            borderRadius: '50%',
-            background: '#f59e0b',
-            zIndex: 9999,
-            pointerEvents: 'none',
-          }}
-        />
-      )}
-    </>
+  if (devMode) return (
+    <div
+      title="Dev mode — analytics disabled (Ctrl+Shift+D to toggle)"
+      style={{
+        position: 'fixed',
+        bottom: 8,
+        right: 8,
+        width: 10,
+        height: 10,
+        borderRadius: '50%',
+        background: '#f59e0b',
+        zIndex: 9999,
+        pointerEvents: 'none',
+      }}
+    />
   );
+  return <Analytics />;
 }

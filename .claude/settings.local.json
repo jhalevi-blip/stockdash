@@ -15,7 +15,21 @@
       "Bash(npx next:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(curl:*)",
+      "Bash(node -e \"let d=''; process.stdin.on\\('data',c=>d+=c\\); process.stdin.on\\('end',\\(\\)=>{ const m=JSON.parse\\(d\\)?.chart?.result?.[0]?.meta; console.log\\(JSON.stringify\\({symbol:m?.symbol,price:m?.regularMarketPrice,prev:m?.chartPreviousClose,currency:m?.currency}\\)\\); }\\)\")",
+      "Bash(node:*)",
+      "Bash(grep \"\\\\.js$\")",
+      "Bash(grep -n \"isSignUpUrl\\\\|signUpUrl\\\\|sign-up\\\\|routing.*path\\\\|catch.all\\\\|catchall\\\\|\\\\\\\\[\\\\\\\\[\" node_modules/@clerk/react/dist/index.js)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('main:', d.get\\('main'\\)\\); print\\('module:', d.get\\('module'\\)\\); print\\('exports:', list\\(d.get\\('exports',{}\\).keys\\(\\)\\)[:5]\\)\")",
+      "Bash(powershell.exe:*)",
+      "Bash(cmd:*)",
+      "Bash(cat components/DemoPrompt.*)",
+      "Bash(grep -n \"login\\\\|redirect\\\\|useAuth\\\\|router\\\\|push\\\\|signIn\" components/NavBar.* components/DashboardSummary.* components/UsageBanner.*)",
+      "Bash(git rm:*)",
+      "Bash(xargs wc:*)",
+      "Bash(git:*)",
+      "Bash(ls:*)"
     ]
   }
 }
