@@ -174,16 +174,20 @@ export default function NavBar() {
   return (
     <>
       {/* Desktop nav */}
-      <nav style={{
-        background: 'var(--bg-card)',
-        borderBottom: '1px solid var(--border-color)',
-        padding: '0 24px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        overflowX: 'auto',
-        boxShadow: '0 1px 4px var(--shadow-sm)',
-      }} className="desktop-nav">
+      <nav
+        data-tour="nav-tabs"
+        style={{
+          background: 'var(--bg-card)',
+          borderBottom: '1px solid var(--border-color)',
+          padding: '0 24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          overflowX: 'auto',
+          boxShadow: '0 1px 4px var(--shadow-sm)',
+        }}
+        className="desktop-nav"
+      >
         {links.map(l => (
           <Link
             key={l.href}

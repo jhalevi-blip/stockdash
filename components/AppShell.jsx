@@ -3,6 +3,7 @@ import { usePathname } from 'next/navigation';
 import NavBar from './NavBar';
 import DemoBanner from './DemoBanner';
 import UsageBanner from './UsageBanner';
+import DemoTour from './DemoTour';
 
 const AUTH_PATHS = ['/sign-up', '/login', '/'];
 
@@ -26,6 +27,7 @@ export default function AppShell() {
       <NavBar />
       <DemoBanner />
       <UsageBanner />
+      <DemoTour />
     </>
   );
 }

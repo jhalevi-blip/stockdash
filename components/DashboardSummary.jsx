@@ -97,12 +97,15 @@ export default function DashboardSummary({ holdings, rows, earnings, news, onMac
   const loading = !fetched;
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-      gap: 12,
-      marginBottom: 28,
-    }}>
+    <div
+      data-tour="dashboard-summary"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+        gap: 12,
+        marginBottom: 28,
+      }}
+    >
 
       {/* 1 — Portfolio Health */}
       <Card title="Portfolio Health">

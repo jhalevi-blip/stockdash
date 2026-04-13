@@ -1,0 +1,146 @@
+"use client";
+import { useEffect } from "react";
+import "driver.js/dist/driver.css";
+
+const TOUR_CSS = `
+  .sd-tour-popover.driver-popover {
+    background: #1a1f2e;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.65);
+    padding: 20px 22px 16px;
+    max-width: 300px;
+    font-family: inherit;
+  }
+  .sd-tour-popover .driver-popover-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #f0f6fc;
+    margin-bottom: 8px;
+    line-height: 1.3;
+  }
+  .sd-tour-popover .driver-popover-description {
+    font-size: 13px;
+    color: #8b949e;
+    line-height: 1.6;
+  }
+  .sd-tour-popover .driver-popover-footer {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .sd-tour-popover .driver-popover-progress-text {
+    font-size: 11px;
+    color: #484f58;
+  }
+  .sd-tour-popover .driver-popover-next-btn {
+    background: #3b82f6;
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 16px;
+    cursor: pointer;
+  }
+  .sd-tour-popover .driver-popover-next-btn:hover {
+    background: #2563eb;
+  }
+  .sd-tour-popover .driver-popover-prev-btn {
+    background: none;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #8b949e;
+    font-size: 13px;
+    padding: 7px 14px;
+    cursor: pointer;
+  }
+  .sd-tour-popover .driver-popover-prev-btn:hover {
+    border-color: #8b949e;
+    color: #e6edf3;
+  }
+  .sd-tour-popover .driver-popover-close-btn {
+    color: #484f58;
+    font-size: 18px;
+    top: 10px;
+    right: 12px;
+  }
+  .sd-tour-popover .driver-popover-close-btn:hover {
+    color: #8b949e;
+  }
+  .sd-tour-popover .driver-popover-arrow-side-top::before    { border-top-color:    #1a1f2e !important; }
+  .sd-tour-popover .driver-popover-arrow-side-bottom::before { border-bottom-color: #1a1f2e !important; }
+  .sd-tour-popover .driver-popover-arrow-side-left::before   { border-left-color:   #1a1f2e !important; }
+  .sd-tour-popover .driver-popover-arrow-side-right::before  { border-right-color:  #1a1f2e !important; }
+`;
+
+const STEPS = [
+  {
+    element: '[data-tour="dashboard-summary"]',
+    popover: {
+      title: "Your portfolio at a glance",
+      description: "Live P&L, upcoming earnings, analyst targets, insider activity, and market pulse — all in one row.",
+      side: "bottom",
+      align: "start",
+    },
+  },
+  {
+    element: '[data-tour="stock-intel"]',
+    popover: {
+      title: "Stock Intel — the killer feature",
+      description: "Select any stock for a full intelligence brief: bull/bear AI analysis, key metrics, and recent news.",
+      side: "top",
+      align: "start",
+    },
+  },
+  {
+    element: '[data-tour="nav-tabs"]',
+    popover: {
+      title: "10 pages of research",
+      description: "Insider trades, 13F filings, peer comparisons, SEC filings, earnings history — click any tab to explore.",
+      side: "bottom",
+      align: "start",
+    },
+  },
+  {
+    element: '[data-tour="edit-portfolio"]',
+    popover: {
+      title: "Make it yours",
+      description: "Add your own tickers to track your real portfolio. Sign up to save it permanently.",
+      side: "bottom",
+      align: "end",
+    },
+  },
+];
+
+export default function DemoTour() {
+  useEffect(() => {
+    const isDemo   = localStorage.getItem("stockdash_demo") === "true";
+    const tourDone = localStorage.getItem("stockdash_tour_done");
+    if (!isDemo || tourDone) return;
+
+    const timer = setTimeout(async () => {
+      // Only run on the dashboard where these elements exist
+      if (!document.querySelector('[data-tour="dashboard-summary"]')) return;
+
+      const { driver } = await import("driver.js");
+
+      const driverObj = driver({
+        popoverClass: "sd-tour-popover",
+        showProgress: true,
+        allowClose: true,
+        steps: STEPS,
+        onDestroyed: () => {
+          localStorage.setItem("stockdash_tour_done", "true");
+        },
+      });
+
+      driverObj.drive();
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  return <style>{TOUR_CSS}</style>;
+}
