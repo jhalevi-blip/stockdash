@@ -57,8 +57,8 @@ export default function LandingPage() {
       {/* ── HERO + LIVE TABLE ── */}
       <section style={{ ...wrap, paddingTop: 40, paddingBottom: 0, textAlign: "center" }}>
         <h1 style={{
-          fontSize: "clamp(28px, 4vw, 46px)", fontWeight: 700, lineHeight: 1.1,
-          letterSpacing: "-0.03em", margin: "0 0 12px", color: "#e6edf3",
+          fontSize: "clamp(32px, 5vw, 48px)", fontWeight: 800, lineHeight: 1.1,
+          letterSpacing: "-0.02em", margin: "0 0 12px", color: "#e6edf3",
         }}>
           Stop switching between 10 tabs.
         </h1>
@@ -74,7 +74,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── PAIN STRIP ── */}
-      <section style={{ borderTop: "1px solid #1e2530", borderBottom: "1px solid #1e2530", padding: "13px 24px", marginTop: 52 }}>
+      <section style={{ borderTop: "1px solid #1e2530", borderBottom: "1px solid #1e2530", padding: "13px 24px", marginTop: 32 }}>
         <div style={{
           maxWidth: 760, margin: "0 auto",
           display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap",

@@ -54,6 +54,13 @@ export default function LivePreview() {
         .lp-row:hover { background: rgba(255,255,255,0.03) !important; }
       `}</style>
 
+    <div style={{
+      background: "#0a0e14",
+      border: "1px solid #1e2530",
+      borderRadius: 12,
+      padding: 24,
+    }}>
+
       {/* Live label */}
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
@@ -119,9 +126,9 @@ export default function LivePreview() {
         <button
           onClick={() => startDemo("/dashboard")}
           style={{
-            padding: "14px 36px", borderRadius: 10, border: "none", cursor: "pointer",
+            padding: "14px 32px", borderRadius: 10, border: "none", cursor: "pointer",
             background: "#3b82f6", color: "#fff",
-            fontWeight: 700, fontSize: 16, fontFamily: "inherit",
+            fontWeight: 700, fontSize: 15, fontFamily: "inherit",
             boxShadow: "0 0 30px rgba(59,130,246,0.35)",
             transition: "opacity 0.15s",
           }}
@@ -142,6 +149,7 @@ export default function LivePreview() {
           table td, table th { padding: 10px 12px !important; }
         }
       `}</style>
+    </div>
     </div>
   );
 }
