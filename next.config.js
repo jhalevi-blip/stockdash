@@ -56,6 +56,11 @@ const nextConfig = {
         headers: [{ key: 'Cache-Control', value: 'no-store' }],
       },
       {
+        // Stock intel preview — AI-generated, cache 24 hours
+        source: '/api/stock-intel-preview',
+        headers: [{ key: 'Cache-Control', value: 's-maxage=86400, stale-while-revalidate=3600' }],
+      },
+      {
         // Remaining API routes — cache 4 hours
         source: '/api/:path*',
         headers: [{ key: 'Cache-Control', value: 's-maxage=14400, stale-while-revalidate=3600' }],

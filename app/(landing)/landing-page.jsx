@@ -4,7 +4,8 @@ import dynamic from "next/dynamic";
 import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import { startDemo } from "../../lib/startDemo";
 
-const LivePreview = dynamic(() => import("../../components/LivePreview"), { ssr: false });
+const LivePreview        = dynamic(() => import("../../components/LivePreview"),        { ssr: false });
+const StockIntelPreview  = dynamic(() => import("../../components/StockIntelPreview"),  { ssr: false });
 
 const FEATURES = [
   { title: "Dashboard",           desc: "P&L, price charts, earnings calendar, and live news for your holdings.",               link: "/dashboard" },
@@ -71,6 +72,14 @@ export default function LandingPage() {
 
         {/* Live table — the CTA */}
         <LivePreview />
+
+        {/* Stock Intel Preview */}
+        <div style={{ marginTop: 16 }}>
+          <p style={{ fontSize: 12, color: "rgba(230,237,243,0.3)", textAlign: "center", margin: "0 0 12px", letterSpacing: "0.03em" }}>
+            More than just prices — AI-powered research for every stock
+          </p>
+          <StockIntelPreview />
+        </div>
       </section>
 
       {/* ── PAIN STRIP ── */}
