@@ -288,10 +288,10 @@ export default function DashboardPage() {
 
       {/* Daily Snapshot */}
       {(() => {
-        const dailyRows = rows.filter(r => r.chgPct != null && r.mktVal != null);
+        const dailyRows = rows.filter(r => r.chgPct != null && r.price != null);
         if (!dailyRows.length) return null;
 
-        const totalDailyAmt = dailyRows.reduce((s, r) => s + r.mktVal * r.chgPct / 100, 0);
+        const totalDailyAmt = dailyRows.reduce((s, r) => s + r.s * r.price * (r.chgPct / 100), 0);
         const totalMktNow   = dailyRows.reduce((s, r) => s + r.mktVal, 0);
         const totalDailyPct = totalMktNow > 0 ? (totalDailyAmt / totalMktNow) * 100 : null;
         const best  = dailyRows.reduce((a, b) => b.chgPct > a.chgPct ? b : a);
