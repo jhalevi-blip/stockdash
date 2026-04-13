@@ -70,7 +70,12 @@ export default function NavBar() {
       // Reload came from savePortfolio — scoped key already has correct data.
       localStorage.removeItem('portfolio_just_saved');
       const local = loadUserHoldings(userId);
-      if (local) { saveUserHoldings(userId, local); setSavedHoldings(local); }
+      console.log('[NavBar] justSaved path — key:', `holdings_${userId}`, '— data:', local);
+      if (local) {
+        saveUserHoldings(userId, local);
+        setSavedHoldings(local);
+        window.dispatchEvent(new CustomEvent('portfolio-saved'));
+      }
       return;
     }
 
@@ -78,15 +83,21 @@ export default function NavBar() {
       .then(r => r.json())
       .then(data => {
         if (data.signedIn && data.holdings?.length) {
+          console.log('[NavBar] Supabase holdings found:', data.holdings.length, 'positions');
           saveUserHoldings(userId, data.holdings);
           setSavedHoldings(data.holdings);
           window.dispatchEvent(new CustomEvent('portfolio-saved'));
         } else {
           // No Supabase record — use scoped localStorage if present
+          const scopedKey = `holdings_${userId}`;
           const local = loadUserHoldings(userId);
+          console.log('[NavBar] No Supabase data — reading key:', scopedKey, '— data:', local);
           if (local?.length) {
             saveUserHoldings(userId, local);
             setSavedHoldings(local);
+            window.dispatchEvent(new CustomEvent('portfolio-saved'));
+          } else {
+            console.warn('[NavBar] No holdings found in Supabase or localStorage for key:', scopedKey);
           }
         }
       })
