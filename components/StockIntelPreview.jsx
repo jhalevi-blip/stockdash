@@ -30,9 +30,21 @@ export default function StockIntelPreview() {
   const [error,   setError]   = useState(false);
 
   useEffect(() => {
-    fetch("/api/stock-intel-preview")
-      .then(r => { if (!r.ok) throw new Error("failed"); return r.json(); })
-      .then(d => { if (d.error) throw new Error(d.error); setData(d); })
+    Promise.all([
+      fetch("/api/stock-intel-preview").then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+      fetch("/api/most-traded").then(r => r.json()).catch(() => []),
+    ])
+      .then(([intel, mostTraded]) => {
+        if (intel.error) throw new Error(intel.error);
+        const nvda = Array.isArray(mostTraded)
+          ? mostTraded.find(e => e.symbol === "NVDA")
+          : null;
+        setData({
+          ...intel,
+          price:   nvda?.price  ?? null,
+          chgPct:  nvda?.change ?? null,
+        });
+      })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);

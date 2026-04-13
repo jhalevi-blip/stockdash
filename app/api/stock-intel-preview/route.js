@@ -1,18 +1,8 @@
 const SYMBOL = 'NVDA';
 const CACHE_HEADER = { 'Cache-Control': 's-maxage=86400, stale-while-revalidate=3600' };
 
-// Hardcoded fallback if Finnhub is unavailable
-const PRICE_FALLBACK = { price: 106.73, chgPct: -2.15 };
-
-async function fetchNvdaQuote(key) {
-  const res = await fetch(
-    `https://finnhub.io/api/v1/quote?symbol=${SYMBOL}&token=${key}`,
-    { next: { revalidate: 86400 } }
-  );
-  const q = await res.json();
-  const price = q.c > 0 ? q.c : q.pc;
-  return { price, chgPct: q.dp ?? null };
-}
+// Price comes from /api/most-traded on the client — only used here for AI prompt context
+const PRICE_FOR_PROMPT = 106.73;
 
 async function fetchNvdaTarget(key) {
   const res = await fetch(
@@ -27,11 +17,12 @@ async function fetchNvdaTarget(key) {
   };
 }
 
-async function fetchAiAnalysis(anthropicKey, price, target) {
+async function fetchAiAnalysis(anthropicKey, target) {
+  const price = PRICE_FOR_PROMPT;
   const lines = [
     `Stock: ${SYMBOL} (Nvidia Corporation)`,
     `Sector: Semiconductors / AI infrastructure`,
-    price != null ? `Current Price: $${price.toFixed(2)}` : null,
+    `Current Price: $${price.toFixed(2)}`,
     target.avg  != null ? `Analyst avg target: $${target.avg.toFixed(2)}` : null,
     target.high != null ? `Target high: $${target.high.toFixed(2)}` : null,
     target.low  != null ? `Target low:  $${target.low.toFixed(2)}`  : null,
@@ -75,25 +66,19 @@ export async function GET() {
     return Response.json({ error: 'Missing API keys' }, { status: 500 });
   }
 
-  // Fetch price and analyst target in parallel
-  let quote  = PRICE_FALLBACK;
+  // Analyst target only — price comes from /api/most-traded on the client
   let target = { avg: null, high: null, low: null };
-
   try {
-    [quote, target] = await Promise.all([
-      fetchNvdaQuote(finnhubKey),
-      fetchNvdaTarget(finnhubKey),
-    ]);
+    target = await fetchNvdaTarget(finnhubKey);
   } catch (e) {
-    console.error('[stock-intel-preview] Finnhub fetch failed:', e);
-    // Continue with fallback values — still get AI analysis
+    console.error('[stock-intel-preview] Finnhub target fetch failed:', e);
   }
 
   // AI analysis (non-fatal if it fails)
-  const ai = await fetchAiAnalysis(anthropicKey, quote.price, target).catch(() => null);
+  const ai = await fetchAiAnalysis(anthropicKey, target).catch(() => null);
 
   return Response.json(
-    { symbol: SYMBOL, price: quote.price, chgPct: quote.chgPct, analyst: target, ai },
+    { symbol: SYMBOL, analyst: target, ai },
     { headers: CACHE_HEADER }
   );
 }
