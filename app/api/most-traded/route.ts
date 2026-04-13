@@ -33,23 +33,12 @@ function getISOWeek(date: Date): string {
 let memCache: { week: string; data: MostTradedEntry[] } | null = null;
 
 export async function GET() {
-  // TODO: Remove hardcoded data and restore Finnhub fetch on Monday
-  const hardcoded: MostTradedEntry[] = [
-    { rank: 1, symbol: 'NVDA', name: 'Nvidia',  price: 106.73, change: -2.15, volume: 0 },
-    { rank: 2, symbol: 'TSLA', name: 'Tesla',   price: 247.07, change: -5.41, volume: 0 },
-    { rank: 3, symbol: 'AAPL', name: 'Apple',   price: 223.19, change: -1.23, volume: 0 },
-    { rank: 4, symbol: 'AMZN', name: 'Amazon',  price: 196.35, change: -2.88, volume: 0 },
-    { rank: 5, symbol: 'AMD',  name: 'AMD',     price:  96.49, change: -3.47, volume: 0 },
-  ];
-  return Response.json(hardcoded, {
-    headers: { 'Cache-Control': 's-maxage=3600, stale-while-revalidate=300' },
-  });
-
-  /*
   const currentWeek = getISOWeek(new Date());
 
   if (memCache && memCache.week === currentWeek) {
-    return Response.json(memCache.data);
+    return Response.json(memCache.data, {
+      headers: { 'Cache-Control': 's-maxage=3600, stale-while-revalidate=300' },
+    });
   }
 
   const apiKey = process.env.FINNHUB_API_KEY;
@@ -87,6 +76,7 @@ export async function GET() {
 
   memCache = { week: currentWeek, data: sorted };
 
-  return Response.json(sorted);
-  */
+  return Response.json(sorted, {
+    headers: { 'Cache-Control': 's-maxage=3600, stale-while-revalidate=300' },
+  });
 }
