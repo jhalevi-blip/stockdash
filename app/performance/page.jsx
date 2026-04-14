@@ -348,16 +348,15 @@ export default function PerformancePage() {
     }
     const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
 
-    // Normalize chart to percentage returns using cost basis as denominator,
-    // matching the summary card calculations. SPY starts at 0% (it invests
-    // netCapital at startIdx by definition). Portfolio starts wherever it
-    // stood vs cost basis at the chart start date.
-    const chartData = netCapital > 0
+    // Normalize both lines to 0% at startIdx so they are directly comparable.
+    const portBase = chartPoints[0]?.portfolio ?? netCapital;
+    const spyBase  = chartPoints[0]?.spy ?? netCapital;
+    const chartData = portBase > 0 && spyBase > 0
       ? chartPoints.map(p => ({
           date:      p.date,
           label:     p.label,
-          portfolio: (p.portfolio / netCapital - 1) * 100,
-          spy:       (p.spy       / netCapital - 1) * 100,
+          portfolio: (p.portfolio / portBase - 1) * 100,
+          spy:       (p.spy       / spyBase  - 1) * 100,
         }))
       : chartPoints;
 
