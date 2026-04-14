@@ -26,12 +26,13 @@ const links = [
 export default function NavBar() {
   const path   = usePathname();
   const router = useRouter();
-  const [open,         setOpen]         = useState(false);
-  const [demoHovered,  setDemoHovered]  = useState(false);
-  const [dark,         setDark]         = useState(true);
-  const [modalOpen,    setModalOpen]    = useState(false);
+  const [open,          setOpen]          = useState(false);
+  const [demoHovered,   setDemoHovered]   = useState(false);
+  const [dark,          setDark]          = useState(true);
+  const [modalOpen,     setModalOpen]     = useState(false);
   const [savedHoldings, setSavedHoldings] = useState([]);
-  const [isDemo,       setIsDemo]       = useState(false);
+  const [savedCash,     setSavedCash]     = useState(null);
+  const [isDemo,        setIsDemo]        = useState(false);
   const { isLoaded, isSignedIn, user } = useUser();
   const hasSynced  = useRef(false);
   const wasSignedIn = useRef(false);
@@ -42,6 +43,10 @@ export default function NavBar() {
     setDark(isDark);
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
     setIsDemo(localStorage.getItem('stockdash_demo') === 'true');
+    // Load cash position from localStorage
+    const cashAmt = parseFloat(localStorage.getItem('stockdash_cash_amount') || '0') || 0;
+    const cashCcy = localStorage.getItem('stockdash_cash_currency') || 'USD';
+    if (cashAmt > 0) setSavedCash({ amount: cashAmt, currency: cashCcy });
   }, []);
 
   // Clear shared cache when user signs out so the next user starts clean
@@ -82,6 +87,15 @@ export default function NavBar() {
     fetch('/api/portfolio')
       .then(r => r.json())
       .then(data => {
+        // Sync cash from Supabase if localStorage doesn't have it
+        if (data.cash?.amount > 0) {
+          const localCash = parseFloat(localStorage.getItem('stockdash_cash_amount') || '0') || 0;
+          if (!localCash) {
+            setSavedCash(data.cash);
+            localStorage.setItem('stockdash_cash_amount', String(data.cash.amount));
+            localStorage.setItem('stockdash_cash_currency', data.cash.currency ?? 'USD');
+          }
+        }
         if (data.signedIn && data.holdings?.length) {
           console.log('[NavBar] Supabase holdings found:', data.holdings.length, 'positions');
           saveUserHoldings(userId, data.holdings);
@@ -113,9 +127,18 @@ export default function NavBar() {
     } catch {}
   }, [isDemo]);
 
-  async function savePortfolio(holdings) {
+  async function savePortfolio(holdings, cash) {
     saveUserHoldings(user?.id, holdings);
     setSavedHoldings(holdings);
+    // Persist cash to localStorage
+    if (cash?.amount > 0) {
+      localStorage.setItem('stockdash_cash_amount',  String(cash.amount));
+      localStorage.setItem('stockdash_cash_currency', cash.currency ?? 'USD');
+    } else {
+      localStorage.removeItem('stockdash_cash_amount');
+      localStorage.removeItem('stockdash_cash_currency');
+    }
+    setSavedCash(cash?.amount > 0 ? cash : null);
     if (isDemo) {
       window.dispatchEvent(new CustomEvent('portfolio-saved'));
       return;
@@ -123,11 +146,20 @@ export default function NavBar() {
     const res = await fetch('/api/portfolio', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ holdings }),
+      body: JSON.stringify({ holdings, cash: cash?.amount > 0 ? cash : null }),
     });
     if (!res.ok) throw new Error('Save failed');
     localStorage.setItem('portfolio_just_saved', 'true');
     window.location.reload();
+  }
+
+  function openModal() {
+    const h = loadUserHoldings(user?.id);
+    if (h) setSavedHoldings(h);
+    const cashAmt = parseFloat(localStorage.getItem('stockdash_cash_amount') || '0') || 0;
+    const cashCcy = localStorage.getItem('stockdash_cash_currency') || 'USD';
+    setSavedCash(cashAmt > 0 ? { amount: cashAmt, currency: cashCcy } : null);
+    setModalOpen(true);
   }
 
   function toggleTheme() {
@@ -202,7 +234,7 @@ export default function NavBar() {
           {showEditPortfolio && (
             <button
               data-tour="edit-portfolio"
-              onClick={() => { const h = loadUserHoldings(user?.id); if (h) setSavedHoldings(h); setModalOpen(true); }}
+              onClick={openModal}
               style={{
                 background: 'none', border: '1px solid var(--accent)',
                 borderRadius: 6, color: 'var(--accent)',
@@ -234,7 +266,7 @@ export default function NavBar() {
             {showEditPortfolio && (
               <button
                 data-tour="edit-portfolio"
-                onClick={() => { const h = loadUserHoldings(user?.id); if (h) setSavedHoldings(h); setModalOpen(true); }}
+                onClick={openModal}
                 style={{
                   background: 'none', border: '1px solid var(--accent)',
                   borderRadius: 6, color: 'var(--accent)',
@@ -325,6 +357,7 @@ export default function NavBar() {
       {modalOpen && (
         <PortfolioModal
           holdings={savedHoldings}
+          cash={savedCash}
           onSave={savePortfolio}
           onClose={() => setModalOpen(false)}
         />

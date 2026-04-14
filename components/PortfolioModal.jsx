@@ -7,14 +7,16 @@ const iStyle = {
   outline: 'none', boxSizing: 'border-box',
 };
 
-export default function PortfolioModal({ holdings, onSave, onClose }) {
+export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
   const initial = holdings.length
     ? holdings.map(h => ({ t: h.t ?? '', s: h.s ?? 0, c: h.c ?? 0, d: h.d ?? '' }))
     : [{ t: '', s: 0, c: 0, d: '' }];
 
-  const [rows,   setRows]   = useState(initial);
-  const [saving, setSaving] = useState(false);
-  const [error,  setError]  = useState('');
+  const [rows,         setRows]         = useState(initial);
+  const [saving,       setSaving]       = useState(false);
+  const [error,        setError]        = useState('');
+  const [cashAmount,   setCashAmount]   = useState(cash?.amount   ?? 0);
+  const [cashCurrency, setCashCurrency] = useState(cash?.currency ?? 'USD');
 
   const handleSave = async () => {
     const valid = rows.filter(r => r.t.trim());
@@ -28,10 +30,12 @@ export default function PortfolioModal({ holdings, onSave, onClose }) {
     }));
     console.log('[PortfolioModal] saving holdings:', JSON.stringify(parsed));
 
+    const cashData = cashAmount > 0 ? { amount: cashAmount, currency: cashCurrency } : null;
+
     setSaving(true);
     setError('');
     try {
-      await onSave(parsed);
+      await onSave(parsed, cashData);
       onClose();
     } catch {
       setError('Failed to save. Please try again.');
@@ -59,6 +63,39 @@ export default function PortfolioModal({ holdings, onSave, onClose }) {
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>Add your holdings to track your portfolio</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: 20, cursor: 'pointer', lineHeight: 1, marginLeft: 12, flexShrink: 0 }}>✕</button>
+        </div>
+
+        {/* Cash Position */}
+        <div style={{
+          marginBottom: 18, padding: '12px 16px',
+          background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 6,
+        }}>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>
+            Cash Position
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              value={String(cashAmount || '')}
+              onChange={e => setCashAmount(parseFloat(e.target.value) || 0)}
+              placeholder="0.00"
+              type="number"
+              min="0"
+              step="0.01"
+              style={{ ...iStyle, width: 140 }}
+            />
+            <select
+              value={cashCurrency}
+              onChange={e => setCashCurrency(e.target.value)}
+              style={{ ...iStyle, width: 72 }}
+            >
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="GBP">GBP</option>
+            </select>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              Cash in brokerage account (added to Portfolio Value &amp; Cost Basis)
+            </span>
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 116px 28px', gap: 8, marginBottom: 6 }}>

@@ -27,7 +27,12 @@ export async function GET() {
     return Response.json({ error: error.message }, { status: 500 });
   }
 
-  return Response.json({ signedIn: true, holdings: data?.holdings ?? [] });
+  const raw: any[] = Array.isArray(data?.holdings) ? data.holdings : [];
+  const cashEntry  = raw.find((h: any) => h?.t === '__CASH__') ?? null;
+  const holdings   = raw.filter((h: any) => h?.t !== '__CASH__');
+  const cash = cashEntry ? { amount: cashEntry.amount, currency: cashEntry.currency ?? 'USD' } : null;
+
+  return Response.json({ signedIn: true, holdings, cash });
 }
 
 export async function POST(req: Request) {
@@ -37,11 +42,15 @@ export async function POST(req: Request) {
   const sb = getSupabaseAdmin();
   if (!sb) return Response.json({ error: 'Supabase not configured' }, { status: 500 });
 
-  const { holdings } = await req.json();
+  const { holdings, cash } = await req.json();
+  const toStore = Array.isArray(holdings) ? [...holdings] : [];
+  if (cash?.amount > 0) {
+    toStore.push({ t: '__CASH__', amount: cash.amount, currency: cash.currency ?? 'USD' });
+  }
 
   const { error } = await sb
     .from('portfolios')
-    .upsert({ user_id: userId, holdings, updated_at: new Date().toISOString() });
+    .upsert({ user_id: userId, holdings: toStore, updated_at: new Date().toISOString() });
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
 

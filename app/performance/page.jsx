@@ -345,14 +345,15 @@ export default function PerformancePage() {
     }
     const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
 
-    // Normalize chart to percentage returns — both lines start at 0%
-    const portChartBase = chartPoints[0]?.portfolio;
-    const spyChartBase  = chartPoints[0]?.spy;
-    const chartData = portChartBase > 0 && spyChartBase > 0
+    // Normalize chart to percentage returns using cost basis as denominator,
+    // matching the summary card calculations. SPY starts at 0% (it invests
+    // netCapital at startIdx by definition). Portfolio starts wherever it
+    // stood vs cost basis at the chart start date.
+    const chartData = netCapital > 0
       ? chartPoints.map(p => ({
           date:      p.date,
-          portfolio: (p.portfolio / portChartBase - 1) * 100,
-          spy:       (p.spy       / spyChartBase  - 1) * 100,
+          portfolio: (p.portfolio / netCapital - 1) * 100,
+          spy:       (p.spy       / netCapital - 1) * 100,
         }))
       : chartPoints;
 
@@ -383,10 +384,31 @@ export default function PerformancePage() {
     const spyReturn  = spyStart > 0 ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
     const vsSpyPct   = portReturn != null && spyReturn != null ? portReturn - spyReturn : null;
 
+    // Time-Weighted Return — chains sub-period returns across deposit dates to
+    // remove the effect of capital additions on the reported performance %.
+    let twr = null;
+    const twrDeposits = (realizedData?.deposits ?? [])
+      .filter(d => d.date && d.amountEur > 0)
+      .sort((a, b) => a.date < b.date ? -1 : 1)
+      .map(d => ({ amountUSD: d.amountEur * eurUsd, idx: findCandleByDate(spyCandles, d.date) }))
+      .filter(d => d.idx > startIdx && d.idx < spyLen - 1);
+
+    if (twrDeposits.length > 0) {
+      let twrProduct = 1;
+      let vStart = portValAt(startIdx);
+      for (const dep of twrDeposits) {
+        const vEnd = portValAt(dep.idx);
+        if (vStart > 0) twrProduct *= vEnd / vStart;
+        vStart = vEnd + dep.amountUSD;
+      }
+      if (vStart > 0) twrProduct *= portNow / vStart;
+      twr = (twrProduct - 1) * 100;
+    }
+
     return {
       chartData,
       eurData,
-      stats: { portNow, spyMirrorNow, vsSpyAmt, vsSpyPct, portReturn, spyReturn, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, adjustedCostBasis, startingCashUSD, netCapital, realizedGainsUSD, hasRealizedData: realizedData != null },
+      stats: { portNow, spyMirrorNow, vsSpyAmt, vsSpyPct, portReturn, spyReturn, twr, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact, totalCostBasis, adjustedCostBasis, startingCashUSD, netCapital, realizedGainsUSD, hasRealizedData: realizedData != null },
     };
   }, [rawData, holdings, startDate, realizedData, startingCash, cashCurrency]);
 
@@ -571,6 +593,14 @@ export default function PerformancePage() {
           sub={s?.portReturn != null && s?.spyReturn != null ? `Portfolio ${fmtD(s.portReturn, 1)} · SPY ${fmtD(s.spyReturn, 1)}` : null}
           valueColor={s ? clr(s.vsSpyPct) : undefined}
         />
+        {s?.twr != null && (
+          <StatCard
+            label="TWR (adj.)"
+            value={(s.twr >= 0 ? '+' : '') + s.twr.toFixed(1) + '%'}
+            sub="Time-weighted return — removes deposit timing effect"
+            valueColor={clr(s.twr)}
+          />
+        )}
       </div>
 
       {/* Portfolio vs SPY chart */}
@@ -668,6 +698,33 @@ export default function PerformancePage() {
           );
         })()}
       </div>
+
+      {/* Deposits / Dividends / Fees — shown when transaction file has been uploaded */}
+      {realizedData && (realizedData.totalDeposited > 0 || realizedData.totalDividends > 0 || realizedData.totalFees > 0) && (
+        <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+          {realizedData.totalDeposited > 0 && (
+            <MetricCard
+              label="Total Deposited"
+              value={`€${fmt(realizedData.totalDeposited)}`}
+              sub={`${realizedData.deposits?.length ?? 0} deposit${(realizedData.deposits?.length ?? 0) !== 1 ? 's' : ''}`}
+            />
+          )}
+          {realizedData.totalDividends > 0 && (
+            <MetricCard
+              label="Dividends Received"
+              value={`+€${fmt(realizedData.totalDividends)}`}
+              sub={`${realizedData.dividends?.length ?? 0} payment${(realizedData.dividends?.length ?? 0) !== 1 ? 's' : ''}`}
+              valueColor="var(--positive)"
+            />
+          )}
+          <MetricCard
+            label="Fees Paid"
+            value={realizedData.totalFees > 0 ? `-€${fmt(realizedData.totalFees)}` : '€0.00'}
+            sub={`${realizedData.fees?.length ?? 0} fee entr${(realizedData.fees?.length ?? 0) !== 1 ? 'ies' : 'y'}`}
+            valueColor={realizedData.totalFees > 0 ? 'var(--negative)' : undefined}
+          />
+        </div>
+      )}
 
       {/* EUR/USD chart */}
       <div style={{

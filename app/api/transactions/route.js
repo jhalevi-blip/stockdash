@@ -101,16 +101,34 @@ function parseFileBuffer(buffer, filename) {
   }
 
   const transactions = [];
+  const deposits     = [];
+  const dividends    = [];
+  const fees         = [];
 
   for (const row of dataRows) {
     if (!row.some(v => v !== '')) continue;
 
     if (isDeGiroAccount) {
-      // Only process trade rows (Type = "Transactie")
-      const rowType = typeCol !== -1 ? String(row[typeCol] ?? '').trim().toLowerCase() : 'transactie';
-      if (rowType && rowType !== 'transactie') continue;
+      const rowType   = typeCol   !== -1 ? String(row[typeCol]   ?? '').trim().toLowerCase() : '';
+      const actiesRaw = actiesCol !== -1 ? String(row[actiesCol] ?? '').trim()               : '';
+      const actiesLow = actiesRaw.toLowerCase();
 
-      const rawActies = String(row[actiesCol] ?? '').trim();
+      // Non-trade rows: deposits, dividends, fees
+      if (rowType !== 'transactie') {
+        const amount = boekingsbedragCol !== -1 ? parseNum(row[boekingsbedragCol]) : null;
+        const date   = dateCol !== -1 ? parseDate(row[dateCol]) : null;
+
+        if (rowType === 'geldoverboeking' && actiesLow === 'storting') {
+          if (amount != null && amount > 0) deposits.push({ date, amountEur: amount });
+        } else if (rowType === 'corporate action') {
+          if (amount != null && amount > 0) dividends.push({ date, amountEur: amount });
+        } else if (actiesLow.includes('service fee') || actiesLow.includes('factureringsbedragen')) {
+          if (amount != null) fees.push({ date, amountEur: Math.abs(amount) });
+        }
+        continue;
+      }
+
+      const rawActies = actiesRaw;
       if (!rawActies) continue;
 
       // Parse "Koop 1800 @ 17.30 USD" or "Verkoop -1800 @ 17.36 USD"
@@ -187,7 +205,7 @@ function parseFileBuffer(buffer, filename) {
     }
   }
 
-  return transactions;
+  return { transactions, deposits, dividends, fees };
 }
 
 function calcFIFO(transactions) {
@@ -262,8 +280,11 @@ export async function POST(request) {
       return Response.json({ error: 'No files provided' }, { status: 400 });
     }
 
-    const fileStats   = [];  // { name, txCount } per file
-    const allTxs      = [];  // merged across all files
+    const fileStats    = [];  // { name, txCount } per file
+    const allTxs       = [];  // merged across all files
+    const allDeposits  = [];
+    const allDividends = [];
+    const allFees      = [];
     const seenOrderIds = new Set();
 
     for (const file of files) {
@@ -276,12 +297,16 @@ export async function POST(request) {
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
-      let txs;
+      let txs, fileDeps, fileDivs, fileFees;
       try {
-        txs = parseFileBuffer(buffer, file.name);
+        ({ transactions: txs, deposits: fileDeps, dividends: fileDivs, fees: fileFees } = parseFileBuffer(buffer, file.name));
       } catch (e) {
         return Response.json({ error: e.message }, { status: 400 });
       }
+
+      allDeposits.push(...fileDeps);
+      allDividends.push(...fileDivs);
+      allFees.push(...fileFees);
 
       // Deduplicate by Order ID across files
       let added = 0;
@@ -349,6 +374,12 @@ export async function POST(request) {
 
     console.log(`[transactions] total ${allTxs.length} txs → ${positions.length} closed, ${partialPositions.length} partial, P&L: ${totalPnl.toFixed(2)}, sinceStart: ${totalPnlSinceStart}, capitalAtStart: ${capitalAtStart}`);
 
+    const totalDeposited  = Math.round(allDeposits.reduce((s, d)  => s + d.amountEur, 0) * 100) / 100;
+    const totalDividends  = Math.round(allDividends.reduce((s, d) => s + d.amountEur, 0) * 100) / 100;
+    const totalFees       = Math.round(allFees.reduce((s, d)      => s + d.amountEur, 0) * 100) / 100;
+
+    console.log(`[transactions] deposits: ${allDeposits.length} (€${totalDeposited}), dividends: ${allDividends.length} (€${totalDividends}), fees: ${allFees.length} (€${totalFees})`);
+
     return Response.json({
       positions,
       partialPositions,
@@ -358,6 +389,12 @@ export async function POST(request) {
       files:               fileStats,
       cashFlows,
       capitalAtStart,
+      deposits:            allDeposits,
+      dividends:           allDividends,
+      fees:                allFees,
+      totalDeposited,
+      totalDividends,
+      totalFees,
     });
 
   } catch (e) {
