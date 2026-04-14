@@ -40,7 +40,8 @@ export async function GET(request) {
     const volumes    = result.indicators?.quote?.[0]?.volume || [];
 
     const candles = timestamps.map((ts, i) => ({
-      date:   new Date(ts * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      date:  new Date(ts * 1000).toISOString().slice(0, 10),
+      label: new Date(ts * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       close:  closes[i]  ?? null,
       open:   opens[i]   ?? null,
       high:   highs[i]   ?? null,

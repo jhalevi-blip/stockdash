@@ -344,7 +344,7 @@ export default function PerformancePage() {
 
     const chartPoints = [];
     for (let i = startIdx; i < spyLen; i++) {
-      chartPoints.push({ date: spyCandles[i].date, portfolio: portValAt(i), spy: spyShares * spyCandles[i].close });
+      chartPoints.push({ date: spyCandles[i].date, label: spyCandles[i].label, portfolio: portValAt(i), spy: spyShares * spyCandles[i].close });
     }
     const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
 
@@ -355,13 +355,14 @@ export default function PerformancePage() {
     const chartData = netCapital > 0
       ? chartPoints.map(p => ({
           date:      p.date,
+          label:     p.label,
           portfolio: (p.portfolio / netCapital - 1) * 100,
           spy:       (p.spy       / netCapital - 1) * 100,
         }))
       : chartPoints;
 
     const eurStartIdx  = Math.min(startIdx, eurCandles.length - 1);
-    const eurData      = eurCandles.slice(eurStartIdx).map(c => ({ date: c.date, rate: c.close }));
+    const eurData      = eurCandles.slice(eurStartIdx).map(c => ({ date: c.date, label: c.label, rate: c.close }));
     const eurStart     = eurCandles[eurStartIdx]?.close ?? null;
     const eurNow       = eurCandles[eurCandles.length - 1]?.close ?? null;
     const eurChangePct = eurStart && eurNow ? ((eurNow - eurStart) / eurStart) * 100 : null;
@@ -631,7 +632,7 @@ export default function PerformancePage() {
                 </linearGradient>
               </defs>
               <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} interval={xInterval} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} interval={xInterval} />
               <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} tickFormatter={v => `${v >= 0 ? '+' : ''}${v.toFixed(0)}%`} width={52} domain={['auto', 'auto']} />
               <Tooltip content={<PortTooltip />} />
               <Area type="monotone" dataKey="portfolio" name="Portfolio" stroke="#58a6ff" strokeWidth={2} fill="url(#perfPortGrad)" dot={false} activeDot={{ r: 4 }} />
@@ -750,7 +751,7 @@ export default function PerformancePage() {
                 </linearGradient>
               </defs>
               <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} interval={eurXInt} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} interval={eurXInt} />
               <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} tickFormatter={v => v.toFixed(3)} width={52} domain={['auto', 'auto']} />
               <Tooltip content={<EurTooltip />} />
               <Area type="monotone" dataKey="rate" name="EUR/USD" stroke="#f59e0b" strokeWidth={2} fill="url(#eurGrad)" dot={false} activeDot={{ r: 4 }} />
