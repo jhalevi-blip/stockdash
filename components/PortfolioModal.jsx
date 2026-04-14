@@ -2,10 +2,12 @@
 import { useState } from 'react';
 
 const iStyle = {
-  background: 'var(--bg-input)', border: '1px solid var(--border-strong)', borderRadius: 4,
-  color: 'var(--text-primary)', padding: '6px 10px', fontSize: 12, width: '100%',
+  background: 'var(--bg-input)', border: '1px solid var(--border-strong)', borderRadius: 6,
+  color: 'var(--text-primary)', padding: '10px 14px', fontSize: 14, width: '100%',
   outline: 'none', boxSizing: 'border-box',
 };
+
+const COLS = '2fr 150px 170px 190px 40px';
 
 export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
   const initial = holdings.length
@@ -47,130 +49,183 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(0,0,0,0.65)', display: 'flex',
-        alignItems: 'center', justifyContent: 'center', padding: 20,
+        background: 'rgba(0,0,0,0.7)', display: 'flex',
+        alignItems: 'center', justifyContent: 'center', padding: 16,
       }}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
       <div style={{
-        background: 'var(--bg-card)', border: '1px solid var(--border-strong)', borderRadius: 8,
-        width: '100%', maxWidth: 640, maxHeight: '85vh', overflowY: 'auto',
-        padding: 24,
+        background: 'var(--bg-card)', border: '1px solid var(--border-strong)', borderRadius: 12,
+        width: '90vw', maxWidth: 1200,
+        height: '85vh',
+        display: 'flex', flexDirection: 'column',
+        overflow: 'hidden',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>My Portfolio</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>Add your holdings to track your portfolio</div>
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: 20, cursor: 'pointer', lineHeight: 1, marginLeft: 12, flexShrink: 0 }}>✕</button>
-        </div>
 
-        {/* Cash Position */}
-        <div style={{
-          marginBottom: 18, padding: '12px 16px',
-          background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 6,
-        }}>
-          <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>
-            Cash Position
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input
-              value={String(cashAmount || '')}
-              onChange={e => setCashAmount(parseFloat(e.target.value) || 0)}
-              placeholder="0.00"
-              type="number"
-              min="0"
-              step="0.01"
-              style={{ ...iStyle, width: 140 }}
-            />
-            <select
-              value={cashCurrency}
-              onChange={e => setCashCurrency(e.target.value)}
-              style={{ ...iStyle, width: 72 }}
-            >
-              <option value="USD">USD</option>
-              <option value="EUR">EUR</option>
-              <option value="GBP">GBP</option>
-            </select>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              Cash in brokerage account (added to Portfolio Value &amp; Cost Basis)
-            </span>
-          </div>
-        </div>
+        {/* ── Header (fixed) ── */}
+        <div style={{ padding: '28px 36px 0', flexShrink: 0 }}>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 116px 28px', gap: 8, marginBottom: 6 }}>
-          {['Ticker', 'Shares', 'Avg Cost ($)'].map(h => (
-            <div key={h} style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 1 }}>{h}</div>
-          ))}
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: 0.5 }}>Date bought <span style={{ fontStyle: 'italic' }}>(optional)</span></div>
-          <div />
-        </div>
-
-        {rows.map((row, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 100px 116px 28px', gap: 8, marginBottom: 8 }}>
-            <input
-              value={row.t}
-              onChange={e => setRows(prev => prev.map((x, idx) => idx === i ? { ...x, t: e.target.value } : x))}
-              placeholder="NVDA"
-              style={iStyle}
-            />
-            <input
-              value={String(row.s ?? '')}
-              onChange={e => setRows(prev => prev.map((x, idx) => idx === i ? { ...x, s: parseFloat(e.target.value) || 0 } : x))}
-              placeholder="100"
-              type="number"
-              min="0"
-              style={iStyle}
-            />
-            <input
-              value={String(row.c ?? '')}
-              onChange={e => setRows(prev => prev.map((x, idx) => idx === i ? { ...x, c: parseFloat(e.target.value) || 0 } : x))}
-              placeholder="50.00"
-              type="number"
-              min="0"
-              step="0.01"
-              style={iStyle}
-            />
-            <input
-              value={row.d ?? ''}
-              onChange={e => setRows(prev => prev.map((x, idx) => idx === i ? { ...x, d: e.target.value } : x))}
-              type="date"
-              style={{
-                ...iStyle,
-                border: '1px solid var(--border-color)',
-                color: row.d ? 'var(--text-primary)' : 'var(--text-muted)',
-                colorScheme: 'dark',
-              }}
-            />
+          {/* Title row */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>My Portfolio</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
+                Add your holdings — ticker, number of shares, average cost in USD, and optional purchase date
+              </div>
+            </div>
             <button
-              onClick={() => setRows(r => r.filter((_, idx) => idx !== i))}
-              style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: 15, cursor: 'pointer', padding: 0, alignSelf: 'center' }}
+              onClick={onClose}
+              style={{
+                background: 'none', border: '1px solid var(--border-color)', borderRadius: 6,
+                color: 'var(--text-secondary)', fontSize: 16, cursor: 'pointer',
+                lineHeight: 1, marginLeft: 16, flexShrink: 0,
+                width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
             >✕</button>
           </div>
-        ))}
 
-        <button
-          onClick={() => setRows(r => [...r, { t: '', s: 0, c: 0, d: '' }])}
-          style={{
-            background: 'none', border: '1px dashed var(--border-strong)', borderRadius: 4,
-            color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer',
-            padding: '6px 12px', width: '100%', marginTop: 4, marginBottom: 18,
-          }}
-        >+ Add ticker</button>
+          {/* Cash Position */}
+          <div style={{
+            marginBottom: 24, padding: '16px 20px',
+            background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 8,
+          }}>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
+              Cash Position
+            </div>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                value={String(cashAmount || '')}
+                onChange={e => setCashAmount(parseFloat(e.target.value) || 0)}
+                placeholder="0.00"
+                type="number"
+                min="0"
+                step="0.01"
+                style={{ ...iStyle, width: 200 }}
+              />
+              <select
+                value={cashCurrency}
+                onChange={e => setCashCurrency(e.target.value)}
+                style={{ ...iStyle, width: 100 }}
+              >
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+              </select>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                Cash held in brokerage — shown as a separate card on the dashboard, excluded from P&amp;L
+              </span>
+            </div>
+          </div>
 
-        {error && <div style={{ color: 'var(--negative)', fontSize: 12, marginBottom: 12 }}>{error}</div>}
-
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button
-            onClick={onClose}
-            style={{ background: 'none', border: '1px solid var(--border-strong)', borderRadius: 4, color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', padding: '7px 14px' }}
-          >Cancel</button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{ background: '#2563eb', border: 'none', borderRadius: 4, color: '#fff', fontSize: 12, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', padding: '7px 16px', opacity: saving ? 0.7 : 1 }}
-          >{saving ? 'Saving…' : 'Save Portfolio'}</button>
+          {/* Column headers */}
+          <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: 12, paddingBottom: 10, borderBottom: '1px solid var(--border-color)' }}>
+            {['Ticker', 'Shares', 'Avg Cost (USD)', 'Date Bought (optional)', ''].map((h, i) => (
+              <div key={i} style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                {h}
+              </div>
+            ))}
+          </div>
         </div>
+
+        {/* ── Scrollable holdings list ── */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 36px 0' }}>
+          {rows.map((row, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'grid', gridTemplateColumns: COLS, gap: 12,
+                marginBottom: 10, alignItems: 'center',
+              }}
+            >
+              <input
+                value={row.t}
+                onChange={e => setRows(prev => prev.map((x, idx) => idx === i ? { ...x, t: e.target.value } : x))}
+                placeholder="NVDA"
+                style={{ ...iStyle, textTransform: 'uppercase', letterSpacing: '0.03em', fontWeight: 600 }}
+              />
+              <input
+                value={String(row.s ?? '')}
+                onChange={e => setRows(prev => prev.map((x, idx) => idx === i ? { ...x, s: parseFloat(e.target.value) || 0 } : x))}
+                placeholder="100"
+                type="number"
+                min="0"
+                style={iStyle}
+              />
+              <input
+                value={String(row.c ?? '')}
+                onChange={e => setRows(prev => prev.map((x, idx) => idx === i ? { ...x, c: parseFloat(e.target.value) || 0 } : x))}
+                placeholder="50.00"
+                type="number"
+                min="0"
+                step="0.01"
+                style={iStyle}
+              />
+              <input
+                value={row.d ?? ''}
+                onChange={e => setRows(prev => prev.map((x, idx) => idx === i ? { ...x, d: e.target.value } : x))}
+                type="date"
+                style={{
+                  ...iStyle,
+                  border: '1px solid var(--border-color)',
+                  color: row.d ? 'var(--text-primary)' : 'var(--text-muted)',
+                  colorScheme: 'dark',
+                }}
+              />
+              <button
+                onClick={() => setRows(r => r.filter((_, idx) => idx !== i))}
+                style={{
+                  background: 'none', border: '1px solid var(--border-color)', borderRadius: 6,
+                  color: 'var(--text-secondary)', fontSize: 16, cursor: 'pointer',
+                  width: 36, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'border-color 0.15s, color 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--negative)'; e.currentTarget.style.color = 'var(--negative)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+              >✕</button>
+            </div>
+          ))}
+
+          <button
+            onClick={() => setRows(r => [...r, { t: '', s: 0, c: 0, d: '' }])}
+            style={{
+              background: 'none', border: '1px dashed var(--border-strong)', borderRadius: 6,
+              color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer',
+              padding: '10px 16px', width: '100%', marginTop: 6, marginBottom: 20,
+            }}
+          >+ Add row</button>
+        </div>
+
+        {/* ── Footer (fixed) ── */}
+        <div style={{
+          padding: '16px 36px 24px', flexShrink: 0,
+          borderTop: '1px solid var(--border-color)',
+          background: 'var(--bg-card)',
+        }}>
+          {error && (
+            <div style={{ color: 'var(--negative)', fontSize: 13, marginBottom: 12 }}>{error}</div>
+          )}
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button
+              onClick={onClose}
+              style={{
+                background: 'none', border: '1px solid var(--border-strong)', borderRadius: 6,
+                color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', padding: '9px 20px',
+              }}
+            >Cancel</button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{
+                background: '#2563eb', border: 'none', borderRadius: 6,
+                color: '#fff', fontSize: 13, fontWeight: 600,
+                cursor: saving ? 'not-allowed' : 'pointer',
+                padding: '9px 24px', opacity: saving ? 0.7 : 1,
+              }}
+            >{saving ? 'Saving…' : 'Save Portfolio'}</button>
+          </div>
+        </div>
+
       </div>
     </div>
   );

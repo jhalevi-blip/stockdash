@@ -241,7 +241,7 @@ export default function PerformancePage() {
         const spyLen = spyCandles.length;
         const spyStartIndices = holdings.map(h => {
           // If holding has a user-supplied date, map it to a candle index
-          if (h.d) return findStartIdx(spyCandles, h.d);
+          if (h.d) return findCandleByDate(spyCandles, h.d);
           // Otherwise estimate from avg cost
           const pIdx = estimatePurchaseIdx(tickerCandles[h.t], h.c);
           const tLen = tickerCandles[h.t].length;
@@ -321,13 +321,13 @@ export default function PerformancePage() {
     // Determine start index
     let startIdx;
     if (startDate) {
-      startIdx = findStartIdx(spyCandles, startDate);
+      startIdx = findCandleByDate(spyCandles, startDate);
     } else {
       const explicitDates = holdings.map(h => h.d).filter(Boolean);
       const earliestDate  = explicitDates.length
         ? explicitDates.reduce((a, b) => a < b ? a : b) : null;
       if (earliestDate) {
-        startIdx = findStartIdx(spyCandles, earliestDate);
+        startIdx = findCandleByDate(spyCandles, earliestDate);
       } else {
         const spyStartIndices = holdings.map(h => {
           const pIdx = estimatePurchaseIdx(tickerCandles[h.t], h.c);
@@ -360,8 +360,11 @@ export default function PerformancePage() {
         }))
       : chartPoints;
 
-    // EUR/USD — slice from startIdx
-    const eurStartIdx  = Math.min(startIdx, eurCandles.length - 1);
+    // EUR/USD — find the candle closest to the actual start date in the EUR/USD array
+    const startDateStr = spyCandles[startIdx]?.date ?? null;
+    const eurStartIdx  = startDateStr
+      ? findCandleByDate(eurCandles, startDateStr)
+      : Math.min(startIdx, eurCandles.length - 1);
     const eurData      = eurCandles.slice(eurStartIdx).map(c => ({ date: c.date, rate: c.close }));
     const eurStart     = eurCandles[eurStartIdx]?.close ?? null;
     const eurNow       = eurCandles[eurCandles.length - 1]?.close ?? null;
