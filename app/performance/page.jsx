@@ -220,7 +220,7 @@ export default function PerformancePage() {
           fetch('/api/chart?symbol=SPY').then(r => r.json()),
           fetch('/api/chart?symbol=EURUSD%3DX').then(r => r.json()),
           fetch(`/api/valuation?${tickers.map(t => `tickers=${t}`).join('&')}`).then(r => r.json()),
-          fetch(`/api/prices?tickers=${tickers.join(',')}`).then(r => r.json()),
+          fetch(`/api/prices?tickers=SPY,${tickers.join(',')}`).then(r => r.json()),
           ...tickers.map(t => fetch(`/api/chart?symbol=${t}`).then(r => r.json())),
         ]);
         if (cancelled) return;
@@ -346,10 +346,21 @@ export default function PerformancePage() {
     for (let i = startIdx; i < spyLen; i++) {
       chartPoints.push({ date: spyCandles[i].date, label: spyCandles[i].label, portfolio: portValAt(i), spy: spyShares * spyCandles[i].close });
     }
+
+    // Append a live "today" point so the chart endpoint matches the summary cards.
+    // Only added when today is after the last weekly candle (i.e. Mon–Thu or after market hours Fri).
+    const liveSpyPrice  = livePrices['SPY'] ?? null;
+    const today         = new Date().toISOString().slice(0, 10);
+    const todayLabel    = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const lastCandleDate = spyCandles[spyLen - 1]?.date ?? '';
+    if (portNow > 0 && liveSpyPrice && today > lastCandleDate) {
+      chartPoints.push({ date: today, label: todayLabel, portfolio: portNow, spy: spyShares * liveSpyPrice });
+    }
+
     const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
 
-    // Normalize both lines to 0% at startIdx so they are directly comparable.
-    const portBase = chartPoints[0]?.portfolio ?? netCapital;
+    // Normalize using netCapital so the chart endpoint matches the summary card.
+    const portBase = netCapital;
     const spyBase  = chartPoints[0]?.spy ?? netCapital;
     const chartData = portBase > 0 && spyBase > 0
       ? chartPoints.map(p => ({
