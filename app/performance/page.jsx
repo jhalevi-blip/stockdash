@@ -658,6 +658,9 @@ export default function PerformancePage() {
             — SPY Mirror {s?.spyReturn != null ? `(${s.spyReturn >= 0 ? '+' : ''}${s.spyReturn.toFixed(1)}%)` : ''}
           </span>
         </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+          Chart shows return vs cost basis. If your portfolio was already in profit on the start date, the line will begin above 0%.
+        </div>
       </div>
 
       {/* Metric cards */}
