@@ -360,11 +360,7 @@ export default function PerformancePage() {
         }))
       : chartPoints;
 
-    // EUR/USD — find the candle closest to the actual start date in the EUR/USD array
-    const startDateStr = spyCandles[startIdx]?.date ?? null;
-    const eurStartIdx  = startDateStr
-      ? findCandleByDate(eurCandles, startDateStr)
-      : Math.min(startIdx, eurCandles.length - 1);
+    const eurStartIdx  = Math.min(startIdx, eurCandles.length - 1);
     const eurData      = eurCandles.slice(eurStartIdx).map(c => ({ date: c.date, rate: c.close }));
     const eurStart     = eurCandles[eurStartIdx]?.close ?? null;
     const eurNow       = eurCandles[eurCandles.length - 1]?.close ?? null;

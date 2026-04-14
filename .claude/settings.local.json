@@ -29,7 +29,8 @@
       "Bash(git rm:*)",
       "Bash(xargs wc:*)",
       "Bash(git:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "WebFetch(domain:stockdashes.com)"
     ]
   }
 }
