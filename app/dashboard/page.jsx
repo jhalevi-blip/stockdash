@@ -228,12 +228,12 @@ export default function DashboardPage() {
     return sortDir === 'asc' ? valA - valB : valB - valA;
   }) : rows;
 
-  const cashUSD   = cash ? cash.amount * (cash.currency === 'EUR' ? eurUsd : 1) : 0;
-  const totalMkt  = rows.reduce((s, r) => s + (r.mktVal  ?? 0), 0) + cashUSD;
-  const totalCost = rows.reduce((s, r) => s + (r.costVal ?? 0), 0) + cashUSD;
-  const totalPnl  = rows.reduce((s, r) => s + (r.pnlAmt  ?? 0), 0);
-  const pricedCost = rows.reduce((s, r) => s + (r.pnlAmt != null ? r.costVal : 0), 0) + cashUSD;
-  const totalPct  = pricedCost > 0 ? (totalPnl / pricedCost) * 100 : 0;
+  const cashUSD    = cash ? cash.amount * (cash.currency === 'EUR' ? eurUsd : 1) : 0;
+  const totalMkt   = rows.reduce((s, r) => s + (r.mktVal  ?? 0), 0);
+  const totalCost  = rows.reduce((s, r) => s + (r.costVal ?? 0), 0);
+  const totalPnl   = rows.reduce((s, r) => s + (r.pnlAmt  ?? 0), 0);
+  const pricedCost = rows.reduce((s, r) => s + (r.pnlAmt != null ? r.costVal : 0), 0);
+  const totalPct   = pricedCost > 0 ? (totalPnl / pricedCost) * 100 : 0;
   const isLive    = Object.values(prices).some(p => p?.marketOpen);
 
   if (loading) return (
@@ -287,7 +287,12 @@ export default function DashboardPage() {
       >
         {[
           { label: 'Portfolio Value', value: '$' + fmt(totalMkt), sub: null },
-          { label: 'Cost Basis',      value: '$' + fmt(totalCost), sub: holdings.length + ' positions' + (cash ? ' + cash' : '') },
+          ...(cash && cashUSD > 0 ? [{
+            label: 'Cash',
+            value: (cash.currency !== 'USD' ? cash.currency + ' ' : '$') + fmt(cash.amount),
+            sub:   cash.currency !== 'USD' ? `≈ $${fmt(cashUSD)} · excl. from P&L` : 'Excl. from P&L',
+          }] : []),
+          { label: 'Cost Basis',      value: '$' + fmt(totalCost), sub: `${holdings.length} positions` },
           { label: 'Total P&L',       value: (totalPnl >= 0 ? '+$' : '-$') + fmt(Math.abs(totalPnl)), sub: fmtD(totalPct), pos: totalPnl >= 0 },
           { label: 'Status',          value: isLive ? 'Live' : 'Closed', dot: true, live: isLive, sub: isLive ? 'Market open' : 'Last close' },
         ].map(s => (
@@ -460,7 +465,12 @@ export default function DashboardPage() {
               ))}
               {cash && cashUSD > 0 && (
                 <tr key="CASH" style={{ opacity: 0.75 }}>
-                  <td className="left tkr" style={{ color: 'var(--text-secondary)', letterSpacing: '0.02em' }}>CASH</td>
+                  <td className="left tkr" style={{ color: 'var(--text-secondary)', letterSpacing: '0.02em' }}>
+                    CASH
+                    <div style={{ fontSize: 10, fontStyle: 'italic', color: 'var(--text-muted)', fontWeight: 400, letterSpacing: 0, marginTop: 1 }}>
+                      excl. from P&amp;L
+                    </div>
+                  </td>
                   <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>
                     {fmt(cash.amount)} {cash.currency}
                   </td>

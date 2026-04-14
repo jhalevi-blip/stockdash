@@ -294,8 +294,11 @@ export default function PerformancePage() {
     const adjustedCostBasis  = Math.max(0, totalCostBasis - startingCashUSD);
 
     // Current portfolio value: Finnhub real-time USD prices, fall back to last Yahoo candle.
+    // Cash (t === '__CASH__') is excluded — it is not an invested position and must not
+    // affect the EUR/USD currency-impact calculation or any return metrics.
     let portNow = 0;
     holdings.forEach(h => {
+      if (h.t === '__CASH__') return;
       const price = livePrices[h.t] ?? tickerCandles[h.t]?.[tickerCandles[h.t].length - 1]?.close;
       if (price != null) portNow += h.s * price;
     });
