@@ -41,6 +41,7 @@ export default function DashboardPage() {
   const [period,         setPeriod]         = useState('1Y');
   const [loading,        setLoading]        = useState(true);
   const [tourRun,        setTourRun]        = useState(false);
+  const [panelTab,       setPanelTab]       = useState('chart');
   const [sortField,      setSortField]      = useState(null);
   const [sortDir,        setSortDir]        = useState('desc');
   const [spyChgPct,      setSpyChgPct]      = useState(null);
@@ -53,6 +54,7 @@ export default function DashboardPage() {
 
   const loadChart = useCallback(async (ticker) => {
     setSelected(ticker);
+    setPanelTab('chart');
     setCandles([]);
     const res = await fetch(`/api/chart?symbol=${ticker}`);
     const data = await res.json();
@@ -488,26 +490,10 @@ export default function DashboardPage() {
             </tbody>
           </table>
         </div>
-        <div className="note">Click a row to load its price chart below.</div>
+        <div className="note">Click a row to view chart and stock intel.</div>
       </section>
 
-      <PortfolioAISummary
-        holdings={rows}
-        portfolioStats={{
-          totalValue:  totalMkt,
-          totalPnl,
-          totalPnlPct: totalPct,
-          cash:        cashUSD,
-        }}
-      />
-
-      {/* Stock Intel */}
-      <section data-tour="stock-intel">
-        <div className="section-title">Stock Intel</div>
-        <StockIntelSummary holdings={holdings} rows={rows} />
-      </section>
-
-      {/* Price chart */}
+      {/* Tabbed detail panel — shown when a holding row is clicked */}
       {selected && (() => {
         const PERIODS = ['1M', '3M', '6M', 'YTD', '1Y'];
         const sliceMap = { '1M': 4, '3M': 13, '6M': 26, '1Y': 9999 };
@@ -520,112 +506,174 @@ export default function DashboardPage() {
           }
           return candles.slice(-(sliceMap[period] ?? 9999));
         }
-        const dc = displayCandles();
+        const dc         = displayCandles();
         const firstClose = dc[0]?.close ?? null;
         const lastClose  = dc[dc.length - 1]?.close ?? null;
         const periodAmt  = firstClose && lastClose ? lastClose - firstClose : null;
         const periodPct  = firstClose && periodAmt != null ? (periodAmt / firstClose) * 100 : null;
         const isPos      = periodAmt == null || periodAmt >= 0;
         const lineColor  = isPos ? '#58a6ff' : '#f87171';
+        const selectedRow = rows.find(r => r.t === selected);
 
         return (
-          <section data-tour="price-chart">
+          <section data-tour="price-chart" style={{ marginBottom: 24 }}>
             <div style={{
               background: 'var(--bg-card)',
               border: '1px solid var(--border-color)',
               borderRadius: 12,
-              padding: '20px 24px 12px',
-              marginBottom: 24,
+              overflow: 'hidden',
               boxShadow: '0 1px 6px rgba(0,0,0,0.08)',
             }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>{selected}</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                    <span style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>
-                      {lastClose != null ? `$${fmt(lastClose)}` : '—'}
+              {/* Panel header */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px 20px', borderBottom: '1px solid var(--border-color)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{selected}</span>
+                  {selectedRow?.price != null && (
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                      ${fmt(selectedRow.price)}
+                      {selectedRow.chgPct != null && (
+                        <span style={{ marginLeft: 6, color: selectedRow.chgPct >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
+                          {selectedRow.chgPct >= 0 ? '+' : ''}{fmt(selectedRow.chgPct, 2)}%
+                        </span>
+                      )}
                     </span>
-                    {periodAmt != null && (
-                      <span style={{ fontSize: 14, fontWeight: 600, color: isPos ? 'var(--positive)' : 'var(--negative)' }}>
-                        {isPos ? '+' : '−'}${fmt(Math.abs(periodAmt))} {isPos ? '+' : ''}{fmt(periodPct, 2)}% {period}
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </div>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {PERIODS.map(p => (
-                    <button
-                      key={p}
-                      onClick={() => setPeriod(p)}
-                      style={{
-                        background: period === p ? 'var(--accent)' : 'var(--bg-secondary)',
-                        color: period === p ? '#fff' : 'var(--text-secondary)',
-                        border: 'none',
-                        borderRadius: 20,
-                        padding: '4px 10px',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                        transition: 'background 0.15s',
-                      }}
-                    >
-                      {p}
-                    </button>
-                  ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {/* Tab buttons */}
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {[['chart', 'Price Chart'], ['intel', 'Stock Intel']].map(([key, label]) => (
+                      <button
+                        key={key}
+                        onClick={() => setPanelTab(key)}
+                        style={{
+                          background: panelTab === key ? 'var(--accent)' : 'var(--bg-secondary)',
+                          color: panelTab === key ? '#fff' : 'var(--text-secondary)',
+                          border: 'none', borderRadius: 6,
+                          padding: '5px 14px', fontSize: 12, fontWeight: 600,
+                          cursor: 'pointer', fontFamily: 'inherit',
+                          transition: 'background 0.15s',
+                        }}
+                      >{label}</button>
+                    ))}
+                  </div>
+                  {/* Close button */}
+                  <button
+                    onClick={() => setSelected(null)}
+                    aria-label="Close panel"
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--text-muted)', fontSize: 22, lineHeight: 1,
+                      padding: '0 4px', fontFamily: 'inherit',
+                    }}
+                  >×</button>
                 </div>
               </div>
 
-              {candles.length === 0
-                ? <div className="chart-placeholder">Loading chart…</div>
-                : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <AreaChart data={dc} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={lineColor} stopOpacity={0.3} />
-                          <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
-                        tickLine={false}
-                        axisLine={false}
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        domain={['auto', 'auto']}
-                        tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-                        tickLine={false}
-                        axisLine={false}
-                        width={52}
-                        tickCount={5}
-                        tickFormatter={v => '$' + (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v.toFixed(0))}
-                      />
-                      <Tooltip
-                        contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12 }}
-                        labelStyle={{ color: 'var(--text-secondary)' }}
-                        formatter={v => ['$' + fmt(v), 'Close']}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="close"
-                        stroke={lineColor}
-                        strokeWidth={2}
-                        fill="url(#chartGradient)"
-                        dot={false}
-                        activeDot={{ r: 4 }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )
-              }
+              {/* Price Chart tab */}
+              {panelTab === 'chart' && (
+                <div data-tour="price-chart-content" style={{ padding: '20px 24px 12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                      <span style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>
+                        {lastClose != null ? `$${fmt(lastClose)}` : '—'}
+                      </span>
+                      {periodAmt != null && (
+                        <span style={{ fontSize: 14, fontWeight: 600, color: isPos ? 'var(--positive)' : 'var(--negative)' }}>
+                          {isPos ? '+' : '−'}${fmt(Math.abs(periodAmt))} {isPos ? '+' : ''}{fmt(periodPct, 2)}% {period}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {PERIODS.map(p => (
+                        <button
+                          key={p}
+                          onClick={() => setPeriod(p)}
+                          style={{
+                            background: period === p ? 'var(--accent)' : 'var(--bg-secondary)',
+                            color: period === p ? '#fff' : 'var(--text-secondary)',
+                            border: 'none', borderRadius: 20,
+                            padding: '4px 10px', fontSize: 11, fontWeight: 600,
+                            cursor: 'pointer', fontFamily: 'inherit',
+                            transition: 'background 0.15s',
+                          }}
+                        >{p}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {candles.length === 0
+                    ? <div className="chart-placeholder">Loading chart…</div>
+                    : (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <AreaChart data={dc} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={lineColor} stopOpacity={0.3} />
+                              <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
+                          <XAxis
+                            dataKey="date"
+                            tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
+                            tickLine={false}
+                            axisLine={false}
+                            interval="preserveStartEnd"
+                          />
+                          <YAxis
+                            domain={['auto', 'auto']}
+                            tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                            tickLine={false}
+                            axisLine={false}
+                            width={52}
+                            tickCount={5}
+                            tickFormatter={v => '$' + (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v.toFixed(0))}
+                          />
+                          <Tooltip
+                            contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12 }}
+                            labelStyle={{ color: 'var(--text-secondary)' }}
+                            formatter={v => ['$' + fmt(v), 'Close']}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="close"
+                            stroke={lineColor}
+                            strokeWidth={2}
+                            fill="url(#chartGradient)"
+                            dot={false}
+                            activeDot={{ r: 4 }}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    )
+                  }
+                </div>
+              )}
+
+              {/* Stock Intel tab */}
+              {panelTab === 'intel' && (
+                <div data-tour="stock-intel">
+                  <StockIntelSummary holdings={holdings} rows={rows} selectedTicker={selected} />
+                </div>
+              )}
             </div>
           </section>
         );
       })()}
+
+      <PortfolioAISummary
+        holdings={rows}
+        portfolioStats={{
+          totalValue:  totalMkt,
+          totalPnl,
+          totalPnlPct: totalPct,
+          cash:        cashUSD,
+        }}
+      />
 
       {/* Earnings calendar */}
       {earnings.length > 0 && (

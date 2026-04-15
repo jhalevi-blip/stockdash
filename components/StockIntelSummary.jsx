@@ -214,7 +214,7 @@ function AiSnapshotCard({ ticker, row, analystD, valD, finD, snap, aiLoading, ai
   );
 }
 
-export default function StockIntelSummary({ holdings, rows }) {
+export default function StockIntelSummary({ holdings, rows, selectedTicker }) {
   const [ticker,      setTicker]      = useState('');
   const [data,        setData]        = useState(null);
   const [loading,     setLoading]     = useState(false);
@@ -264,6 +264,11 @@ export default function StockIntelSummary({ holdings, rows }) {
     setData({ analyst, insider, earningsHist, valuation, peers, financials, news, filings, shortInterest });
     setLoading(false);
   }, []);
+
+  // Auto-select ticker when parent passes one in
+  useEffect(() => {
+    if (selectedTicker && selectedTicker !== ticker) selectStock(selectedTicker);
+  }, [selectedTicker]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // AI snapshot: trigger after main data loads, cache by ticker+date
   useEffect(() => {
