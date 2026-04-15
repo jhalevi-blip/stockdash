@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
 import DashboardSummary from '@/components/DashboardSummary';
 import StockIntelSummary from '@/components/StockIntelSummary';
 import PortfolioAISummary from '@/components/PortfolioAISummary';
@@ -37,6 +37,7 @@ export default function DashboardPage() {
   const [earnings,       setEarnings]       = useState([]);
   const [news,           setNews]           = useState([]);
   const [candles,        setCandles]        = useState([]);
+  const [earningsHistory, setEarningsHistory] = useState([]);
   const [selected,       setSelected]       = useState(null);
   const [period,         setPeriod]         = useState('1Y');
   const [loading,        setLoading]        = useState(true);
@@ -56,9 +57,13 @@ export default function DashboardPage() {
     setSelected(ticker);
     setPanelTab('chart');
     setCandles([]);
-    const res = await fetch(`/api/chart?symbol=${ticker}`);
-    const data = await res.json();
-    setCandles(data.candles ?? []);
+    setEarningsHistory([]);
+    const [chartData, earnData] = await Promise.all([
+      fetch(`/api/chart?symbol=${ticker}`).then(r => r.json()),
+      fetch(`/api/earnings-history?symbol=${ticker}`).then(r => r.json()).catch(() => []),
+    ]);
+    setCandles(chartData.candles ?? []);
+    setEarningsHistory(Array.isArray(earnData) ? earnData : []);
   }, []);
 
   const fetchDashboard = useCallback(() => {
@@ -525,6 +530,47 @@ export default function DashboardPage() {
         const lineColor  = isPos ? '#58a6ff' : '#f87171';
         const selectedRow = rows.find(r => r.t === selected);
 
+        // Map each earnings entry to the closest candle date within the displayed range
+        const firstDate = dc[0]?.date ?? '';
+        const lastDate  = dc[dc.length - 1]?.date ?? '';
+        const earnMarkers = earningsHistory
+          .filter(e => e.period >= firstDate && e.period <= lastDate)
+          .map(e => {
+            let closest = null;
+            let minDiff = Infinity;
+            for (const c of dc) {
+              const diff = Math.abs(new Date(c.date) - new Date(e.period));
+              if (diff < minDiff) { minDiff = diff; closest = c.date; }
+            }
+            const q = Math.ceil((new Date(e.period).getMonth() + 1) / 3);
+            const beat = e.actual != null && e.estimate != null
+              ? e.actual >= e.estimate : null;
+            const color = beat === true ? '#22c55e' : beat === false ? '#ef4444' : '#8b949e';
+            return { ...e, candleDate: closest, q, beat, color };
+          })
+          .filter(e => e.candleDate != null);
+
+        // Earnings-aware tooltip
+        const earnMap = Object.fromEntries(earnMarkers.map(e => [e.candleDate, e]));
+        function renderTooltip({ active, payload, label }) {
+          if (!active || !payload?.length) return null;
+          const price = payload[0]?.value;
+          const earn  = earnMap[label];
+          return (
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12, padding: '8px 10px', minWidth: 160 }}>
+              <div style={{ color: 'var(--text-secondary)', marginBottom: 4 }}>{label}</div>
+              <div style={{ color: 'var(--text-primary)' }}>Close: ${fmt(price)}</div>
+              {earn && (
+                <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border-color)', color: earn.color, fontWeight: 600 }}>
+                  Q{earn.q} Earnings: EPS ${fmt(earn.actual)}
+                  {earn.estimate != null && ` vs est $${fmt(earn.estimate)}`}
+                  {earn.beat != null && ` (${earn.beat ? 'Beat' : 'Miss'})`}
+                </div>
+              )}
+            </div>
+          );
+        }
+
         return (
           <section data-tour="price-chart" style={{ marginBottom: 24 }}>
             <div style={{
@@ -643,11 +689,7 @@ export default function DashboardPage() {
                             tickCount={5}
                             tickFormatter={v => '$' + (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v.toFixed(0))}
                           />
-                          <Tooltip
-                            contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 12 }}
-                            labelStyle={{ color: 'var(--text-secondary)' }}
-                            formatter={v => ['$' + fmt(v), 'Close']}
-                          />
+                          <Tooltip content={renderTooltip} />
                           <Area
                             type="monotone"
                             dataKey="close"
@@ -657,6 +699,16 @@ export default function DashboardPage() {
                             dot={false}
                             activeDot={{ r: 4 }}
                           />
+                          {earnMarkers.map((e, i) => (
+                            <ReferenceLine
+                              key={i}
+                              x={e.candleDate}
+                              stroke={e.color}
+                              strokeDasharray="3 3"
+                              strokeWidth={1.5}
+                              label={{ value: e.beat === true ? '▲' : e.beat === false ? '▼' : '•', position: 'top', style: { fontSize: 10, fill: e.color } }}
+                            />
+                          ))}
                         </AreaChart>
                       </ResponsiveContainer>
                     )
