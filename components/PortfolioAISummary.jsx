@@ -1,21 +1,47 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
-const fmt = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
+const LIMIT = 5;
+const STORAGE_KEY = 'portfolio_ai_usage';
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function readUsage() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (stored?.date === todayStr()) return stored.count ?? 0;
+  } catch {}
+  return 0;
+}
+
+function writeUsage(count) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: todayStr(), count }));
+}
 
 export default function PortfolioAISummary({ holdings, portfolioStats }) {
-  const [summary,   setSummary]   = useState(null);
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState(null);
+  const [summary,     setSummary]     = useState(null);
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState(null);
   const [generatedAt, setGeneratedAt] = useState(null);
+  const [usageCount,  setUsageCount]  = useState(0);
+  const [showCount,   setShowCount]   = useState(false);
+
+  useEffect(() => {
+    const count = readUsage();
+    setUsageCount(count);
+    if (count > 0) setShowCount(true);
+  }, []);
+
+  const limitReached = usageCount >= LIMIT;
 
   const generate = async () => {
-    if (!holdings?.length) return;
+    if (!holdings?.length || limitReached) return;
     setLoading(true);
     setError(null);
     setSummary(null);
 
-    // Map rows → prompt-friendly shape
     const holdingsPayload = holdings
       .filter(h => h.price != null)
       .map(h => ({
@@ -39,6 +65,10 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
       } else {
         setSummary(json.summary);
         setGeneratedAt(new Date());
+        const newCount = usageCount + 1;
+        setUsageCount(newCount);
+        setShowCount(true);
+        writeUsage(newCount);
       }
     } catch {
       setError('Failed to reach AI service.');
@@ -81,34 +111,56 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
             </span>
           )}
           {!summary ? (
-            <button
-              onClick={generate}
-              disabled={loading}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                background: 'var(--accent)', color: '#fff',
-                border: 'none', borderRadius: 6,
-                padding: '6px 14px', fontSize: 12, fontWeight: 600,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.6 : 1,
-                transition: 'opacity .15s',
-                fontFamily: 'inherit',
-              }}
-            >
-              <span style={{ fontSize: 14 }}>✦</span>
-              Generate Portfolio Summary
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+              {limitReached ? (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  Daily limit reached (5/5). Come back tomorrow.
+                </span>
+              ) : (
+                <button
+                  onClick={generate}
+                  disabled={loading}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    background: 'var(--accent)', color: '#fff',
+                    border: 'none', borderRadius: 6,
+                    padding: '6px 14px', fontSize: 12, fontWeight: 600,
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    opacity: loading ? 0.6 : 1,
+                    transition: 'opacity .15s',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <span style={{ fontSize: 14 }}>✦</span>
+                  Generate Portfolio Summary
+                </button>
+              )}
+              {showCount && (
+                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                  {usageCount}/{LIMIT} generations used today
+                </span>
+              )}
+            </div>
           ) : (
-            <button
-              onClick={() => { setSummary(null); setError(null); setGeneratedAt(null); }}
-              style={{
-                background: 'transparent', border: 'none',
-                color: 'var(--text-muted)', fontSize: 11,
-                cursor: 'pointer', padding: '4px 8px', fontFamily: 'inherit',
-              }}
-            >
-              Regenerate
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+              {!limitReached && (
+                <button
+                  onClick={() => { setSummary(null); setError(null); setGeneratedAt(null); }}
+                  style={{
+                    background: 'transparent', border: 'none',
+                    color: 'var(--text-muted)', fontSize: 11,
+                    cursor: 'pointer', padding: '4px 8px', fontFamily: 'inherit',
+                  }}
+                >
+                  Regenerate
+                </button>
+              )}
+              {showCount && (
+                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                  {usageCount}/{LIMIT} generations used today
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>
