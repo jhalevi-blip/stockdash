@@ -4,6 +4,7 @@ import { useUser } from '@clerk/nextjs';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import DashboardSummary from '@/components/DashboardSummary';
 import StockIntelSummary from '@/components/StockIntelSummary';
+import PortfolioAISummary from '@/components/PortfolioAISummary';
 import DemoPrompt from '@/components/DemoPrompt';
 import DashboardTour from '@/components/DashboardTour';
 import { saveUserHoldings } from '@/lib/holdingsStorage';
@@ -489,6 +490,16 @@ export default function DashboardPage() {
         </div>
         <div className="note">Click a row to load its price chart below.</div>
       </section>
+
+      <PortfolioAISummary
+        holdings={rows}
+        portfolioStats={{
+          totalValue:  totalMkt,
+          totalPnl,
+          totalPnlPct: totalPct,
+          cash:        cashUSD,
+        }}
+      />
 
       {/* Stock Intel */}
       <section data-tour="stock-intel">

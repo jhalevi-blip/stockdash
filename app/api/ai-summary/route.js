@@ -64,6 +64,59 @@ export async function POST(request) {
     return Response.json({ summary: text.trim() });
   }
 
+  // Portfolio summary type
+  if (body.type === 'portfolio-summary') {
+    const { holdings, portfolioStats } = body;
+    if (!Array.isArray(holdings) || !holdings.length) {
+      return Response.json({ error: 'Missing holdings' }, { status: 400 });
+    }
+
+    const fmt2 = n => (n == null ? '—' : Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    const fmt1 = n => (n == null ? '—' : Number(n).toFixed(1));
+
+    const holdingLines = holdings.map(h =>
+      `- ${h.ticker}: ${h.shares} shares, avg cost $${fmt2(h.avgCost)}, current price $${fmt2(h.currentPrice)}, P&L: ${fmt1(h.pnlPct)}%, market value $${fmt2(h.marketValue)}`
+    ).join('\n');
+
+    const prompt = `You are a portfolio analyst. Here is the user's stock portfolio:
+
+Holdings:
+${holdingLines}
+
+Portfolio totals:
+- Total market value: $${fmt2(portfolioStats.totalValue)}
+- Total P&L: $${fmt2(portfolioStats.totalPnl)} (${fmt1(portfolioStats.totalPnlPct)}%)
+- Cash position: $${fmt2(portfolioStats.cash)}
+
+Write a 6-8 sentence portfolio summary covering:
+1. Overall portfolio health and performance
+2. Biggest winners and laggards
+3. Concentration risk (any single stock over 30% of portfolio?)
+4. Sector/geographic diversification
+5. One actionable insight based on the data
+
+Be direct and specific. Use the actual numbers. Write as a professional but approachable analyst.`;
+
+    let res, raw;
+    try {
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-0',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+      raw = await res.json();
+    } catch (e) {
+      return Response.json({ error: 'Network error reaching AI service' }, { status: 500 });
+    }
+    if (!res.ok) return Response.json({ error: raw.error?.message ?? 'API error' }, { status: 500 });
+    const text = raw.content?.[0]?.text ?? '';
+    return Response.json({ summary: text.trim() });
+  }
+
   // Legacy path: news sentiment analysis
   if (body.news?.length) {
     const { symbol, news } = body;
