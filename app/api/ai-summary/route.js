@@ -3,6 +3,67 @@ export async function POST(request) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return Response.json({ error: 'AI service unavailable' }, { status: 500 });
 
+  // Investment summary type
+  if (body.type === 'investment-summary') {
+    const {
+      symbol, price, chgPct, bullCases, bearCases,
+      analystTarget, analystUpside,
+      peRatio, evEbitda, grossMargin,
+      insiderBuys, insiderSells,
+      earningBeats, earningMisses, earningTotal,
+      posShares, posAvgCost, posPnlAmt, posPnlPct,
+    } = body;
+    if (!symbol) return Response.json({ error: 'Missing symbol' }, { status: 400 });
+
+    const lines = [`Stock: ${symbol}`];
+    if (price != null) {
+      lines.push(`Current Price: $${price.toFixed(2)}${chgPct != null ? ` (${chgPct >= 0 ? '+' : ''}${chgPct.toFixed(2)}% today)` : ''}`);
+    }
+    if (analystTarget != null) {
+      const upsideStr = analystUpside != null ? ` (${analystUpside >= 0 ? '+' : ''}${analystUpside.toFixed(1)}% upside)` : '';
+      lines.push(`Analyst Consensus Target: $${analystTarget.toFixed(2)}${upsideStr}`);
+    }
+    const valParts = [];
+    if (peRatio     != null) valParts.push(`P/E ${peRatio.toFixed(1)}x`);
+    if (evEbitda    != null) valParts.push(`EV/EBITDA ${evEbitda.toFixed(1)}x`);
+    if (grossMargin != null) valParts.push(`Gross Margin ${grossMargin.toFixed(1)}%`);
+    if (valParts.length) lines.push(`Valuation: ${valParts.join(', ')}`);
+    if (bullCases?.length) lines.push(`Bull Case: ${bullCases.join('; ')}`);
+    if (bearCases?.length) lines.push(`Bear Case: ${bearCases.join('; ')}`);
+    if (insiderBuys != null || insiderSells != null) {
+      lines.push(`Recent Insider Activity: ${insiderBuys ?? 0} buys, ${insiderSells ?? 0} sells (last 4 transactions)`);
+    }
+    if (earningTotal != null) {
+      lines.push(`Last ${earningTotal} Quarters: ${earningBeats ?? 0} EPS beats, ${earningMisses ?? 0} misses`);
+    }
+    if (posShares != null) {
+      const pnlSign = (posPnlAmt ?? 0) >= 0 ? '+$' : '-$';
+      const pnlPctStr = posPnlPct != null ? ` (${posPnlPct >= 0 ? '+' : ''}${posPnlPct.toFixed(1)}%)` : '';
+      lines.push(`User Position: ${posShares} shares at avg cost $${posAvgCost?.toFixed(2) ?? '—'}, P&L ${pnlSign}${Math.abs(posPnlAmt ?? 0).toFixed(0)}${pnlPctStr}`);
+    }
+
+    const prompt = `Give a 4-6 sentence investment summary for ${symbol} based on this data. Include: overall thesis, biggest risk, what to watch next. Consider the user's current position. Be direct and specific, not generic.\n\n${lines.join('\n')}`;
+
+    let res, raw;
+    try {
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-0',
+          max_tokens: 400,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+      raw = await res.json();
+    } catch (e) {
+      return Response.json({ error: 'Network error reaching AI service' }, { status: 500 });
+    }
+    if (!res.ok) return Response.json({ error: raw.error?.message ?? 'API error' }, { status: 500 });
+    const text = raw.content?.[0]?.text ?? '';
+    return Response.json({ summary: text.trim() });
+  }
+
   // Legacy path: news sentiment analysis
   if (body.news?.length) {
     const { symbol, news } = body;

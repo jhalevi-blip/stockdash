@@ -221,15 +221,19 @@ export default function StockIntelSummary({ holdings, rows }) {
   const [aiSnap,      setAiSnap]      = useState(null);
   const [aiLoading,   setAiLoading]   = useState(false);
   const [aiError,     setAiError]     = useState(false);
-  const [finPeriod,   setFinPeriod]   = useState('Annual');
-  const [finQData,    setFinQData]    = useState(null);   // quarterly data, keyed by ticker
-  const [finQLoading, setFinQLoading] = useState(false);
+  const [finPeriod,        setFinPeriod]        = useState('Annual');
+  const [finQData,         setFinQData]         = useState(null);   // quarterly data, keyed by ticker
+  const [finQLoading,      setFinQLoading]      = useState(false);
+  const [aiInvestSummary,  setAiInvestSummary]  = useState(null);
+  const [aiInvestLoading,  setAiInvestLoading]  = useState(false);
+  const [aiInvestError,    setAiInvestError]    = useState(null);
 
   const selectStock = useCallback(async (t) => {
     if (!t) {
       setTicker(''); setData(null); setAiSnap(null);
       setAiLoading(false); setAiError(false);
       setFinPeriod('Annual'); setFinQData(null);
+      setAiInvestSummary(null); setAiInvestLoading(false); setAiInvestError(null);
       return;
     }
     setTicker(t);
@@ -240,6 +244,9 @@ export default function StockIntelSummary({ holdings, rows }) {
     setAiError(false);
     setFinPeriod('Annual');
     setFinQData(null);
+    setAiInvestSummary(null);
+    setAiInvestLoading(false);
+    setAiInvestError(null);
 
     const [analyst, insider, earningsHist, valuation, peers, financials, news, filings, shortInterest] =
       await Promise.all([
@@ -346,6 +353,66 @@ export default function StockIntelSummary({ holdings, rows }) {
 
     return () => { cancelled = true; };
   }, [ticker, data]); // rows intentionally excluded — stale price is fine for AI context
+
+  const generateInvestmentSummary = useCallback(async () => {
+    if (!ticker || !data) return;
+    setAiInvestLoading(true);
+    setAiInvestError(null);
+    setAiInvestSummary(null);
+
+    const currentRow  = rows.find(r => r.t === ticker);
+    const analystD_   = data.analyst?.find?.(a => a.ticker === ticker) ?? null;
+    const valD_       = data.valuation?.find?.(v => v.ticker === ticker) ?? null;
+    const insiders_   = (data.insider ?? []).slice(0, 4);
+    const earnHist_   = (data.earningsHist ?? []).slice(-4);
+
+    const upside_ = currentRow?.price && analystD_?.lastQuarterTarget
+      ? ((analystD_.lastQuarterTarget - currentRow.price) / currentRow.price) * 100
+      : null;
+
+    const earningBeats  = earnHist_.filter(e => e.actual != null && e.estimate != null && e.actual >= e.estimate).length;
+    const earningMisses = earnHist_.filter(e => e.actual != null && e.estimate != null && e.actual < e.estimate).length;
+    const insiderBuys   = insiders_.filter(i => BUY_CODES.has(i.transactionCode)).length;
+    const insiderSells  = insiders_.filter(i => !BUY_CODES.has(i.transactionCode)).length;
+
+    const body = {
+      type: 'investment-summary',
+      symbol: ticker,
+      price:          currentRow?.price   ?? null,
+      chgPct:         currentRow?.chgPct  ?? null,
+      bullCases:      aiSnap?.bullCases   ?? [],
+      bearCases:      aiSnap?.bearCases   ?? [],
+      analystTarget:  analystD_?.lastQuarterTarget ?? null,
+      analystUpside:  upside_,
+      peRatio:        valD_?.peRatio      ?? null,
+      evEbitda:       valD_?.evEbitda     ?? null,
+      grossMargin:    valD_?.grossMargin  ?? null,
+      insiderBuys,
+      insiderSells,
+      earningBeats,
+      earningMisses,
+      earningTotal:   earnHist_.length || null,
+      posShares:      currentRow?.s                              ?? null,
+      posAvgCost:     currentRow ? currentRow.costVal / currentRow.s : null,
+      posPnlAmt:      currentRow?.pnlAmt  ?? null,
+      posPnlPct:      currentRow?.pnlPct  ?? null,
+    };
+
+    try {
+      const res  = await fetch('/api/ai-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (json.error) { setAiInvestError(json.error); }
+      else            { setAiInvestSummary(json.summary); }
+    } catch (e) {
+      setAiInvestError('Failed to reach AI service.');
+    } finally {
+      setAiInvestLoading(false);
+    }
+  }, [ticker, data, rows, aiSnap]);
 
   const row       = rows.find(r => r.t === ticker);
   const analystD  = data?.analyst?.find?.(a => a.ticker === ticker) ?? null;
@@ -771,6 +838,82 @@ export default function StockIntelSummary({ holdings, rows }) {
               )}
             </Card>
           </div>
+
+          {/* AI Investment Summary — appears after data has loaded, below News + Filings */}
+          {!loading && <div style={{ gridColumn: '1 / -1' }}>
+            <div style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 8,
+              padding: '16px 20px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: aiInvestSummary || aiInvestLoading || aiInvestError ? 14 : 0 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
+                  AI Summary
+                </div>
+                {!aiInvestSummary && (
+                  <button
+                    onClick={generateInvestmentSummary}
+                    disabled={aiInvestLoading}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      background: 'var(--accent)', color: '#fff',
+                      border: 'none', borderRadius: 6,
+                      padding: '6px 14px', fontSize: 12, fontWeight: 600,
+                      cursor: aiInvestLoading ? 'not-allowed' : 'pointer',
+                      opacity: aiInvestLoading ? 0.6 : 1,
+                      transition: 'opacity .15s',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    <span style={{ fontSize: 14 }}>✦</span>
+                    Generate AI Summary
+                  </button>
+                )}
+                {aiInvestSummary && (
+                  <button
+                    onClick={() => { setAiInvestSummary(null); setAiInvestError(null); }}
+                    style={{
+                      background: 'transparent', border: 'none',
+                      color: 'var(--text-muted)', fontSize: 11,
+                      cursor: 'pointer', padding: '4px 8px', fontFamily: 'inherit',
+                    }}
+                  >
+                    Regenerate
+                  </button>
+                )}
+              </div>
+
+              {aiInvestLoading && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}>
+                    <circle cx="8" cy="8" r="6" stroke="var(--accent)" strokeWidth="2" strokeDasharray="28" strokeDashoffset="10" strokeLinecap="round"/>
+                  </svg>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Generating summary…</span>
+                </div>
+              )}
+
+              {aiInvestError && !aiInvestLoading && (
+                <div style={{ fontSize: 12, color: 'var(--negative)', padding: '6px 0' }}>
+                  {aiInvestError}
+                </div>
+              )}
+
+              {aiInvestSummary && (
+                <>
+                  <div style={{
+                    fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.65,
+                    borderLeft: '2px solid var(--accent)', paddingLeft: 14,
+                  }}>
+                    {aiInvestSummary}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 12, textAlign: 'right' }}>
+                    Powered by Claude
+                  </div>
+                </>
+              )}
+            </div>
+          </div>}
 
         </div>
       )}

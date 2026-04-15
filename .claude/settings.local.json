@@ -30,7 +30,9 @@
       "Bash(xargs wc:*)",
       "Bash(git:*)",
       "Bash(ls:*)",
-      "WebFetch(domain:stockdashes.com)"
+      "WebFetch(domain:stockdashes.com)",
+      "Skill(claude-api)",
+      "Bash(printf \\\\n@keyframes spin { to { transform: rotate\\(360deg\\); } }\\\\n:*)"
     ]
   }
 }

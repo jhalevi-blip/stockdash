@@ -216,3 +216,5 @@ body:has(.app-sidebar) { padding-left: 200px; }
 .react-joyride__overlay {
   background-color: rgba(0,0,0,0.6) !important;
 }
+
+@keyframes spin { to { transform: rotate(360deg); } }
