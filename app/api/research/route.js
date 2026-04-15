@@ -73,6 +73,19 @@ if (type === 'news') {
       }
     }
 
+    if (type === 'transcripts') {
+      const fmpKey = process.env.FMP_API_KEY;
+      if (!fmpKey) return Response.json([]);
+      const res = await fetch(
+        `https://financialmodelingprep.com/stable/earning_call_transcript?symbol=${symbol}&apikey=${fmpKey}`,
+        { next: { revalidate: 86400 } }
+      );
+      if (!res.ok) return Response.json([]);
+      const data = await res.json();
+      if (!Array.isArray(data)) return Response.json([]);
+      return Response.json(data.slice(0, 8));
+    }
+
     return Response.json([]);
   } catch(e) {
     return Response.json({ error: e.message }, { status: 500 });

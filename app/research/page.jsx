@@ -8,13 +8,16 @@ const FILING_TYPES = {
 };
 
 export default function ResearchPage() {
-  const [tickers,    setTickers]    = useState([]);
-  const [selected,   setSelected]   = useState(null);
-  const [tab,        setTab]        = useState('filings');
-  const [filings,    setFilings]    = useState([]);
-  const [news,       setNews]       = useState([]);
-  const [loading,    setLoading]    = useState(false);
-  const [filterType, setFilterType] = useState('all');
+  const [tickers,     setTickers]     = useState([]);
+  const [selected,    setSelected]    = useState(null);
+  const [tab,         setTab]         = useState('filings');
+  const [filings,     setFilings]     = useState([]);
+  const [news,        setNews]        = useState([]);
+  const [transcripts, setTranscripts] = useState([]);
+  const [loading,     setLoading]     = useState(false);
+  const [txLoading,   setTxLoading]   = useState(false);
+  const [filterType,  setFilterType]  = useState('all');
+  const [expanded,    setExpanded]    = useState({});
 
   useEffect(() => {
     try {
@@ -28,7 +31,7 @@ export default function ResearchPage() {
   const loadData = async (ticker) => {
     setSelected(ticker);
     setLoading(true);
-    setFilings([]); setNews([]);
+    setFilings([]); setNews([]); setTranscripts([]); setExpanded({});
     try {
       const [fil, nws] = await Promise.all([
         fetch(`/api/research?symbol=${ticker}&type=filings`).then(r => r.json()),
@@ -38,6 +41,16 @@ export default function ResearchPage() {
       setNews(Array.isArray(nws) ? nws : []);
     } catch {}
     setLoading(false);
+  };
+
+  const loadTranscripts = async (ticker) => {
+    if (transcripts.length) return; // already loaded
+    setTxLoading(true);
+    try {
+      const data = await fetch(`/api/research?symbol=${ticker}&type=transcripts`).then(r => r.json());
+      setTranscripts(Array.isArray(data) ? data : []);
+    } catch {}
+    setTxLoading(false);
   };
 
   const filteredFilings = filterType === 'all'
@@ -76,8 +89,8 @@ export default function ResearchPage() {
         <>
           {/* Tab buttons */}
           <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
-            {[['filings', '📄 SEC Filings'], ['news', '📰 Latest News']].map(([key, label]) => (
-              <button key={key} onClick={() => setTab(key)} style={{
+            {[['filings', '📄 SEC Filings'], ['news', '📰 Latest News'], ['transcripts', '🎙️ Earnings Calls']].map(([key, label]) => (
+              <button key={key} onClick={() => { setTab(key); if (key === 'transcripts') loadTranscripts(selected); }} style={{
                 ...btnBase,
                 padding: '7px 16px',
                 background: tab === key ? 'var(--accent)' : 'var(--bg-secondary)',
@@ -129,6 +142,53 @@ export default function ResearchPage() {
                       <span style={{ fontSize: 11, color: 'var(--accent)' }}>View →</span>
                     </a>
                   ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Transcripts tab */}
+          {tab === 'transcripts' && (
+            <>
+              {txLoading ? (
+                <div className="chart-placeholder">Loading transcripts for {selected}…</div>
+              ) : transcripts.length === 0 ? (
+                <div className="chart-placeholder">No transcripts found for {selected}</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {transcripts.map((tx, i) => {
+                    const isOpen = !!expanded[i];
+                    const preview = tx.content?.slice(0, 600) ?? '';
+                    return (
+                      <div key={i} style={{
+                        background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+                        borderRadius: 8, padding: '14px 16px',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                          <span style={{
+                            background: 'var(--bg-accent-subtle)', border: '1px solid var(--accent)',
+                            borderRadius: 3, padding: '2px 8px', fontSize: 11,
+                            color: 'var(--accent)', fontWeight: 700,
+                          }}>Q{tx.quarter} {tx.year}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            {tx.date ? new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                          {isOpen ? tx.content : `${preview}${(tx.content?.length ?? 0) > 600 ? '…' : ''}`}
+                        </div>
+                        {(tx.content?.length ?? 0) > 600 && (
+                          <button onClick={() => setExpanded(e => ({ ...e, [i]: !isOpen }))} style={{
+                            marginTop: 10, background: 'transparent', border: 'none',
+                            color: 'var(--accent)', fontSize: 12, fontWeight: 600,
+                            cursor: 'pointer', padding: 0,
+                          }}>
+                            {isOpen ? 'Show less ↑' : 'Read full transcript ↓'}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </>
