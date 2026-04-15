@@ -37,6 +37,7 @@ export default function DashboardPage() {
   const [earnings,       setEarnings]       = useState([]);
   const [news,           setNews]           = useState([]);
   const [candles,        setCandles]        = useState([]);
+  const [extCandles,     setExtCandles]     = useState([]);
   const [earningsHistory, setEarningsHistory] = useState([]);
   const [selected,       setSelected]       = useState(null);
   const [period,         setPeriod]         = useState('1Y');
@@ -57,6 +58,7 @@ export default function DashboardPage() {
     setSelected(ticker);
     setPanelTab('chart');
     setCandles([]);
+    setExtCandles([]);
     setEarningsHistory([]);
     const [chartData, earnData] = await Promise.all([
       fetch(`/api/chart?symbol=${ticker}`).then(r => r.json()),
@@ -208,6 +210,17 @@ export default function DashboardPage() {
       })
       .catch(() => {});
   }, [cash?.currency, cash?.amount]);
+
+  // Fetch extended candles when switching to 3Y or 5Y
+  useEffect(() => {
+    if (!selected || (period !== '3Y' && period !== '5Y')) return;
+    const range = period === '3Y' ? '3y' : '5y';
+    setExtCandles([]);
+    fetch(`/api/chart?symbol=${selected}&range=${range}`)
+      .then(r => r.json())
+      .then(d => setExtCandles(d.candles ?? []))
+      .catch(() => {});
+  }, [period, selected]);
 
   // Portfolio summary
   const rows = holdings.map(h => {
@@ -510,9 +523,11 @@ export default function DashboardPage() {
 
       {/* Tabbed detail panel — shown when a holding row is clicked */}
       {selected && (() => {
-        const PERIODS = ['1M', '3M', '6M', 'YTD', '1Y'];
+        const PERIODS = ['1M', '3M', '6M', 'YTD', '1Y', '3Y', '5Y'];
         const sliceMap = { '1M': 4, '3M': 13, '6M': 26, '1Y': 9999 };
+        const isExt = period === '3Y' || period === '5Y';
         function displayCandles() {
+          if (isExt) return extCandles;
           if (!candles.length) return [];
           if (period === 'YTD') {
             const now = new Date();
@@ -661,7 +676,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {candles.length === 0
+                  {(isExt ? extCandles.length === 0 : candles.length === 0)
                     ? <div className="chart-placeholder">Loading chart…</div>
                     : (
                       <ResponsiveContainer width="100%" height={220}>

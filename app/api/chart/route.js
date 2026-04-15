@@ -1,17 +1,26 @@
 // app/api/chart/route.js
-// Uses Yahoo Finance for free 1-year weekly candle data
+// Uses Yahoo Finance for historical candle data (up to 5 years)
+
+const RANGE_MAP = {
+  '1y': { range: '1y', interval: '1wk' },
+  '3y': { range: '3y', interval: '1wk' },
+  '5y': { range: '5y', interval: '1mo' },
+};
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get('symbol');
+  const rangeParam = searchParams.get('range') ?? '1y';
 
   if (!symbol) {
     return Response.json({ error: 'Missing symbol param' }, { status: 400 });
   }
 
+  const { range, interval } = RANGE_MAP[rangeParam] ?? RANGE_MAP['1y'];
+
   try {
     const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1wk&range=1y`,
+      `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=${interval}&range=${range}`,
       {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
