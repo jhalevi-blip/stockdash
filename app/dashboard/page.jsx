@@ -493,6 +493,16 @@ export default function DashboardPage() {
         <div className="note">Click a row to view chart and stock intel.</div>
       </section>
 
+      <PortfolioAISummary
+        holdings={rows}
+        portfolioStats={{
+          totalValue:  totalMkt,
+          totalPnl,
+          totalPnlPct: totalPct,
+          cash:        cashUSD,
+        }}
+      />
+
       {/* Tabbed detail panel — shown when a holding row is clicked */}
       {selected && (() => {
         const PERIODS = ['1M', '3M', '6M', 'YTD', '1Y'];
@@ -664,16 +674,6 @@ export default function DashboardPage() {
           </section>
         );
       })()}
-
-      <PortfolioAISummary
-        holdings={rows}
-        portfolioStats={{
-          totalValue:  totalMkt,
-          totalPnl,
-          totalPnlPct: totalPct,
-          cash:        cashUSD,
-        }}
-      />
 
       {/* Earnings calendar */}
       {earnings.length > 0 && (
