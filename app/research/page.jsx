@@ -180,6 +180,49 @@ export default function ResearchPage() {
           )}
         </>
       )}
+
+      {/* Earnings Call Transcripts */}
+      {tickers.length > 0 && (
+        <div style={{ marginTop: 40, borderTop: '1px solid var(--border-color)', paddingTop: 28 }}>
+          <div className="section-title" style={{ marginBottom: 4 }}>Earnings Call Transcripts</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20 }}>
+            Opens transcript on external site — free to read
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {tickers.map(ticker => (
+              <div key={ticker}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8, letterSpacing: '0.05em' }}>
+                  {ticker}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {[
+                    { label: 'Motley Fool', href: `https://www.fool.com/earnings-call-transcripts/?search=${ticker}` },
+                    { label: 'Seeking Alpha', href: `https://seekingalpha.com/symbol/${ticker}/earnings/transcripts` },
+                    { label: 'Rev.com', href: 'https://www.rev.com/blog/transcript-category/earnings-call-transcripts' },
+                  ].map(({ label, href }) => (
+                    <a key={label} href={href} target="_blank" rel="noopener noreferrer" style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      fontSize: 11, fontWeight: 600, padding: '4px 10px',
+                      borderRadius: 4, textDecoration: 'none',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-secondary)',
+                      background: 'transparent',
+                      transition: 'border-color .15s, color .15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}>
+                      {label}
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0 }}>
+                        <path d="M1 9L9 1M9 1H4M9 1V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
