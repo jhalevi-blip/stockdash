@@ -173,7 +173,7 @@ export default function NavBar() {
   const showEditPortfolio = true;
 
   function handleEditPortfolioClick() {
-    if (isSignedIn || isDemo) {
+    if (isSignedIn) {
       openModal();
     } else {
       openSignUp();
