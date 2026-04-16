@@ -349,6 +349,8 @@ export default function PerformancePage() {
 
     const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
 
+    const portReturn = totalCostWithGains > 0 ? ((portNow - totalCostWithGains) / totalCostWithGains) * 100 : null;
+
     // Normalize using netCapital so the chart endpoint matches the summary card.
     const portBase = netCapital;
     const spyBase  = chartPoints[0]?.spy ?? netCapital;
@@ -400,7 +402,6 @@ export default function PerformancePage() {
     });
     const portfolioBeta = totalMktCap > 0 ? weightedBeta / totalMktCap : null;
 
-    const portReturn = totalCostWithGains > 0 ? ((portNow - totalCostWithGains) / totalCostWithGains) * 100 : null;
     const vsSpyAmt   = spyMirrorNow != null ? portNow - spyMirrorNow : null;
     const spyStart   = chartPoints[0]?.spy ?? netCapital;
     const spyReturn  = spyStart > 0 && spyMirrorNow != null ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
