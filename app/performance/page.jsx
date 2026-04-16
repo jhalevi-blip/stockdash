@@ -360,7 +360,7 @@ export default function PerformancePage() {
     const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
 
     // Normalize using netCapital so the chart endpoint matches the summary card.
-    const portBase = netCapital;
+    const portBase = chartPoints[0]?.portfolio ?? netCapital;
     const spyBase  = chartPoints[0]?.spy ?? netCapital;
     const chartData = portBase > 0 && spyBase > 0
       ? chartPoints.map(p => ({
@@ -659,7 +659,7 @@ export default function PerformancePage() {
           </span>
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-          Chart shows return vs cost basis. If your portfolio was already in profit on the start date, the line will begin above 0%.
+          Chart shows % return since the start date. Both lines are normalized to 0% at the start date.
         </div>
       </div>
 
