@@ -126,7 +126,7 @@ export default function LandingPage() {
               padding: "12px 14px", fontSize: 12, color: "rgba(230,237,243,0.6)", lineHeight: 1.6,
               fontStyle: "italic",
             }}>
-              "Your $382K portfolio is up 5.1% with AMD as your largest position at 31%. Concentration risk is moderate — consider trimming AMD and adding international exposure to reduce US market risk."
+              "Your 5-stock portfolio is led by TSLA (+7.62%) and SNAP (+7.86%) today. NVDA is your largest position and biggest long-term driver. Concentration in tech and consumer discretionary is high — adding a defensive or energy position could reduce sector risk."
             </div>
           </div>
 
