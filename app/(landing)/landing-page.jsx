@@ -7,6 +7,7 @@ const LivePreview        = dynamic(() => import("../../components/LivePreview"),
 const StockIntelPreview  = dynamic(() => import("../../components/StockIntelPreview"),  { ssr: false });
 
 const FEATURES = [
+  { title: "AI Summaries",         desc: "Instant Claude-powered analysis for every stock and your whole portfolio. Personalized to your actual position.", link: "/dashboard" },
   { title: "Dashboard",           desc: "P&L, price charts, earnings calendar, and live news for your holdings.",               link: "/dashboard" },
   { title: "Insider Transactions", desc: "See what executives are buying and selling across your portfolio stocks.",              link: "/insider" },
   { title: "Ownership & 13F",     desc: "Institutional ownership % and fund holdings from Ackman, Einhorn, Druckenmiller.",    link: "/institutional" },
@@ -58,13 +59,13 @@ export default function LandingPage() {
           fontSize: "clamp(32px, 5vw, 48px)", fontWeight: 800, lineHeight: 1.1,
           letterSpacing: "-0.02em", margin: "0 0 12px", color: "#e6edf3",
         }}>
-          Stop switching between 10 tabs.
+          Your portfolio, analyzed by AI.
         </h1>
         <p style={{
           fontSize: 16, color: "rgba(230,237,243,0.5)", lineHeight: 1.5,
           margin: "0 0 24px",
         }}>
-          Earnings, insider trades, fund holdings, macro data — one dashboard, all free.
+          AI-powered summaries for every stock and your entire portfolio. Plus all the data you need — earnings, insider trades, macro — all free.
         </p>
 
         {/* Live table — the CTA */}
@@ -79,8 +80,61 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── AI FEATURE CARDS ── */}
+      <section style={{ ...wrap, paddingTop: 40, paddingBottom: 0 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 12 }}>
+
+          {/* Card 1 — Stock AI Summary */}
+          <div style={{
+            padding: "20px 22px", borderRadius: 10,
+            border: "1px solid rgba(34,211,238,0.2)", background: "rgba(34,211,238,0.03)",
+          }}>
+            <span style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#22d3ee",
+              background: "rgba(34,211,238,0.1)", border: "1px solid rgba(34,211,238,0.25)",
+              borderRadius: 4, padding: "2px 7px", display: "inline-block", marginBottom: 10,
+            }}>PER STOCK</span>
+            <h3 style={{ fontSize: 14, fontWeight: 700, margin: "0 0 6px", color: "#e6edf3" }}>Stock AI Summary</h3>
+            <p style={{ color: "rgba(230,237,243,0.45)", fontSize: 13, lineHeight: 1.55, margin: "0 0 14px" }}>
+              Claude analyzes bull/bear case, valuation, insider activity, earnings history and your position size — then writes a personalized investment summary.
+            </p>
+            <div style={{
+              background: "#0d1117", border: "1px solid #1e2530", borderRadius: 8,
+              padding: "12px 14px", fontSize: 12, color: "rgba(230,237,243,0.6)", lineHeight: 1.6,
+              fontStyle: "italic",
+            }}>
+              "NVDA offers strong AI tailwinds but trades at a premium valuation. Given your 45-share position at $198 avg cost, you're currently up 26%. Watch the next earnings report — any guidance cut would be the key risk to monitor."
+            </div>
+          </div>
+
+          {/* Card 2 — Portfolio AI Summary */}
+          <div style={{
+            padding: "20px 22px", borderRadius: 10,
+            border: "1px solid rgba(34,211,238,0.2)", background: "rgba(34,211,238,0.03)",
+          }}>
+            <span style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#22d3ee",
+              background: "rgba(34,211,238,0.1)", border: "1px solid rgba(34,211,238,0.25)",
+              borderRadius: 4, padding: "2px 7px", display: "inline-block", marginBottom: 10,
+            }}>FULL PORTFOLIO</span>
+            <h3 style={{ fontSize: 14, fontWeight: 700, margin: "0 0 6px", color: "#e6edf3" }}>Portfolio AI Summary</h3>
+            <p style={{ color: "rgba(230,237,243,0.45)", fontSize: 13, lineHeight: 1.55, margin: "0 0 14px" }}>
+              One click gives you a complete portfolio health check — performance, concentration risk, diversification, and one actionable insight based on your actual holdings.
+            </p>
+            <div style={{
+              background: "#0d1117", border: "1px solid #1e2530", borderRadius: 8,
+              padding: "12px 14px", fontSize: 12, color: "rgba(230,237,243,0.6)", lineHeight: 1.6,
+              fontStyle: "italic",
+            }}>
+              "Your $382K portfolio is up 5.1% with AMD as your largest position at 31%. Concentration risk is moderate — consider trimming AMD and adding international exposure to reduce US market risk."
+            </div>
+          </div>
+
+        </div>
+      </section>
+
       {/* ── PAIN STRIP ── */}
-      <section style={{ borderTop: "1px solid #1e2530", borderBottom: "1px solid #1e2530", padding: "13px 24px", marginTop: 32 }}>
+      <section style={{ borderTop: "1px solid #1e2530", borderBottom: "1px solid #1e2530", padding: "13px 24px", marginTop: 40 }}>
         <div style={{
           maxWidth: 760, margin: "0 auto",
           display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap",
