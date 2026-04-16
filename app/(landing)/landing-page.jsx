@@ -6,14 +6,6 @@ import { startDemo } from "../../lib/startDemo";
 const LivePreview        = dynamic(() => import("../../components/LivePreview"),        { ssr: false });
 const StockIntelPreview  = dynamic(() => import("../../components/StockIntelPreview"),  { ssr: false });
 
-const FEATURES = [
-  { title: "AI Summaries",         desc: "Instant Claude-powered analysis for every stock and your whole portfolio. Personalized to your actual position.", link: "/dashboard" },
-  { title: "Dashboard",           desc: "P&L, price charts, earnings calendar, and live news for your holdings.",               link: "/dashboard" },
-  { title: "Insider Transactions", desc: "See what executives are buying and selling across your portfolio stocks.",              link: "/insider" },
-  { title: "Ownership & 13F",     desc: "Institutional ownership % and fund holdings from Ackman, Einhorn, Druckenmiller.",    link: "/institutional" },
-  { title: "Performance vs SPY",  desc: "Portfolio vs SPY mirror, currency impact, and beta-adjusted returns.",                 link: "/performance" },
-];
-
 const PAIN_SOURCES = ["Yahoo Finance", "Seeking Alpha", "WhaleWisdom", "EDGAR", "Finviz", "Koyfin"];
 
 export default function LandingPage() {
@@ -156,26 +148,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── FEATURES ── */}
-      <section style={{ ...wrap, paddingTop: 48, paddingBottom: 48 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
-          {FEATURES.map((f) => (
-            <a key={f.title} href={f.link} style={{
-              padding: "18px 20px", borderRadius: 10, textDecoration: "none",
-              border: "1px solid #1e2530", background: "rgba(255,255,255,0.015)",
-              display: "block", transition: "border-color 0.2s, background 0.2s",
-            }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(59,130,246,0.4)"; e.currentTarget.style.background = "rgba(59,130,246,0.04)"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "#1e2530"; e.currentTarget.style.background = "rgba(255,255,255,0.015)"; }}
-            >
-              <h3 style={{ fontSize: 14, fontWeight: 700, margin: "0 0 5px", color: "#e6edf3" }}>{f.title}</h3>
-              <p style={{ color: "rgba(230,237,243,0.45)", fontSize: 13, lineHeight: 1.55, margin: 0 }}>{f.desc}</p>
-            </a>
-          ))}
-        </div>
-      </section>
-
-      {/* ── FINAL CTA ── */}
+{/* ── FINAL CTA ── */}
       <section style={{ ...wrap, textAlign: "center", paddingBottom: 80 }}>
         <h2 style={{
           fontSize: "clamp(22px, 3vw, 34px)", fontWeight: 700, letterSpacing: "-0.025em",
