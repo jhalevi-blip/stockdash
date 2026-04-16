@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
-import { useUser, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
+import { useUser, useClerk, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
 import PortfolioModal from './PortfolioModal';
 import { startDemo } from '@/lib/startDemo';
 import {
@@ -34,6 +34,7 @@ export default function NavBar() {
   const [savedCash,     setSavedCash]     = useState(null);
   const [isDemo,        setIsDemo]        = useState(false);
   const { isLoaded, isSignedIn, user } = useUser();
+  const { openSignUp } = useClerk();
   const hasSynced  = useRef(false);
   const wasSignedIn = useRef(false);
 
@@ -169,7 +170,15 @@ export default function NavBar() {
     localStorage.setItem('stockdash_theme', next ? 'dark' : 'light');
   }
 
-  const showEditPortfolio = (isLoaded && isSignedIn) || isDemo;
+  const showEditPortfolio = true;
+
+  function handleEditPortfolioClick() {
+    if (isSignedIn || isDemo) {
+      openModal();
+    } else {
+      openSignUp();
+    }
+  }
 
   const authSection = isLoaded && (
     isSignedIn ? (
@@ -234,7 +243,7 @@ export default function NavBar() {
           {showEditPortfolio && (
             <button
               data-tour="edit-portfolio"
-              onClick={openModal}
+              onClick={handleEditPortfolioClick}
               style={{
                 background: 'none', border: '1px solid var(--accent)',
                 borderRadius: 6, color: 'var(--accent)',
@@ -266,7 +275,7 @@ export default function NavBar() {
             {showEditPortfolio && (
               <button
                 data-tour="edit-portfolio"
-                onClick={openModal}
+                onClick={handleEditPortfolioClick}
                 style={{
                   background: 'none', border: '1px solid var(--accent)',
                   borderRadius: 6, color: 'var(--accent)',
