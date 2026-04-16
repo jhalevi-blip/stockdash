@@ -387,11 +387,6 @@ export default function PerformancePage() {
       }));
     }
 
-    // Pin the last point to portReturn so the line endpoint always matches the legend.
-    if (chartData.length > 0 && portReturn != null) {
-      chartData[chartData.length - 1].portfolio = portReturn;
-    }
-
     const eurStartIdx  = Math.min(startIdx, eurCandles.length - 1);
     const eurData      = eurCandles.slice(eurStartIdx).map(c => ({ date: c.date, label: c.label, rate: c.close }));
     const eurStart     = eurCandles[eurStartIdx]?.close ?? null;
