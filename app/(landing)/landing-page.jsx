@@ -208,6 +208,14 @@ export default function LandingPage() {
         </p>
       </section>
 
+      {/* ── DISCLAIMER ── */}
+      <div style={{
+        borderTop: "1px solid rgba(255,255,255,0.08)", padding: "12px 24px",
+        textAlign: "center", fontSize: 11, color: "#6b7280",
+      }}>
+        StockDashes is for informational purposes only and does not constitute financial advice. Market data may be delayed or inaccurate. AI-generated summaries are automated and should not be relied upon for investment decisions. Always do your own research.
+      </div>
+
       {/* ── FOOTER ── */}
       <footer style={{
         borderTop: "1px solid #1e2530", padding: "24px",
