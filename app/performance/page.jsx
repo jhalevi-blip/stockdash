@@ -357,6 +357,11 @@ export default function PerformancePage() {
       chartPoints.push({ date: today, label: todayLabel, portfolio: portNow, spy: spyShares * liveSpyPrice });
     }
 
+    // Force the last chart point to use live prices so the line endpoint matches the legend.
+    if (portNow > 0 && chartPoints.length > 0) {
+      chartPoints[chartPoints.length - 1].portfolio = portNow;
+    }
+
     const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
 
     // Normalize using netCapital so the chart endpoint matches the summary card.
