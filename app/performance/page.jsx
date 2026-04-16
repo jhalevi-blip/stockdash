@@ -360,9 +360,9 @@ export default function PerformancePage() {
     const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
 
     // Normalize using netCapital so the chart endpoint matches the summary card.
-    const portBase = chartPoints[0]?.portfolio ?? netCapital;
+    const portBase = netCapital;
     const spyBase  = chartPoints[0]?.spy ?? netCapital;
-    const chartData = portBase > 0 && spyBase > 0
+    let chartData = portBase > 0 && spyBase > 0
       ? chartPoints.map(p => ({
           date:      p.date,
           label:     p.label,
@@ -370,6 +370,17 @@ export default function PerformancePage() {
           spy:       (p.spy       / spyBase  - 1) * 100,
         }))
       : chartPoints;
+
+    // Shift both lines so they start at exactly 0% on the start date.
+    if (chartData.length > 0 && chartData[0].portfolio != null) {
+      const portOffset = chartData[0].portfolio;
+      const spyOffset  = chartData[0].spy;
+      chartData = chartData.map(p => ({
+        ...p,
+        portfolio: p.portfolio - portOffset,
+        spy:       p.spy       - spyOffset,
+      }));
+    }
 
     const eurStartIdx  = Math.min(startIdx, eurCandles.length - 1);
     const eurData      = eurCandles.slice(eurStartIdx).map(c => ({ date: c.date, label: c.label, rate: c.close }));
