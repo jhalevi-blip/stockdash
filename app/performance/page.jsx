@@ -32,6 +32,21 @@ function estimatePurchaseIdx(candles, avgCost) {
   return best;
 }
 
+/** Find candle index closest to a given YYYY-MM-DD date, approximating from array position */
+function findStartIdx(candles, dateStr) {
+  if (!candles?.length || !dateStr) return 0;
+  const target = new Date(dateStr).getTime();
+  const now = Date.now();
+  let best = 0, bestDiff = Infinity;
+  for (let i = 0; i < candles.length; i++) {
+    const weeksBack = candles.length - 1 - i;
+    const ts = now - weeksBack * 7 * 24 * 60 * 60 * 1000;
+    const diff = Math.abs(ts - target);
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  }
+  return best;
+}
+
 /** Convert a candle index back to an approximate YYYY-MM-DD date */
 function candleIdxToDate(candles, idx) {
   if (!candles?.length) return '';
@@ -324,7 +339,7 @@ export default function PerformancePage() {
       }
     }
 
-    const spyPriceAtStart = spyCandles[startIdx]?.close ?? spyCandles[0]?.close ?? 0;
+    const spyPriceAtStart = spyCandles[startIdx]?.close ?? spyCandles[0].close;
     const spyShares       = spyPriceAtStart > 0 ? netCapital / spyPriceAtStart : 0;
 
     const chartPoints = [];
@@ -359,7 +374,7 @@ export default function PerformancePage() {
           portfolio: (p.portfolio / portBase - 1) * 100,
           spy:       (p.spy       / spyBase  - 1) * 100,
         }))
-      : [];
+      : chartPoints;
 
     // Shift both lines so they start at exactly 0% on the start date.
     if (chartData.length > 0 && chartData[0].portfolio != null) {
@@ -370,14 +385,6 @@ export default function PerformancePage() {
         portfolio: p.portfolio - portOffset,
         spy:       p.spy       - spyOffset,
       }));
-    }
-
-    // Pin the last point to portReturn so the line endpoint matches the legend exactly.
-    if (chartData.length > 0 && portReturn != null) {
-      chartData[chartData.length - 1] = {
-        ...chartData[chartData.length - 1],
-        portfolio: portReturn,
-      };
     }
 
     const eurStartIdx  = Math.min(startIdx, eurCandles.length - 1);
@@ -403,7 +410,7 @@ export default function PerformancePage() {
     const portReturn = totalCostWithGains > 0 ? ((portNow - totalCostWithGains) / totalCostWithGains) * 100 : null;
     const vsSpyAmt   = spyMirrorNow != null ? portNow - spyMirrorNow : null;
     const spyStart   = chartPoints[0]?.spy ?? netCapital;
-    const spyReturn  = spyStart > 0 && spyMirrorNow != null ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
+    const spyReturn  = spyStart > 0 ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
     const vsSpyPct   = portReturn != null && spyReturn != null ? portReturn - spyReturn : null;
 
     // Time-Weighted Return — chains sub-period returns across deposit dates to
