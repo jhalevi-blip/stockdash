@@ -364,6 +364,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker }) {
     setAiInvestLoading(true);
     setAiInvestError(null);
     setAiInvestSummary(null);
+    const userLang = navigator.language || 'en';
 
     const currentRow  = rows.find(r => r.t === ticker);
     const analystD_   = data.analyst?.find?.(a => a.ticker === ticker) ?? null;
@@ -401,6 +402,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker }) {
       posAvgCost:     currentRow ? currentRow.costVal / currentRow.s : null,
       posPnlAmt:      currentRow?.pnlAmt  ?? null,
       posPnlPct:      currentRow?.pnlPct  ?? null,
+      userLang,
     };
 
     try {

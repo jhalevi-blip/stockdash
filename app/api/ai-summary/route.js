@@ -42,7 +42,8 @@ export async function POST(request) {
       lines.push(`User Position: ${posShares} shares at avg cost $${posAvgCost?.toFixed(2) ?? '—'}, P&L ${pnlSign}${Math.abs(posPnlAmt ?? 0).toFixed(0)}${pnlPctStr}`);
     }
 
-    const prompt = `Give a 4-6 sentence investment summary for ${symbol} based on this data. Include: overall thesis, biggest risk, what to watch next. Consider the user's current position. Be direct and specific, not generic.\n\n${lines.join('\n')}`;
+    const langInstruction = body.userLang ? `\nRespond in this language: ${body.userLang}. If you don't recognize it, default to English.` : '';
+    const prompt = `Give a 4-6 sentence investment summary for ${symbol} based on this data. Include: overall thesis, biggest risk, what to watch next. Consider the user's current position. Be direct and specific, not generic.${langInstruction}\n\n${lines.join('\n')}`;
 
     let res, raw;
     try {
@@ -95,7 +96,8 @@ Write a 6-8 sentence portfolio summary covering:
 4. Sector/geographic diversification
 5. One actionable insight based on the data
 
-Be direct and specific. Use the actual numbers. Write as a professional but approachable analyst.`;
+Be direct and specific. Use the actual numbers. Write as a professional but approachable analyst.
+${body.userLang ? `Respond in this language: ${body.userLang}. If you don't recognize it, default to English.` : ''}`;
 
     let res, raw;
     try {

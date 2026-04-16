@@ -53,11 +53,13 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
         marketValue:  h.mktVal,
       }));
 
+    const userLang = navigator.language || 'en';
+
     try {
       const res  = await fetch('/api/ai-summary', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ type: 'portfolio-summary', holdings: holdingsPayload, portfolioStats }),
+        body:    JSON.stringify({ type: 'portfolio-summary', holdings: holdingsPayload, portfolioStats, userLang }),
       });
       const json = await res.json();
       if (json.error) {
