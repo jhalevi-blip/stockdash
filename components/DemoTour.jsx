@@ -49,6 +49,7 @@ const TOUR_CSS = `
     font-weight: 600;
     padding: 7px 16px;
     cursor: pointer;
+    box-shadow: none;
   }
   .sd-tour-popover .driver-popover-next-btn:hover {
     background: #2563eb;
@@ -62,6 +63,7 @@ const TOUR_CSS = `
     font-size: 13px;
     padding: 7px 14px;
     cursor: pointer;
+    box-shadow: none;
   }
   .sd-tour-popover .driver-popover-prev-btn:hover {
     border-color: #8b949e;
