@@ -34,7 +34,13 @@ const TOUR_CSS = `
     font-size: 11px;
     color: #484f58;
   }
+  .sd-tour-popover .driver-popover-navigation-btns {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
   .sd-tour-popover .driver-popover-next-btn {
+    display: inline-block;
     background: #3b82f6;
     border: none;
     border-radius: 6px;
@@ -48,6 +54,7 @@ const TOUR_CSS = `
     background: #2563eb;
   }
   .sd-tour-popover .driver-popover-prev-btn {
+    display: inline-block;
     background: none;
     border: 1px solid #30363d;
     border-radius: 6px;
