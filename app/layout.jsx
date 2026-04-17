@@ -4,7 +4,6 @@ import AppShell from '@/components/AppShell';
 import DevMode from '@/components/DevMode';
 import { ClerkProvider } from '@clerk/nextjs';
 import { Analytics } from '@vercel/analytics/react';
-import { GoogleAnalytics } from '@next/third-parties/google';
 
 export const metadata = { title: 'StockDashes' };
 
@@ -26,12 +25,13 @@ export default function RootLayout({ children }) {
     }}>
       <html lang="en">
         <Script id="theme-init" strategy="beforeInteractive">{`try{var t=localStorage.getItem('stockdash_theme');document.documentElement.setAttribute('data-theme',t==='light'?'light':'dark')}catch(e){document.documentElement.setAttribute('data-theme','dark')}try{if(localStorage.getItem('dev_mode')==='true')document.documentElement.setAttribute('data-va-disable','true')}catch(e){}`}</Script>
+        <Script src="https://www.googletagmanager.com/gtag/js?id=G-NK5GB4WDZ1" strategy="afterInteractive" />
+        <Script id="ga4-init" strategy="afterInteractive">{`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-NK5GB4WDZ1');`}</Script>
         <body>
           <AppShell />
           {children}
           <Analytics />
           <DevMode />
-          <GoogleAnalytics gaId="G-NK5GB4WDZ1" />
         </body>
       </html>
     </ClerkProvider>
