@@ -4,6 +4,7 @@ import AppShell from '@/components/AppShell';
 import DevMode from '@/components/DevMode';
 import { ClerkProvider } from '@clerk/nextjs';
 import { Analytics } from '@vercel/analytics/react';
+import { GoogleAnalytics } from '@next/third-parties/google';
 
 export const metadata = { title: 'StockDashes' };
 
@@ -30,6 +31,7 @@ export default function RootLayout({ children }) {
           {children}
           <Analytics />
           <DevMode />
+          <GoogleAnalytics gaId="G-NK5GB4WDZ1" />
         </body>
       </html>
     </ClerkProvider>
