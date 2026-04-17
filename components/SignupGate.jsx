@@ -1,17 +1,11 @@
 'use client';
-import { useState, useEffect } from 'react';
 import { useUser, SignUpButton } from '@clerk/nextjs';
 
 export default function SignupGate({ title, description, children }) {
   const { isLoaded, isSignedIn } = useUser();
-  const [isDemo, setIsDemo] = useState(false);
-
-  useEffect(() => {
-    setIsDemo(localStorage.getItem('stockdash_demo') === 'true');
-  }, []);
 
   if (!isLoaded) return null;
-  if (isSignedIn || isDemo) return children;
+  if (isSignedIn) return children;
 
   return (
     <main style={{ padding: '20px 24px', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 420 }}>
