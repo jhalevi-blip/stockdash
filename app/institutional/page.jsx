@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { getDemoTickers } from '@/lib/startDemo';
+import SignupGate from '@/components/SignupGate';
 
 const f   = (n, d=2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const pct = n => n == null ? '—' : (n * 100).toFixed(1) + '%';
@@ -108,6 +109,10 @@ export default function InstitutionalPage() {
   if (loading) return <main style={{ padding: 24 }}><div className="chart-placeholder">Loading ownership data…</div></main>;
 
   return (
+    <SignupGate
+      title="Institutional Ownership"
+      description="See which institutions hold your stocks, track insider buying and selling activity, and explore top fund holdings from 13F filings."
+    >
     <main style={{ padding: '20px 24px' }}>
 
       {/* ── INSIDER BUYING SUMMARY ── */}
@@ -269,5 +274,6 @@ export default function InstitutionalPage() {
         </div>
       </section>
     </main>
+    </SignupGate>
   );
 }

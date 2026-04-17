@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import InsiderTransactions from '@/components/InsiderTransactions';
 import { getDemoTickers } from '@/lib/startDemo';
+import SignupGate from '@/components/SignupGate';
 
 export default function InsiderPage() {
   const [tickers, setTickers] = useState(null); // null = not yet read from localStorage
@@ -18,12 +19,17 @@ export default function InsiderPage() {
   }, []);
 
   return (
-    <main style={{ padding: '20px 24px' }}>
-      <div className="section-title" style={{ marginBottom: 16 }}>Insider Transactions</div>
-      {tickers === null
-        ? <div className="news-placeholder">Loading…</div>
-        : <InsiderTransactions tickers={tickers} />
-      }
-    </main>
+    <SignupGate
+      title="Insider Transactions"
+      description="Monitor recent buy and sell activity from company executives, directors, and major shareholders — filed directly with the SEC."
+    >
+      <main style={{ padding: '20px 24px' }}>
+        <div className="section-title" style={{ marginBottom: 16 }}>Insider Transactions</div>
+        {tickers === null
+          ? <div className="news-placeholder">Loading…</div>
+          : <InsiderTransactions tickers={tickers} />
+        }
+      </main>
+    </SignupGate>
   );
 }

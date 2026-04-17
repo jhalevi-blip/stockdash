@@ -10,6 +10,7 @@ const isPublicRoute = createRouteMatcher([
   "/macro(.*)",
   "/insider(.*)",
   "/ownership(.*)",
+  "/institutional(.*)",
   "/peers(.*)",
   "/research(.*)",
   "/valuation(.*)",

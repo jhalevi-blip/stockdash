@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { DEMO_FALLBACK } from '@/lib/startDemo';
+import SignupGate from '@/components/SignupGate';
 
 const fmtPct = (n, d = 2) =>
   n != null ? n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) + '%' : '—';
@@ -69,6 +70,10 @@ export default function AnalystPage() {
   });
 
   return (
+    <SignupGate
+      title="Short Interest"
+      description="Track short interest, shares short, short ratio, and month-over-month changes across your portfolio holdings."
+    >
     <main style={{ padding: '20px 24px' }}>
       <div className="section-title" style={{ marginBottom: 16 }}>Short Interest</div>
 
@@ -139,5 +144,6 @@ export default function AnalystPage() {
         Change = month-over-month shares short · Data from Yahoo Finance
       </p>
     </main>
+    </SignupGate>
   );
 }
