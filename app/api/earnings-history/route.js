@@ -136,9 +136,9 @@ export async function GET(request) {
   ]);
 
   if (symbol === 'AMD') {
-    console.log('[earnings-history] AMD EDGAR quarterKeys:', edgarRows.map(r => `${r.quarterKey}=${r.actual}`));
-    console.log('[earnings-history] AMD Finnhub quarterKeys:', finnhubRows.map(r => `${r.quarterKey}=${r.actual}`));
-    console.log('[earnings-history] AMD FMP quarterKeys:', [...fmpMap.entries()].map(([k, v]) => `${k}=${v.actual}`));
+    console.log('[earnings-history] AMD EDGAR (last 5):', JSON.stringify(edgarRows.slice(-5)));
+    console.log('[earnings-history] AMD Finnhub (last 5):', JSON.stringify(finnhubRows.slice(-5)));
+    console.log('[earnings-history] AMD FMP (last 5):', JSON.stringify([...fmpMap.entries()].slice(-5)));
   }
 
   // Build index maps keyed by quarter
