@@ -11,19 +11,25 @@ export async function GET(request) {
 
   const fmpKey = process.env.FMP_API_KEY;
   trackFinnhub(holdings.length); // 1 call per ticker
-  if (fmpKey) trackFMP(holdings.length).catch(() => {}); // 1 call per ticker
+  if (fmpKey) trackFMP(holdings.length * 2).catch(() => {}); // 2 FMP calls per ticker
 
   const results = await Promise.all(
     holdings.map(async h => {
       try {
-        const [finnhubRes, fmpRes] = await Promise.all([
+        const [finnhubRes, ratiosTTMRes, analystRes] = await Promise.all([
           fetch(
             `https://finnhub.io/api/v1/stock/metric?symbol=${h.t}&metric=all&token=${key}`,
             { next: { revalidate: 86400 } }
           ),
           fmpKey
             ? fetch(
-                `https://financialmodelingprep.com/stable/key-metrics?symbol=${h.t}&limit=1&apikey=${fmpKey}`,
+                `https://financialmodelingprep.com/stable/ratios-ttm?symbol=${h.t}&apikey=${fmpKey}`,
+                { next: { revalidate: 86400 } }
+              )
+            : Promise.resolve(null),
+          fmpKey
+            ? fetch(
+                `https://financialmodelingprep.com/stable/analyst-estimates?symbol=${h.t}&limit=1&apikey=${fmpKey}`,
                 { next: { revalidate: 86400 } }
               )
             : Promise.resolve(null),
@@ -32,24 +38,37 @@ export async function GET(request) {
         const finnhubData = await finnhubRes.json();
         const m = finnhubData?.metric;
 
+        // Derive current price from Finnhub TTM P/E × TTM EPS — avoids an extra API call
+        const fhPrice = (m?.peBasicExclExtraTTM != null && m?.epsBasicExclExtraTTM != null && m.epsBasicExclExtraTTM !== 0)
+          ? m.peBasicExclExtraTTM * m.epsBasicExclExtraTTM
+          : null;
+
         let fmpForwardPE = null;
-        let fmpPrice     = null;
-        if (fmpRes?.ok) {
+
+        // Source 1: ratios-ttm forwardPE field
+        if (ratiosTTMRes?.ok) {
           try {
-            const fmpData = await fmpRes.json();
-            const km = Array.isArray(fmpData) ? fmpData[0] : null;
-            if (h.t === 'AMD') console.log(`[valuation] FMP key-metrics AMD (full):`, JSON.stringify(km, null, 2));
-            fmpForwardPE = km?.forwardPE ?? null;
-            fmpPrice     = km?.price     ?? null;
-            // Fallback 1: price / forwardEPS from FMP key-metrics
-            if (fmpForwardPE === null && km?.forwardEPS != null && fmpPrice != null && km.forwardEPS !== 0) {
-              fmpForwardPE = fmpPrice / km.forwardEPS;
+            const ratiosData = await ratiosTTMRes.json();
+            const r = Array.isArray(ratiosData) ? ratiosData[0] : ratiosData;
+            fmpForwardPE = r?.forwardPE ?? null;
+          } catch {}
+        }
+
+        // Source 2: analyst-estimates estimatedEpsAvg → price / forwardEPS
+        if (fmpForwardPE === null && analystRes?.ok) {
+          try {
+            const analystData = await analystRes.json();
+            const a = Array.isArray(analystData) ? analystData[0] : null;
+            const forwardEPS = a?.estimatedEpsAvg ?? null;
+            if (forwardEPS != null && forwardEPS !== 0 && fhPrice != null) {
+              fmpForwardPE = fhPrice / forwardEPS;
             }
           } catch {}
         }
-        // Fallback 2: price / Finnhub epsForwardTTM
-        if (fmpForwardPE === null && fmpPrice != null && m?.epsForwardTTM != null && m.epsForwardTTM !== 0) {
-          fmpForwardPE = fmpPrice / m.epsForwardTTM;
+
+        // Source 3: Finnhub epsForwardTTM → price / forwardEPS
+        if (fmpForwardPE === null && fhPrice != null && m?.epsForwardTTM != null && m.epsForwardTTM !== 0) {
+          fmpForwardPE = fhPrice / m.epsForwardTTM;
         }
 
         return {
