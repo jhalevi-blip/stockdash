@@ -29,7 +29,7 @@ export async function GET(request) {
           ),
           fmpKey
             ? fetch(
-                `https://financialmodelingprep.com/stable/analyst-estimates?symbol=${h.t}&period=annual&limit=2&apikey=${fmpKey}`,
+                `https://financialmodelingprep.com/stable/analyst-estimates?symbol=${h.t}&period=annual&limit=5&apikey=${fmpKey}`,
                 { cache: 'no-store' }
               )
             : Promise.resolve(null),
@@ -44,18 +44,19 @@ export async function GET(request) {
         let forwardPE = null;
         let analystData = null;
 
-        if (analystRes) {
-          const rawBody = await analystRes.text();
-          if (h.t === 'AMD') console.log('[valuation] AMD FMP analyst-estimates — status:', analystRes.status, '| body:', rawBody.slice(0, 500));
-          if (analystRes.ok) {
-            try {
-              analystData = JSON.parse(rawBody);
-              const forwardEPS = Array.isArray(analystData) ? (analystData[0]?.estimatedEpsAvg ?? null) : null;
+        if (analystRes?.ok) {
+          try {
+            analystData = await analystRes.json();
+            if (Array.isArray(analystData)) {
+              const today = new Date().toISOString().slice(0, 10);
+              const sorted = [...analystData].sort((a, b) => a.date.localeCompare(b.date));
+              const nextYear = sorted.find(e => e.date > today);
+              const forwardEPS = nextYear?.epsAvg ?? null;
               if (forwardEPS != null && forwardEPS !== 0 && currentPrice != null) {
                 forwardPE = currentPrice / forwardEPS;
               }
-            } catch {}
-          }
+            }
+          } catch {}
         }
 
         // Fallback: Finnhub epsForwardTTM
