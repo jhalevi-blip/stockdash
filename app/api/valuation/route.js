@@ -38,7 +38,7 @@ export async function GET(request) {
           try {
             const fmpData = await fmpRes.json();
             const km = Array.isArray(fmpData) ? fmpData[0] : null;
-            console.log(`[valuation] FMP key-metrics ${h.t}:`, { forwardPE: km?.forwardPE, forwardEPS: km?.forwardEPS, price: km?.price });
+            if (h.t === 'AMD') console.log(`[valuation] FMP key-metrics AMD (full):`, JSON.stringify(km, null, 2));
             fmpForwardPE = km?.forwardPE ?? null;
             fmpPrice     = km?.price     ?? null;
             // Fallback 1: price / forwardEPS from FMP key-metrics
