@@ -636,19 +636,35 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker }) {
             {earnHist.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {earnHist.map(e => {
-                  const beat = e.actual != null && e.estimate != null ? e.actual >= e.estimate : null;
+                  const hasEstimate = e.actual != null && e.estimate != null && e.estimate !== 0;
+                  const surprise = hasEstimate ? ((e.actual - e.estimate) / Math.abs(e.estimate)) * 100 : null;
+                  const inLine = surprise != null && Math.abs(surprise) < 0.5;
+                  const beat = hasEstimate ? e.actual >= e.estimate : (e.actual != null ? null : null);
+                  let beatLabel, beatColor;
+                  if (surprise == null) {
+                    beatLabel = null;
+                  } else if (inLine) {
+                    beatLabel = '— IN-LINE';
+                    beatColor = 'var(--text-secondary)';
+                  } else if (surprise > 0) {
+                    beatLabel = `▲ BEAT +${fmt(surprise, 1)}%`;
+                    beatColor = 'var(--positive)';
+                  } else {
+                    beatLabel = `▼ MISS ${fmt(surprise, 1)}%`;
+                    beatColor = 'var(--negative)';
+                  }
                   return (
-                    <div key={e.period} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>{e.period?.slice(0, 7)}</span>
+                    <div key={e.quarterKey ?? e.period} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>{e.displayQuarter ?? e.period?.slice(0, 7)}</span>
                       <span style={{ color: 'var(--text-primary)' }}>
                         {e.actual != null ? `$${fmt(e.actual)}` : '—'}
                       </span>
                       {e.estimate != null && (
                         <span style={{ color: 'var(--text-muted)' }}>est ${fmt(e.estimate)}</span>
                       )}
-                      {beat != null && (
-                        <span style={{ color: beat ? 'var(--positive)' : 'var(--negative)', fontSize: 10, fontWeight: 600 }}>
-                          {beat ? '▲ BEAT' : '▼ MISS'}
+                      {beatLabel != null && (
+                        <span style={{ color: beatColor, fontSize: 10, fontWeight: 600 }}>
+                          {beatLabel}
                         </span>
                       )}
                     </div>
