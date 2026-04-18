@@ -11,6 +11,14 @@ import { saveUserHoldings } from '@/lib/holdingsStorage';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
+const fmtB = (n) => {
+  if (n == null) return '—';
+  const abs = Math.abs(n);
+  if (abs >= 1e12) return (n < 0 ? '−' : '') + '$' + (abs / 1e12).toFixed(2) + 'T';
+  if (abs >= 1e9)  return (n < 0 ? '−' : '') + '$' + (abs / 1e9).toFixed(1) + 'B';
+  if (abs >= 1e6)  return (n < 0 ? '−' : '') + '$' + (abs / 1e6).toFixed(0) + 'M';
+  return '$' + n.toLocaleString();
+};
 
 const SAMPLE_HOLDINGS = [
   { t: 'NVDA', s: 50,  c: 133.67 },
@@ -548,8 +556,11 @@ export default function DashboardPage() {
         // Map each earnings entry to the closest candle date within the displayed range
         const firstDate = dc[0]?.date ?? '';
         const lastDate  = dc[dc.length - 1]?.date ?? '';
+        // Buffer 60 days before chart start: fiscal period end can precede the
+        // earnings report date by up to ~8 weeks (e.g. Q1 ends Mar 31, reported May).
+        const firstTs = firstDate ? new Date(firstDate).getTime() - 60 * 86400000 : 0;
         const earnMarkers = earningsHistory
-          .filter(e => e.period >= firstDate && e.period <= lastDate)
+          .filter(e => new Date(e.period).getTime() >= firstTs && e.period <= lastDate)
           .map(e => {
             let closest = null;
             let minDiff = Infinity;
@@ -557,11 +568,14 @@ export default function DashboardPage() {
               const diff = Math.abs(new Date(c.date) - new Date(e.period));
               if (diff < minDiff) { minDiff = diff; closest = c.date; }
             }
+            if (minDiff > 60 * 86400000) closest = null; // too far from any candle
             const q = Math.ceil((new Date(e.period).getMonth() + 1) / 3);
             const beat = e.actual != null && e.estimate != null
               ? e.actual >= e.estimate : null;
+            const revBeat = e.revenueActual != null && e.revenueEstimate != null
+              ? e.revenueActual >= e.revenueEstimate : null;
             const color = beat === true ? '#22c55e' : beat === false ? '#ef4444' : '#8b949e';
-            return { ...e, candleDate: closest, q, beat, color };
+            return { ...e, candleDate: closest, q, beat, revBeat, color };
           })
           .filter(e => e.candleDate != null);
 
@@ -576,10 +590,19 @@ export default function DashboardPage() {
               <div style={{ color: 'var(--text-secondary)', marginBottom: 4 }}>{label}</div>
               <div style={{ color: 'var(--text-primary)' }}>Close: ${fmt(price)}</div>
               {earn && (
-                <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border-color)', color: earn.color, fontWeight: 600 }}>
-                  Q{earn.q} Earnings: EPS ${fmt(earn.actual)}
-                  {earn.estimate != null && ` vs est $${fmt(earn.estimate)}`}
-                  {earn.beat != null && ` (${earn.beat ? 'Beat' : 'Miss'})`}
+                <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border-color)' }}>
+                  <div style={{ color: earn.color, fontWeight: 600 }}>
+                    Q{earn.q} EPS: ${fmt(earn.actual)}
+                    {earn.estimate != null && ` vs est $${fmt(earn.estimate)}`}
+                    {earn.beat != null && ` · ${earn.beat ? '▲ Beat' : '▼ Miss'}`}
+                  </div>
+                  {(earn.revenueActual != null || earn.revenueEstimate != null) && (
+                    <div style={{ color: earn.revBeat === true ? '#22c55e' : earn.revBeat === false ? '#ef4444' : 'var(--text-secondary)', marginTop: 3 }}>
+                      Rev: {earn.revenueActual != null ? fmtB(earn.revenueActual) : '—'}
+                      {earn.revenueEstimate != null && ` vs est ${fmtB(earn.revenueEstimate)}`}
+                      {earn.revBeat != null && ` · ${earn.revBeat ? '▲ Beat' : '▼ Miss'}`}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
