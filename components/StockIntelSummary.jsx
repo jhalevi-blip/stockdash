@@ -634,15 +634,15 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker }) {
           {/* 5 — Earnings History */}
           <Card title="Earnings History" loading={loading} span={2}>
             {earnHist.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr 110px', rowGap: 5 }}>
                 {earnHist.map(e => {
                   const hasEstimate = e.actual != null && e.estimate != null && e.estimate !== 0;
                   const surprise = hasEstimate ? ((e.actual - e.estimate) / Math.abs(e.estimate)) * 100 : null;
                   const inLine = surprise != null && Math.abs(surprise) < 0.5;
-                  const beat = hasEstimate ? e.actual >= e.estimate : (e.actual != null ? null : null);
                   let beatLabel, beatColor;
                   if (surprise == null) {
-                    beatLabel = null;
+                    beatLabel = '';
+                    beatColor = 'transparent';
                   } else if (inLine) {
                     beatLabel = '— IN-LINE';
                     beatColor = 'var(--text-secondary)';
@@ -654,19 +654,19 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker }) {
                     beatColor = 'var(--negative)';
                   }
                   return (
-                    <div key={e.quarterKey ?? e.period} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>{e.displayQuarter ?? e.period?.slice(0, 7)}</span>
-                      <span style={{ color: 'var(--text-primary)' }}>
+                    <div key={e.quarterKey ?? e.period} style={{ display: 'contents' }}>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', alignSelf: 'center' }}>
+                        {e.displayQuarter ?? e.period?.slice(0, 7)}
+                      </div>
+                      <div style={{ fontSize: 12, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--text-primary)', alignSelf: 'center' }}>
                         {e.actual != null ? `$${fmt(e.actual)}` : '—'}
-                      </span>
-                      {e.estimate != null && (
-                        <span style={{ color: 'var(--text-muted)' }}>est ${fmt(e.estimate)}</span>
-                      )}
-                      {beatLabel != null && (
-                        <span style={{ color: beatColor, fontSize: 10, fontWeight: 600 }}>
-                          {beatLabel}
-                        </span>
-                      )}
+                      </div>
+                      <div style={{ fontSize: 12, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)', alignSelf: 'center' }}>
+                        {e.estimate != null ? `est $${fmt(e.estimate)}` : '—'}
+                      </div>
+                      <div style={{ fontSize: 10, textAlign: 'right', fontWeight: 600, color: beatColor, alignSelf: 'center' }}>
+                        {beatLabel}
+                      </div>
                     </div>
                   );
                 })}
