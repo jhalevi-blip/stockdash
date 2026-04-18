@@ -1,3 +1,5 @@
+import { trackFMP } from '@/lib/apiUsage';
+
 async function lookupCIK(ticker) {
   const res = await fetch('https://www.sec.gov/files/company_tickers.json', {
     headers: { 'User-Agent': 'PortfolioIntel/1.0 contact@portfoliointel.app' },
@@ -68,6 +70,35 @@ async function fetchFinnhub(symbol) {
   }
 }
 
+async function fetchFMP(symbol) {
+  try {
+    const key = process.env.FMP_API_KEY;
+    if (!key) return new Map();
+    const res = await fetch(
+      `https://financialmodelingprep.com/api/v3/historical/earning_calendar/${symbol}?apikey=${key}`,
+      { next: { revalidate: 86400 } }
+    );
+    if (!res.ok) return new Map();
+    const data = await res.json();
+    if (!Array.isArray(data)) return new Map();
+    trackFMP(1).catch(() => {});
+    // Key by fiscalDateEnding (YYYY-MM-DD) — matches EDGAR period end dates
+    const map = new Map();
+    for (const d of data) {
+      if (d.fiscalDateEnding) {
+        map.set(d.fiscalDateEnding, {
+          estimate:        d.epsEstimated        ?? null,
+          revenueActual:   d.revenue             ?? null,
+          revenueEstimate: d.revenueEstimated    ?? null,
+        });
+      }
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get('symbol')?.toUpperCase();
@@ -76,15 +107,29 @@ export async function GET(request) {
 
   const cik = await lookupCIK(symbol);
 
-  const [edgarRows, finnhubRows] = await Promise.all([
+  const [edgarRows, finnhubRows, fmpMap] = await Promise.all([
     cik ? fetchEdgar(cik) : Promise.resolve([]),
     fetchFinnhub(symbol),
+    fetchFMP(symbol),
   ]);
 
   // Merge: start with EDGAR, overlay Finnhub (which has estimates) for matching periods
   const merged = new Map();
   for (const row of edgarRows)   merged.set(row.period, row);
   for (const row of finnhubRows) merged.set(row.period, row); // Finnhub wins on overlap
+
+  // Fill estimate (and revenue fields) from FMP for quarters still missing an estimate
+  for (const [period, row] of merged) {
+    if (row.estimate === null && fmpMap.has(period)) {
+      const fmp = fmpMap.get(period);
+      merged.set(period, {
+        ...row,
+        estimate:        fmp.estimate,
+        revenueActual:   row.revenueActual   ?? fmp.revenueActual,
+        revenueEstimate: row.revenueEstimate ?? fmp.revenueEstimate,
+      });
+    }
+  }
 
   const results = [...merged.values()]
     .sort((a, b) => new Date(a.period) - new Date(b.period))
