@@ -43,6 +43,7 @@ export async function GET(request) {
           try {
             const analystData = await analystRes.json();
             // index 0 = next year's estimates (most forward period)
+            if (h.t === 'AMD') console.log('[valuation] FMP analyst-estimates AMD (raw):', JSON.stringify(analystData, null, 2));
             const forwardEPS = Array.isArray(analystData) ? (analystData[0]?.estimatedEpsAvg ?? null) : null;
             if (forwardEPS != null && forwardEPS !== 0 && fhPrice != null) {
               forwardPE = fhPrice / forwardEPS;
