@@ -192,11 +192,6 @@ export async function GET(request) {
 
     if (useFMP) trackFMP(useFMPCF ? 2 : 1).catch(() => {}); // 1 IS call + 1 CF call
 
-    // Temporary: log raw CF response for AMD to verify field names
-    if (ticker === 'AMD') {
-      console.log('[financials] AMD FMP CF raw (first entry):', JSON.stringify(fmpCF?.[0]));
-    }
-
     let revenue, grossProfit, netIncome, operatingIncome;
 
     if (useFMP) {
