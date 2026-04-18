@@ -425,7 +425,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker }) {
   const analystD  = data?.analyst?.find?.(a => a.ticker === ticker) ?? null;
   const valD      = data?.valuation?.find?.(v => v.ticker === ticker) ?? null;
   const insiders  = (data?.insider ?? []).slice(0, 4);
-  const earnHist  = (data?.earningsHist ?? []).slice(-6);
+  const earnHist  = (data?.earningsHist ?? []).slice(-6).reverse();
   const peersList = (data?.peers ?? []).slice(0, 5);
   const finD      = data?.financials ?? null;
   const newsList  = (data?.news ?? []).slice(0, 4);
