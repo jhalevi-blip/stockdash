@@ -113,6 +113,12 @@ export async function GET(request) {
     fetchFMP(symbol),
   ]);
 
+  if (symbol === 'AMD') {
+    console.log('[earnings-history] AMD EDGAR periods:', edgarRows.map(r => r.period));
+    console.log('[earnings-history] AMD Finnhub periods:', finnhubRows.map(r => r.period));
+    console.log('[earnings-history] AMD FMP fiscalDateEndings:', [...fmpMap.keys()]);
+  }
+
   // Merge: start with EDGAR, overlay Finnhub (which has estimates) for matching periods
   const merged = new Map();
   for (const row of edgarRows)   merged.set(row.period, row);
