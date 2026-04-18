@@ -87,13 +87,6 @@ function parseFileBuffer(buffer, filename) {
   // DeGiro account statement format: shares are embedded in "Acties" text ("Koop 10 @ 150,00 USD")
   const isDeGiroAccount = actiesCol !== -1 && boekingsbedragCol !== -1;
 
-  console.log(`[transactions] ${filename} columns:`, {
-    dateCol, symbolCol, productCol, actionCol, sharesCol,
-    priceCol, totalCol, orderIdCol, actiesCol, boekingsbedragCol, typeCol,
-    isDeGiroAccount,
-    headers: headers.map((h, i) => `${i}:${JSON.stringify(h)}`).join(' '),
-  });
-
   if (isDeGiroAccount ? dateCol === -1 : (dateCol === -1 || sharesCol === -1)) {
     throw new Error(
       `${filename}: could not detect required columns. Headers found: ${headers.filter(Boolean).join(', ')}`
@@ -320,7 +313,6 @@ export async function POST(request) {
       }
 
       fileStats.push({ name: file.name, txCount: added });
-      console.log(`[transactions] ${file.name}: ${added} txs (${txs.length - added} deduped)`);
     }
 
     if (!allTxs.length) {
@@ -329,20 +321,6 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-
-    console.log('[transactions] parsed sample:', JSON.stringify(
-      allTxs.slice(0, 10).map(t => ({
-        symbol: t.symbol, action: t.action, shares: t.shares, price: t.price, date: t.date,
-      }))
-    ));
-    // Per-symbol buy/sell summary for FIFO debugging
-    const bySymDbg = {};
-    for (const t of allTxs) {
-      if (!bySymDbg[t.symbol]) bySymDbg[t.symbol] = { buys: 0, sells: 0 };
-      if (t.action === 'buy') bySymDbg[t.symbol].buys += t.shares;
-      else bySymDbg[t.symbol].sells += t.shares;
-    }
-    console.log('[transactions] symbol summary:', JSON.stringify(bySymDbg));
 
     // Cash flows for client-side capitalAtStart recalculation on date changes
     const cashFlows = allTxs.map(tx => ({
@@ -372,13 +350,9 @@ export async function POST(request) {
       ? Math.round(positionsSinceStart.reduce((s, p) => s + p.pnl, 0) * 100) / 100
       : null;
 
-    console.log(`[transactions] total ${allTxs.length} txs → ${positions.length} closed, ${partialPositions.length} partial, P&L: ${totalPnl.toFixed(2)}, sinceStart: ${totalPnlSinceStart}, capitalAtStart: ${capitalAtStart}`);
-
     const totalDeposited  = Math.round(allDeposits.reduce((s, d)  => s + d.amountEur, 0) * 100) / 100;
     const totalDividends  = Math.round(allDividends.reduce((s, d) => s + d.amountEur, 0) * 100) / 100;
     const totalFees       = Math.round(allFees.reduce((s, d)      => s + d.amountEur, 0) * 100) / 100;
-
-    console.log(`[transactions] deposits: ${allDeposits.length} (€${totalDeposited}), dividends: ${allDividends.length} (€${totalDividends}), fees: ${allFees.length} (€${totalFees})`);
 
     return Response.json({
       positions,

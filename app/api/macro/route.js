@@ -12,12 +12,10 @@ async function fetchFearGreed() {
       cache: 'no-store',
     });
     const text = await r.text();
-    console.log('[macro] CNN F&G status:', r.status, '| body:', text.slice(0, 300));
     if (r.ok) {
       const data = JSON.parse(text);
       const fg = data?.fear_and_greed;
       if (fg?.score != null) {
-        console.log('[macro] CNN F&G success:', fg.score, fg.rating);
         return { score: fg.score, rating: fg.rating };
       }
     }
@@ -37,12 +35,10 @@ async function fetchFearGreed() {
         cache: 'no-store',
       });
       const text = await r.text();
-      console.log('[macro] RapidAPI F&G status:', r.status, '| body:', text.slice(0, 300));
       if (r.ok) {
         const data = JSON.parse(text);
         const now = data?.fgi?.now;
         if (now?.value != null) {
-          console.log('[macro] RapidAPI F&G success:', now.value, now.valueText);
           return { score: now.value, rating: now.valueText };
         }
       }
@@ -55,12 +51,10 @@ async function fetchFearGreed() {
   try {
     const r = await fetch('https://api.alternative.me/fng/', { cache: 'no-store' });
     const text = await r.text();
-    console.log('[macro] Alternative.me F&G status:', r.status, '| body:', text.slice(0, 300));
     if (r.ok) {
       const data = JSON.parse(text);
       const entry = data?.data?.[0];
       if (entry?.value != null) {
-        console.log('[macro] Alternative.me F&G success:', entry.value, entry.value_classification);
         return { score: Number(entry.value), rating: entry.value_classification };
       }
     }
@@ -102,7 +96,6 @@ async function fetchYahooQuote(encodedTicker) {
     const meta  = data?.chart?.result?.[0]?.meta;
     const price = meta?.regularMarketPrice ?? null;
     const prev  = meta?.chartPreviousClose ?? meta?.previousClose ?? null;
-    console.log(`[macro] fetchYahooQuote ${encodedTicker}: price=${price} prev=${prev}`);
     if (price == null) return null;
     const change    = prev != null ? price - prev : null;
     const changePct = change != null && prev ? (change / prev) * 100 : null;
@@ -131,7 +124,6 @@ export async function GET() {
           cache: 'no-store',
         });
         const text = await r.text();
-        console.log('[macro] VIX status:', r.status, '| body:', text.slice(0, 400));
         return JSON.parse(text);
       } catch(e) {
         console.error('[macro] VIX error:', e.message);
@@ -170,10 +162,8 @@ export async function GET() {
       if (fvx != null) treasury.year5  = fvx;
       if (tnx != null) treasury.year10 = tnx;
       if (tyx != null) treasury.year30 = tyx;
-      console.log('[macro] treasury merged FMP+Yahoo:', JSON.stringify(treasury));
     } else if (irx != null || fvx != null || tnx != null || tyx != null) {
       treasury = { month3: irx, year5: fvx, year10: tnx, year30: tyx };
-      console.log('[macro] treasury from Yahoo Finance only (no FMP key):', JSON.stringify(treasury));
     }
 
     const makeIndex = (d, symbol) => ({
@@ -192,8 +182,6 @@ export async function GET() {
     const vix = vixPrice != null
       ? { symbol: '^VIX', price: vixPrice, change: vixChange, changesPercentage: vixChangePct }
       : null;
-    console.log('[macro] VIX parsed:', JSON.stringify(vix));
-    console.log('[macro] Fear & Greed final:', JSON.stringify(fearGreed));
 
     return Response.json({
       indices: {
