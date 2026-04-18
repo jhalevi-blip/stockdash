@@ -704,7 +704,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker }) {
                 ))}
               </div>
             </div>
-          } loading={loading}>
+          } loading={loading} span={2}>
             {finPeriod === 'Annual' ? (
               finD?.revenue?.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -763,7 +763,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker }) {
                       <tr>
                         <th style={{ color: 'var(--text-muted)', fontWeight: 500, textAlign: 'left', padding: '2px 4px', whiteSpace: 'nowrap' }}></th>
                         {rows.map(r => (
-                          <th key={r.label} style={{ color: 'var(--text-secondary)', fontWeight: 600, textAlign: 'right', padding: '2px 4px', whiteSpace: 'nowrap' }}>{r.label}</th>
+                          <th key={r.label} style={{ color: 'var(--text-secondary)', fontWeight: 600, textAlign: 'right', padding: '2px 4px', whiteSpace: 'nowrap' }}>{r.label.replace(/(\d{4})/, y => `'${y.slice(2)}`)}</th>
                         ))}
                       </tr>
                     </thead>
