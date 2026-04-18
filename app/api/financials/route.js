@@ -1,7 +1,8 @@
 // app/api/financials/route.js
-// Annual: SEC EDGAR XBRL API. Quarterly: FMP income-statement + EDGAR for cash-flow items.
+// Annual: SEC EDGAR XBRL API. Quarterly: FMP income-statement + FMP cash-flow-statement.
 
 export const revalidate = 86400;
+export const dynamic = 'force-dynamic';
 
 import { trackFMP } from '@/lib/apiUsage';
 
@@ -58,6 +59,19 @@ async function fetchConcept(cik, conceptTag) {
 async function fetchFMPQuarterly(ticker, fmpKey) {
   const res = await fetch(
     `https://financialmodelingprep.com/stable/income-statement?symbol=${ticker}&period=quarter&limit=8&apikey=${fmpKey}`,
+    { next: { revalidate: 86400 } }
+  );
+  if (!res.ok) return null;
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchFMPCashFlow(ticker, fmpKey) {
+  const res = await fetch(
+    `https://financialmodelingprep.com/stable/cash-flow-statement?symbol=${ticker}&period=quarter&limit=8&apikey=${fmpKey}`,
     { next: { revalidate: 86400 } }
   );
   if (!res.ok) return null;
@@ -156,20 +170,32 @@ export async function GET(request) {
     );
   }
 
-  // ── Quarterly: FMP income-statement + EDGAR for cash-flow items ───────────
+  // ── Quarterly: FMP income-statement + FMP cash-flow-statement ────────────
+  // EDGAR is NOT used for quarterly cash flow — EDGAR reports CF cumulatively
+  // (YTD) so only Q1 passes the 60-105 day span filter. FMP returns point-in-time
+  // quarterly figures for all periods.
   if (period === 'quarterly') {
     const fmpKey = process.env.FMP_API_KEY;
-    const cik = await lookupCIK(ticker);
+    // CIK still needed as EDGAR fallback for income statement if FMP key absent
+    const cik = (!fmpKey) ? await lookupCIK(ticker) : null;
 
-    const [fmpStmts, operatingCFData, capexData] = await Promise.all([
-      fmpKey ? fetchFMPQuarterly(ticker, fmpKey) : Promise.resolve(null),
-      cik ? fetchConcept(cik, CONCEPTS.operatingCF) : Promise.resolve(null),
-      cik ? fetchConcept(cik, CONCEPTS.capex)       : Promise.resolve(null),
+    const [fmpStmts, fmpCF, edgarCFData, edgarCapexData] = await Promise.all([
+      fmpKey ? fetchFMPQuarterly(ticker, fmpKey)  : Promise.resolve(null),
+      fmpKey ? fetchFMPCashFlow(ticker, fmpKey)   : Promise.resolve(null),
+      // EDGAR CF only fetched as fallback when no FMP key
+      (!fmpKey && cik) ? fetchConcept(cik, CONCEPTS.operatingCF) : Promise.resolve(null),
+      (!fmpKey && cik) ? fetchConcept(cik, CONCEPTS.capex)       : Promise.resolve(null),
     ]);
 
-    const useFMP = Array.isArray(fmpStmts) && fmpStmts.length > 0;
+    const useFMP   = Array.isArray(fmpStmts) && fmpStmts.length > 0;
+    const useFMPCF = Array.isArray(fmpCF)    && fmpCF.length    > 0;
 
-    if (useFMP) trackFMP(1).catch(() => {});
+    if (useFMP) trackFMP(useFMPCF ? 2 : 1).catch(() => {}); // 1 IS call + 1 CF call
+
+    // Temporary: log raw CF response for AMD to verify field names
+    if (ticker === 'AMD') {
+      console.log('[financials] AMD FMP CF raw (first entry):', JSON.stringify(fmpCF?.[0]));
+    }
 
     let revenue, grossProfit, netIncome, operatingIncome;
 
@@ -179,15 +205,16 @@ export async function GET(request) {
       netIncome       = fmpToQuarterly(fmpStmts, 'netIncome');
       operatingIncome = fmpToQuarterly(fmpStmts, 'operatingIncome');
     } else {
-      // EDGAR fallback for income statement fields
+      // EDGAR fallback for income statement fields (no FMP key)
+      const edgarCik = cik ?? await lookupCIK(ticker);
       const [revenueData, revenueFb1Data, revenueFb2Data, netIncomeData, grossProfitData, operatingIncomeData] =
-        cik ? await Promise.all([
-          fetchConcept(cik, CONCEPTS.revenue),
-          fetchConcept(cik, CONCEPTS.revenueFb1),
-          fetchConcept(cik, CONCEPTS.revenueFb2),
-          fetchConcept(cik, CONCEPTS.netIncome),
-          fetchConcept(cik, CONCEPTS.grossProfit),
-          fetchConcept(cik, CONCEPTS.operatingIncome),
+        edgarCik ? await Promise.all([
+          fetchConcept(edgarCik, CONCEPTS.revenue),
+          fetchConcept(edgarCik, CONCEPTS.revenueFb1),
+          fetchConcept(edgarCik, CONCEPTS.revenueFb2),
+          fetchConcept(edgarCik, CONCEPTS.netIncome),
+          fetchConcept(edgarCik, CONCEPTS.grossProfit),
+          fetchConcept(edgarCik, CONCEPTS.operatingIncome),
         ]) : [null, null, null, null, null, null];
 
       revenue = extractQuarterly(revenueData);
@@ -198,6 +225,17 @@ export async function GET(request) {
       operatingIncome = extractQuarterly(operatingIncomeData);
     }
 
+    // Cash flow: FMP point-in-time quarterly figures preferred over EDGAR YTD cumulative.
+    // FMP capitalExpenditure is typically negative (cash outflow) — the UI computes
+    // FCF = operatingCF - capex, so a negative capex value is stored as-is and the
+    // subtraction cancels out correctly: e.g. 500 - (-200) = 700. Verify via AMD log.
+    const operatingCF = useFMPCF
+      ? fmpToQuarterly(fmpCF, 'operatingCashFlow')
+      : extractQuarterly(edgarCFData);
+    const capex = useFMPCF
+      ? fmpToQuarterly(fmpCF, 'capitalExpenditure')
+      : extractQuarterly(edgarCapexData);
+
     return Response.json({
       ticker,
       period: 'quarterly',
@@ -205,8 +243,8 @@ export async function GET(request) {
       grossProfit,
       netIncome,
       operatingIncome,
-      operatingCF: extractQuarterly(operatingCFData),
-      capex:       extractQuarterly(capexData),
+      operatingCF,
+      capex,
     }, { headers: { 'Cache-Control': 's-maxage=21600, stale-while-revalidate=3600' } });
   }
 
