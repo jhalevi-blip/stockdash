@@ -24,9 +24,9 @@ import { getSupabaseAdmin } from './supabase';
 
 // ── Thresholds ────────────────────────────────────────────────────────────────
 export const FINNHUB_LIMIT = 60;    // per minute
-export const FMP_LIMIT     = 250;   // per day
+export const FMP_LIMIT     = 5000;  // per day
 export const FINNHUB_ALERT = Math.floor(FINNHUB_LIMIT * 0.8); // 48
-export const FMP_ALERT     = Math.floor(FMP_LIMIT     * 0.8); // 200
+export const FMP_ALERT     = 4000;
 
 // ── In-memory Finnhub per-minute window (per Vercel instance) ─────────────────
 const fhWindow = { count: 0, windowStart: Date.now() };
