@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 const SYMBOL = 'NVDA';
 const CACHE_HEADER = { 'Cache-Control': 's-maxage=86400, stale-while-revalidate=3600' };
 

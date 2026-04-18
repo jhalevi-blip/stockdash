@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 export async function POST(request) {
   const body = await request.json();
   const key = process.env.ANTHROPIC_API_KEY;

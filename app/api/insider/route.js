@@ -1,6 +1,8 @@
 import { parseTickers } from '@/lib/holdings';
 import { trackFinnhub } from '@/lib/apiUsage';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const holdings = parseTickers(searchParams);
@@ -13,7 +15,7 @@ export async function GET(request) {
 
   const results = await Promise.all(
     holdings.map(h =>
-      fetch(`https://finnhub.io/api/v1/stock/insider-transactions?symbol=${h.t}&token=${key}`)
+      fetch(`https://finnhub.io/api/v1/stock/insider-transactions?symbol=${h.t}&token=${key}`, { next: { revalidate: 86400 } })
         .then(r => r.json())
         .then(d => (d.data || []).slice(0, 3).map(t => ({
           ticker: h.t,

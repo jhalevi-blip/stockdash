@@ -30,6 +30,8 @@ function getISOWeek(date: Date): string {
   return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
 }
 
+export const dynamic = 'force-dynamic';
+
 let memCache: { week: string; data: MostTradedEntry[] } | null = null;
 
 export async function GET() {
@@ -46,8 +48,8 @@ export async function GET() {
   const results = await Promise.all(
     TICKERS.map(async (symbol) => {
       const [quoteRes, metricRes] = await Promise.all([
-        fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`),
-        fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${symbol}&metric=all&token=${apiKey}`),
+        fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`, { next: { revalidate: 3600 } }),
+        fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${symbol}&metric=all&token=${apiKey}`, { next: { revalidate: 3600 } }),
       ]);
 
       const quote = await quoteRes.json();
