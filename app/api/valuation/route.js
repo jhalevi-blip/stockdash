@@ -24,7 +24,7 @@ export async function GET(request) {
           fmpKey
             ? fetch(
                 `https://financialmodelingprep.com/stable/analyst-estimates?symbol=${h.t}&limit=2&apikey=${fmpKey}`,
-                { next: { revalidate: 86400 } }
+                { next: { revalidate: 3600 } }
               )
             : Promise.resolve(null),
         ]);
