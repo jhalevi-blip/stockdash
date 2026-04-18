@@ -1,7 +1,7 @@
 import { parseTickers } from '@/lib/holdings';
 import { trackFinnhub, trackFMP } from '@/lib/apiUsage';
 
-export const dynamic = 'force-dynamic'; // ensure function body always executes
+export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -21,16 +21,16 @@ export async function GET(request) {
         const [metricRes, quoteRes, analystRes] = await Promise.all([
           fetch(
             `https://finnhub.io/api/v1/stock/metric?symbol=${h.t}&metric=all&token=${key}`,
-            { cache: 'no-store' }
+            { next: { revalidate: 3600 } }
           ),
           fetch(
             `https://finnhub.io/api/v1/quote?symbol=${h.t}&token=${key}`,
-            { cache: 'no-store' }
+            { next: { revalidate: 60 } }
           ),
           fmpKey
             ? fetch(
                 `https://financialmodelingprep.com/stable/analyst-estimates?symbol=${h.t}&period=annual&limit=5&apikey=${fmpKey}`,
-                { cache: 'no-store' }
+                { next: { revalidate: 86400 } }
               )
             : Promise.resolve(null),
         ]);
@@ -39,14 +39,13 @@ export async function GET(request) {
         const m = finnhubData?.metric;
 
         const quoteData = await quoteRes.json();
-        const currentPrice = quoteData?.c ?? null; // c = current price from Finnhub quote
+        const currentPrice = quoteData?.c ?? null;
 
         let forwardPE = null;
-        let analystData = null;
 
         if (analystRes?.ok) {
           try {
-            analystData = await analystRes.json();
+            const analystData = await analystRes.json();
             if (Array.isArray(analystData)) {
               const today = new Date().toISOString().slice(0, 10);
               const sorted = [...analystData].sort((a, b) => a.date.localeCompare(b.date));
@@ -63,13 +62,6 @@ export async function GET(request) {
         if (forwardPE === null && currentPrice != null && m?.epsForwardTTM != null && m.epsForwardTTM !== 0) {
           forwardPE = currentPrice / m.epsForwardTTM;
         }
-
-        if (h.t === 'AMD') console.log('[valuation] AMD —', JSON.stringify({
-          currentPrice,
-          epsForwardTTM: m?.epsForwardTTM,
-          analystData,
-          forwardPE,
-        }));
 
         return {
           ticker: h.t,
@@ -93,7 +85,5 @@ export async function GET(request) {
     })
   );
 
-  return Response.json(results, {
-    headers: { 'Cache-Control': 'no-store' }
-  });
+  return Response.json(results);
 }
