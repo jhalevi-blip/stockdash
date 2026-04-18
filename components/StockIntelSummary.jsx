@@ -693,7 +693,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker }) {
               finD?.revenue?.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Revenue</div>
-                  {finD.revenue.slice(-4).map(r => (
+                  {finD.revenue.slice(-6).map(r => (
                     <div key={r.year} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
                       <span style={{ color: 'var(--text-secondary)' }}>{r.year}</span>
                       <span style={{ color: 'var(--text-primary)' }}>{fmtB(r.value)}</span>
@@ -702,7 +702,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker }) {
                   {finD.netIncome?.length > 0 && (
                     <>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Net Income</div>
-                      {finD.netIncome.slice(-2).map(r => (
+                      {finD.netIncome.slice(-6).map(r => (
                         <div key={r.year} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
                           <span style={{ color: 'var(--text-secondary)' }}>{r.year}</span>
                           <span style={{ color: clr(r.value) }}>{fmtB(r.value)}</span>

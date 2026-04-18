@@ -50,7 +50,7 @@ async function fetchFinnhub(symbol) {
     const key = process.env.FINNHUB_API_KEY;
     if (!key) return [];
     const res = await fetch(
-      `https://finnhub.io/api/v1/stock/earnings?symbol=${symbol}&limit=4&token=${key}`,
+      `https://finnhub.io/api/v1/stock/earnings?symbol=${symbol}&limit=12&token=${key}`,
       { next: { revalidate: 86400 } }
     );
     if (!res.ok) return [];

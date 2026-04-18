@@ -1,7 +1,9 @@
 // app/api/financials/route.js
-// Fetches annual financial data from SEC EDGAR XBRL API (free, no key needed)
+// Annual: SEC EDGAR XBRL API. Quarterly: FMP income-statement + EDGAR for cash-flow items.
 
-export const revalidate = 86400; // cache entire route for 24 hours
+export const revalidate = 86400;
+
+import { trackFMP } from '@/lib/apiUsage';
 
 async function lookupCIK(ticker) {
   const res = await fetch('https://www.sec.gov/files/company_tickers.json', {
@@ -51,6 +53,32 @@ async function fetchConcept(cik, conceptTag) {
   } catch {
     return null;
   }
+}
+
+async function fetchFMPQuarterly(ticker, fmpKey) {
+  const res = await fetch(
+    `https://financialmodelingprep.com/stable/income-statement?symbol=${ticker}&period=quarter&limit=8&apikey=${fmpKey}`,
+    { next: { revalidate: 86400 } }
+  );
+  if (!res.ok) return null;
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function fmpToQuarterly(stmts, field) {
+  if (!Array.isArray(stmts) || stmts.length === 0) return [];
+  return stmts
+    .filter(s => s[field] != null)
+    .map(s => {
+      const endDate = new Date(s.date);
+      const month = endDate.getMonth() + 1;
+      const q = month <= 3 ? 'Q1' : month <= 6 ? 'Q2' : month <= 9 ? 'Q3' : 'Q4';
+      return { quarter: `${q} ${endDate.getFullYear()}`, end: s.date, value: s[field] };
+    })
+    .sort((a, b) => new Date(b.end) - new Date(a.end));
 }
 
 function extractQuarterly(data, n = 5) {
@@ -128,6 +156,61 @@ export async function GET(request) {
     );
   }
 
+  // ── Quarterly: FMP income-statement + EDGAR for cash-flow items ───────────
+  if (period === 'quarterly') {
+    const fmpKey = process.env.FMP_API_KEY;
+    const cik = await lookupCIK(ticker);
+
+    const [fmpStmts, operatingCFData, capexData] = await Promise.all([
+      fmpKey ? fetchFMPQuarterly(ticker, fmpKey) : Promise.resolve(null),
+      cik ? fetchConcept(cik, CONCEPTS.operatingCF) : Promise.resolve(null),
+      cik ? fetchConcept(cik, CONCEPTS.capex)       : Promise.resolve(null),
+    ]);
+
+    const useFMP = Array.isArray(fmpStmts) && fmpStmts.length > 0;
+
+    if (useFMP) trackFMP(1).catch(() => {});
+
+    let revenue, grossProfit, netIncome, operatingIncome;
+
+    if (useFMP) {
+      revenue         = fmpToQuarterly(fmpStmts, 'revenue');
+      grossProfit     = fmpToQuarterly(fmpStmts, 'grossProfit');
+      netIncome       = fmpToQuarterly(fmpStmts, 'netIncome');
+      operatingIncome = fmpToQuarterly(fmpStmts, 'operatingIncome');
+    } else {
+      // EDGAR fallback for income statement fields
+      const [revenueData, revenueFb1Data, revenueFb2Data, netIncomeData, grossProfitData, operatingIncomeData] =
+        cik ? await Promise.all([
+          fetchConcept(cik, CONCEPTS.revenue),
+          fetchConcept(cik, CONCEPTS.revenueFb1),
+          fetchConcept(cik, CONCEPTS.revenueFb2),
+          fetchConcept(cik, CONCEPTS.netIncome),
+          fetchConcept(cik, CONCEPTS.grossProfit),
+          fetchConcept(cik, CONCEPTS.operatingIncome),
+        ]) : [null, null, null, null, null, null];
+
+      revenue = extractQuarterly(revenueData);
+      if (revenue.length === 0) revenue = extractQuarterly(revenueFb1Data);
+      if (revenue.length === 0) revenue = extractQuarterly(revenueFb2Data);
+      grossProfit     = extractQuarterly(grossProfitData);
+      netIncome       = extractQuarterly(netIncomeData);
+      operatingIncome = extractQuarterly(operatingIncomeData);
+    }
+
+    return Response.json({
+      ticker,
+      period: 'quarterly',
+      revenue,
+      grossProfit,
+      netIncome,
+      operatingIncome,
+      operatingCF: extractQuarterly(operatingCFData),
+      capex:       extractQuarterly(capexData),
+    }, { headers: { 'Cache-Control': 's-maxage=21600, stale-while-revalidate=3600' } });
+  }
+
+  // ── Annual: EDGAR only ────────────────────────────────────────────────────
   const cik = await lookupCIK(ticker);
   if (!cik) {
     return Response.json(
@@ -166,30 +249,12 @@ export async function GET(request) {
       fetchConcept(cik, CONCEPTS.operatingIncome),
     ]);
 
-    if (period === 'quarterly') {
-      let revenue = extractQuarterly(revenueData);
-      if (revenue.length === 0) revenue = extractQuarterly(revenueFb1Data);
-      if (revenue.length === 0) revenue = extractQuarterly(revenueFb2Data);
-
-      return Response.json({
-        ticker,
-        cik,
-        period: 'quarterly',
-        revenue,
-        grossProfit:     extractQuarterly(grossProfitData),
-        netIncome:       extractQuarterly(netIncomeData),
-        operatingIncome: extractQuarterly(operatingIncomeData),
-        operatingCF:     extractQuarterly(operatingCFData),
-        capex:           extractQuarterly(capexData),
-      }, { headers: { 'Cache-Control': 's-maxage=21600, stale-while-revalidate=3600' } });
-    }
-
     // Revenue: try primary tag first, then fallbacks
     let revenue = extractAnnual(revenueData);
     if (revenue.length === 0) revenue = extractAnnual(revenueFb1Data);
     if (revenue.length === 0) revenue = extractAnnual(revenueFb2Data);
 
-    const result = {
+    return Response.json({
       ticker,
       cik,
       revenue,
@@ -201,9 +266,7 @@ export async function GET(request) {
       equity:          extractAnnual(equityData),
       operatingCF:     extractAnnual(operatingCFData),
       capex:           extractAnnual(capexData),
-    };
-
-    return Response.json(result, {
+    }, {
       headers: { 'Cache-Control': 's-maxage=21600, stale-while-revalidate=3600' },
     });
   } catch (err) {
