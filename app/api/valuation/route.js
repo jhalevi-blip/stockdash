@@ -1,6 +1,8 @@
 import { parseTickers } from '@/lib/holdings';
 import { trackFinnhub, trackFMP } from '@/lib/apiUsage';
 
+export const dynamic = 'force-dynamic'; // ensure function body always executes
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const holdings = parseTickers(searchParams);
@@ -10,16 +12,20 @@ export async function GET(request) {
   if (!key) return Response.json({ error: 'Missing API key' }, { status: 500 });
 
   const fmpKey = process.env.FMP_API_KEY;
-  trackFinnhub(holdings.length); // 1 call per ticker
+  trackFinnhub(holdings.length * 2); // metric + quote per ticker
   if (fmpKey) trackFMP(holdings.length).catch(() => {}); // 1 call per ticker
 
   const results = await Promise.all(
     holdings.map(async h => {
       try {
-        const [finnhubRes, analystRes] = await Promise.all([
+        const [metricRes, quoteRes, analystRes] = await Promise.all([
           fetch(
             `https://finnhub.io/api/v1/stock/metric?symbol=${h.t}&metric=all&token=${key}`,
-            { next: { revalidate: 86400 } }
+            { cache: 'no-store' }
+          ),
+          fetch(
+            `https://finnhub.io/api/v1/quote?symbol=${h.t}&token=${key}`,
+            { cache: 'no-store' }
           ),
           fmpKey
             ? fetch(
@@ -29,32 +35,36 @@ export async function GET(request) {
             : Promise.resolve(null),
         ]);
 
-        const finnhubData = await finnhubRes.json();
+        const finnhubData = await metricRes.json();
         const m = finnhubData?.metric;
 
-        // Derive current price from Finnhub TTM P/E × TTM EPS
-        const fhPrice = (m?.peBasicExclExtraTTM != null && m?.epsBasicExclExtraTTM != null && m.epsBasicExclExtraTTM !== 0)
-          ? m.peBasicExclExtraTTM * m.epsBasicExclExtraTTM
-          : null;
+        const quoteData = await quoteRes.json();
+        const currentPrice = quoteData?.c ?? null; // c = current price from Finnhub quote
 
         let forwardPE = null;
+        let analystData = null;
 
         if (analystRes?.ok) {
           try {
-            const analystData = await analystRes.json();
-            // index 0 = next year's estimates (most forward period)
-            if (h.t === 'AMD') console.log('[valuation] FMP analyst-estimates AMD (raw):', JSON.stringify(analystData, null, 2));
+            analystData = await analystRes.json();
             const forwardEPS = Array.isArray(analystData) ? (analystData[0]?.estimatedEpsAvg ?? null) : null;
-            if (forwardEPS != null && forwardEPS !== 0 && fhPrice != null) {
-              forwardPE = fhPrice / forwardEPS;
+            if (forwardEPS != null && forwardEPS !== 0 && currentPrice != null) {
+              forwardPE = currentPrice / forwardEPS;
             }
           } catch {}
         }
 
         // Fallback: Finnhub epsForwardTTM
-        if (forwardPE === null && fhPrice != null && m?.epsForwardTTM != null && m.epsForwardTTM !== 0) {
-          forwardPE = fhPrice / m.epsForwardTTM;
+        if (forwardPE === null && currentPrice != null && m?.epsForwardTTM != null && m.epsForwardTTM !== 0) {
+          forwardPE = currentPrice / m.epsForwardTTM;
         }
+
+        if (h.t === 'AMD') console.log('[valuation] AMD —', JSON.stringify({
+          currentPrice,
+          epsForwardTTM: m?.epsForwardTTM,
+          analystData,
+          forwardPE,
+        }));
 
         return {
           ticker: h.t,
