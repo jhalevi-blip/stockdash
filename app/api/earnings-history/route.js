@@ -11,6 +11,18 @@ function toQuarterKey(dateStr) {
   return `${year}-Q${quarter}`;
 }
 
+// FMP stable/earnings uses the earnings announcement date, not the fiscal period end.
+// US large caps must file 10-Q within 40 days of quarter-end, so shifting back 45 days
+// reliably maps the announcement back into its reporting quarter.
+function fmpAnnouncementToQuarterKey(dateStr) {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() - 45);
+  const year = d.getUTCFullYear();
+  const month = d.getUTCMonth() + 1;
+  const quarter = Math.ceil(month / 3);
+  return `${year}-Q${quarter}`;
+}
+
 // "2025-Q2" → "Q2 2025"
 function quarterKeyToDisplay(key) {
   const [year, q] = key.split('-');
@@ -104,7 +116,7 @@ async function fetchFMP(symbol) {
     const map = new Map();
     for (const d of data) {
       if (!d.date) continue;
-      const qk = toQuarterKey(d.date);
+      const qk = fmpAnnouncementToQuarterKey(d.date);
       if (!map.has(qk)) { // first entry per quarter wins
         map.set(qk, {
           period:          d.date,
@@ -134,12 +146,6 @@ export async function GET(request) {
     fetchFinnhub(symbol),
     fetchFMP(symbol),
   ]);
-
-  if (symbol === 'AMD') {
-    console.log('[earnings-history] AMD EDGAR (last 5):', JSON.stringify(edgarRows.slice(-5)));
-    console.log('[earnings-history] AMD Finnhub (last 5):', JSON.stringify(finnhubRows.slice(-5)));
-    console.log('[earnings-history] AMD FMP (last 5):', JSON.stringify([...fmpMap.entries()].slice(-5)));
-  }
 
   // Build index maps keyed by quarter
   const edgarByQ   = new Map(edgarRows.map(r => [r.quarterKey, r]));
