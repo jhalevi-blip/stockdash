@@ -33,11 +33,22 @@ export async function GET(request) {
         const m = finnhubData?.metric;
 
         let fmpForwardPE = null;
+        let fmpPrice     = null;
         if (fmpRes?.ok) {
           try {
             const fmpData = await fmpRes.json();
-            fmpForwardPE = Array.isArray(fmpData) ? (fmpData[0]?.forwardPE ?? null) : null;
+            const km = Array.isArray(fmpData) ? fmpData[0] : null;
+            fmpForwardPE = km?.forwardPE ?? null;
+            fmpPrice     = km?.price     ?? null;
+            // Fallback 1: price / forwardEPS from FMP key-metrics
+            if (fmpForwardPE === null && km?.forwardEPS != null && fmpPrice != null && km.forwardEPS !== 0) {
+              fmpForwardPE = fmpPrice / km.forwardEPS;
+            }
           } catch {}
+        }
+        // Fallback 2: price / Finnhub epsForwardTTM
+        if (fmpForwardPE === null && fmpPrice != null && m?.epsForwardTTM != null && m.epsForwardTTM !== 0) {
+          fmpForwardPE = fmpPrice / m.epsForwardTTM;
         }
 
         return {
