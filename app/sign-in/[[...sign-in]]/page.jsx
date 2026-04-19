@@ -47,6 +47,7 @@ export default function SignInPage() {
             headerTitle: { color: '#e6edf3' },
             headerSubtitle: { color: '#8b949e' },
             formButtonPrimary: { backgroundColor: '#1f6feb', fontSize: '13px', fontWeight: 600 },
+            footerActionText: { color: '#8b949e' },
             footerActionLink: { color: '#58a6ff' },
           },
         }}
