@@ -8,7 +8,7 @@ import PortfolioAISummary from '@/components/PortfolioAISummary';
 import DemoPrompt from '@/components/DemoPrompt';
 import DashboardTour from '@/components/DashboardTour';
 import { saveUserHoldings } from '@/lib/holdingsStorage';
-import { startDemo } from '@/lib/startDemo';
+import { startDemo, WELCOME_TICKERS } from '@/lib/startDemo';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
@@ -20,14 +20,6 @@ const fmtB = (n) => {
   if (abs >= 1e6)  return (n < 0 ? '−' : '') + '$' + (abs / 1e6).toFixed(0) + 'M';
   return '$' + n.toLocaleString();
 };
-
-const SAMPLE_HOLDINGS = [
-  { t: 'NVDA', s: 50,  c: 133.67 },
-  { t: 'TSLA', s: 30,  c: 247.08 },
-  { t: 'AAPL', s: 20,  c: 223.19 },
-  { t: 'AMZN', s: 15,  c: 196.35 },
-  { t: 'AMD',  s: 10,  c: 96.46  },
-];
 
 function getLocalHoldings() {
   try {
@@ -56,7 +48,7 @@ export default function DashboardPage() {
   const [sortField,      setSortField]      = useState(null);
   const [sortDir,        setSortDir]        = useState('desc');
   const [spyChgPct,      setSpyChgPct]      = useState(null);
-  const [sampleBanner,   setSampleBanner]   = useState(false);
+
   const [cash,           setCash]           = useState(null);   // { amount, currency }
   const [eurUsd,         setEurUsd]         = useState(1);
   const { user, isLoaded, isSignedIn } = useUser();
@@ -66,13 +58,11 @@ export default function DashboardPage() {
   // Auto-start demo for anonymous visitors (e.g. arriving from Google)
   // Waits for Clerk to settle so we never misfire against a signed-in session.
   useEffect(() => {
-    console.log('[auto-demo] effect fired, isLoaded=' + isLoaded + ', isSignedIn=' + isSignedIn + ', stockdash_demo=' + localStorage.getItem('stockdash_demo'));
-    if (!isLoaded) { console.log('[auto-demo] skipped because: isLoaded=false'); return; }
-    if (isSignedIn) { console.log('[auto-demo] skipped because: isSignedIn=true'); return; }
-    if (localStorage.getItem('stockdash_demo') === 'true') { console.log('[auto-demo] skipped because: stockdash_demo already set'); return; }
-    if (localStorage.getItem('stockdash_tour_done')) { console.log('[auto-demo] skipped because: stockdash_tour_done set'); return; }
-    if (localStorage.getItem('stockdash_demo_dismissed')) { console.log('[auto-demo] skipped because: stockdash_demo_dismissed set'); return; }
-    console.log('[auto-demo] calling startDemo');
+    if (!isLoaded) return;
+    if (isSignedIn) return;
+    if (localStorage.getItem('stockdash_demo') === 'true') return;
+    if (localStorage.getItem('stockdash_tour_done')) return;
+    if (localStorage.getItem('stockdash_demo_dismissed')) return;
     startDemo('/dashboard');
   }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -96,8 +86,7 @@ export default function DashboardPage() {
     const cashCcy = localStorage.getItem('stockdash_cash_currency') || 'USD';
     setCash(cashAmt > 0 ? { amount: cashAmt, currency: cashCcy } : null);
 
-    const DEMO_SHARES    = [50, 30, 20, 15, 10];
-    const DEMO_FALLBACK  = ['AAPL', 'NVDA', 'TSLA', 'AMZN', 'MSFT'];
+    const { tickers: DEMO_FALLBACK, shares: DEMO_SHARES } = WELCOME_TICKERS;
 
     if (localStorage.getItem('stockdash_demo') === 'true') {
       (async () => {
@@ -156,7 +145,6 @@ export default function DashboardPage() {
     }
 
     const localAtLoad = getLocalHoldings();
-    console.log('[dashboard] localStorage holdings at load:', JSON.stringify(localAtLoad));
     fetch('/api/portfolio')
       .then(r => r.json())
       .then(data => {
@@ -167,20 +155,9 @@ export default function DashboardPage() {
         } else if (data.signedIn && data.holdings?.length) {
           h = data.holdings;
           saveUserHoldings(userIdRef.current, h);
-        } else if (data.signedIn) {
-          // First-time signed-in user with no portfolio — pre-fill with sample
-          h = SAMPLE_HOLDINGS;
-          saveUserHoldings(userIdRef.current, h);
-          localStorage.setItem('stockdash_sample_portfolio', 'true');
-          fetch('/api/portfolio', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ holdings: h }),
-          }).catch(() => {});
         } else {
           h = [];
         }
-        if (localStorage.getItem('stockdash_sample_portfolio') === 'true') setSampleBanner(true);
 
         setHoldings(h);
         saveUserHoldings(userIdRef.current, h);
@@ -207,6 +184,8 @@ export default function DashboardPage() {
   }, [loadChart]);
 
   useEffect(() => {
+    // Clean up stale flag from the old sample-portfolio injection (pre-refactor)
+    localStorage.removeItem('stockdash_sample_portfolio');
     fetchDashboard();
     window.addEventListener('portfolio-saved', fetchDashboard);
     return () => window.removeEventListener('portfolio-saved', fetchDashboard);
@@ -287,7 +266,31 @@ export default function DashboardPage() {
 
   if (!holdings.length) return (
     <main style={{ padding: '20px 24px' }}>
-      <DemoPrompt message="No holdings found" />
+      {isSignedIn ? (
+        <div style={{
+          maxWidth: 520,
+          margin: '80px auto',
+          padding: '32px',
+          textAlign: 'center',
+          background: 'var(--bg-card)',
+          borderRadius: 12,
+          border: '1px solid var(--border-color)',
+        }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
+          <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 12, color: 'var(--text-primary)' }}>
+            Welcome to StockDashes
+          </h2>
+          <p style={{ color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 24 }}>
+            Add your portfolio to see live P&amp;L, earnings calendars,
+            insider transactions, and analyst targets for your holdings.
+          </p>
+          <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+            → Click <strong style={{ color: 'var(--text-primary)' }}>Edit Portfolio</strong> in the top right to get started.
+          </p>
+        </div>
+      ) : (
+        <DemoPrompt message="No holdings found" />
+      )}
     </main>
   );
 
@@ -295,29 +298,6 @@ export default function DashboardPage() {
     <main style={{ padding: '20px 24px' }}>
 
       <DashboardTour run={tourRun} onStop={() => setTourRun(false)} />
-
-      {sampleBanner && (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.25)',
-          borderRadius: 8, padding: '10px 16px', marginBottom: 16, gap: 12,
-        }}>
-          <span style={{ fontSize: 13, color: '#22d3ee' }}>
-            This is a sample portfolio — edit it to add your own holdings
-          </span>
-          <button
-            onClick={() => {
-              setSampleBanner(false);
-              localStorage.removeItem('stockdash_sample_portfolio');
-            }}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: '#22d3ee', fontSize: 18, lineHeight: 1, padding: '0 4px', flexShrink: 0,
-            }}
-            aria-label="Dismiss"
-          >×</button>
-        </div>
-      )}
 
       <DashboardSummary holdings={holdings} rows={rows} earnings={earnings} news={news}
         onMacro={m => setSpyChgPct(m?.indices?.SPY?.changesPercentage ?? null)} />

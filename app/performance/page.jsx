@@ -6,13 +6,13 @@ import {
 } from 'recharts';
 import DemoPrompt from '@/components/DemoPrompt';
 import TransactionUpload from '@/components/TransactionUpload';
+import { WELCOME_TICKERS } from '@/lib/startDemo';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
 const clr  = (n) => n == null ? 'var(--text-secondary)' : n >= 0 ? 'var(--positive)' : 'var(--negative)';
 
-const DEMO_SHARES   = [50, 30, 20, 15, 10];
-const DEMO_FALLBACK = ['AAPL', 'NVDA', 'TSLA', 'AMZN', 'MSFT'];
+const { tickers: DEMO_FALLBACK, shares: DEMO_SHARES } = WELCOME_TICKERS;
 
 function getLocalHoldings() {
   try {
