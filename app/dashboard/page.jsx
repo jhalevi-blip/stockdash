@@ -145,17 +145,21 @@ export default function DashboardPage() {
     }
 
     const localAtLoad = getLocalHoldings();
+    console.log('[dashboard] fetchDashboard (signed-in path): localAtLoad=', localAtLoad.map(h=>h.t), '| userId=', userIdRef.current);
     fetch('/api/portfolio')
       .then(r => r.json())
       .then(data => {
         let h;
+        console.log('[dashboard] /api/portfolio response: signedIn=' + data.signedIn + ', holdingsCount=' + (data.holdings?.length ?? 0));
         if (localAtLoad.length) {
-          // localStorage is source of truth (updated by Edit Portfolio)
+          console.log('[dashboard] using localAtLoad as source of truth:', localAtLoad.map(h=>h.t));
           h = localAtLoad;
         } else if (data.signedIn && data.holdings?.length) {
+          console.log('[dashboard] using Supabase holdings:', data.holdings.map(h=>h.t));
           h = data.holdings;
           saveUserHoldings(userIdRef.current, h);
         } else {
+          console.log('[dashboard] no holdings found — showing empty state');
           h = [];
         }
 

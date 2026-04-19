@@ -53,7 +53,9 @@ export default function NavBar() {
   // Clear shared cache when user signs out so the next user starts clean
   useEffect(() => {
     if (!isLoaded) return;
+    console.log('[signout-guard] isLoaded=true, isSignedIn=' + isSignedIn + ', wasSignedIn.current=' + wasSignedIn.current);
     if (wasSignedIn.current && !isSignedIn) {
+      console.log('[signout-guard] sign-out detected — calling clearHoldingsCache()');
       clearHoldingsCache();
     }
     wasSignedIn.current = isSignedIn ?? false;
@@ -66,6 +68,16 @@ export default function NavBar() {
     hasSynced.current = true;
     const userId = user.id;
     const signingUpFromDemo = localStorage.getItem('stockdash_demo') === 'true';
+
+    // Full localStorage snapshot at sign-in
+    const snapCache   = localStorage.getItem('stockdash_holdings');
+    const snapScoped  = localStorage.getItem('holdings_' + userId);
+    const snapCash    = localStorage.getItem('stockdash_cash_amount');
+    const snapCashCcy = localStorage.getItem('stockdash_cash_currency');
+    console.log('[signin] userId=' + userId + ', signingUpFromDemo=' + signingUpFromDemo);
+    console.log('[signin] stockdash_holdings:', snapCache ? JSON.parse(snapCache).map(h=>h.t) : 'empty');
+    console.log('[signin] holdings_' + userId + ':', snapScoped ? JSON.parse(snapScoped).map(h=>h.t) : 'empty');
+    console.log('[signin] cash:', snapCash, snapCashCcy);
 
     if (signingUpFromDemo) {
       // New user arriving from demo — discard demo holdings so they start clean.
