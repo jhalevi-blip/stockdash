@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import { SignInButton } from "@clerk/nextjs";
+import { dark } from "@clerk/themes";
 import { startDemo } from "../../lib/startDemo";
 
 const LivePreview        = dynamic(() => import("../../components/LivePreview"),        { ssr: false });
@@ -33,7 +34,7 @@ export default function LandingPage() {
           STOCKDASH
         </span>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <SignInButton mode="modal" forceRedirectUrl="/dashboard">
+          <SignInButton mode="modal" forceRedirectUrl="/dashboard" appearance={{ baseTheme: dark }}>
             <button style={{
               background: "none", border: "1px solid #30363d", borderRadius: 6,
               color: "#e6edf3", fontSize: 13, fontWeight: 600, padding: "5px 14px",

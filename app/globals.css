@@ -1,4 +1,12 @@
 /* === THEME VARIABLES === */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --clerk-color-foreground: #e6edf3;
+  --clerk-color-background: #161b22;
+  --clerk-color-primary: #58a6ff;
+  --clerk-color-neutral-600: #8b949e;
+}
+
 :root,
 [data-theme="dark"] {
   --bg-primary:       #0d1117;
