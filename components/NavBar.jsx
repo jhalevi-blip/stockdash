@@ -65,8 +65,18 @@ export default function NavBar() {
     if (hasSynced.current) return;
     hasSynced.current = true;
     const userId = user.id;
-    // Migrate any pre-scoping data to this user's key
-    migrateIfNeeded(userId);
+    const signingUpFromDemo = localStorage.getItem('stockdash_demo') === 'true';
+
+    if (signingUpFromDemo) {
+      // New user arriving from demo — discard demo holdings so they start clean.
+      // migrateIfNeeded would copy demo data into their scoped key, which the
+      // Supabase fallback path would then silently adopt as their real portfolio.
+      localStorage.removeItem('stockdash_holdings');
+      localStorage.removeItem(`holdings_${userId}`);
+    } else {
+      // Returning user signing back in — migrate unscoped data to their scoped key.
+      migrateIfNeeded(userId);
+    }
     // Clear demo mode — real account takes over
     localStorage.removeItem('stockdash_demo');
     setIsDemo(false);
