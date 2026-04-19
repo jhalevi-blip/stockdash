@@ -1,8 +1,8 @@
 'use client';
-import { SignUp } from '@clerk/nextjs';
+import { SignIn } from '@clerk/nextjs';
 import { dark } from '@clerk/themes';
 
-export default function SignUpPage() {
+export default function SignInPage() {
   return (
     <div style={{
       minHeight: '100vh',
@@ -28,7 +28,7 @@ export default function SignUpPage() {
         <p style={{ fontSize: 13, color: '#4b5563', margin: 0 }}>Free · Open · No Ads</p>
       </div>
 
-      <SignUp
+      <SignIn
         appearance={{
           baseTheme: dark,
           variables: {
@@ -51,7 +51,7 @@ export default function SignUpPage() {
           },
         }}
         forceRedirectUrl="/dashboard"
-        signInUrl="/sign-in"
+        signUpUrl="/sign-up"
       />
     </div>
   );

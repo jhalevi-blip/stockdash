@@ -1,6 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import dynamic from "next/dynamic";
+import { SignInButton } from "@clerk/nextjs";
 import { startDemo } from "../../lib/startDemo";
 
 const LivePreview        = dynamic(() => import("../../components/LivePreview"),        { ssr: false });
@@ -32,11 +33,13 @@ export default function LandingPage() {
           STOCKDASH
         </span>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <a href="/login" style={{
-            background: "none", border: "1px solid #30363d", borderRadius: 6,
-            color: "#e6edf3", fontSize: 13, fontWeight: 600, padding: "5px 14px",
-            textDecoration: "none", display: "inline-block",
-          }}>Sign In</a>
+          <SignInButton mode="modal">
+            <button style={{
+              background: "none", border: "1px solid #30363d", borderRadius: 6,
+              color: "#e6edf3", fontSize: 13, fontWeight: 600, padding: "5px 14px",
+              cursor: "pointer", fontFamily: "inherit",
+            }}>Sign In</button>
+          </SignInButton>
           <a href="/sign-up" style={{
             background: "#3b82f6", border: "1px solid #3b82f6", borderRadius: 6,
             color: "#fff", fontSize: 13, fontWeight: 600, padding: "5px 14px",
