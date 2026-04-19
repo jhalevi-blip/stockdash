@@ -10,10 +10,10 @@ export default function DemoBanner() {
     setIsDemo(localStorage.getItem('stockdash_demo') === 'true');
   }, []);
 
-  // Clear demo mode automatically when user signs in
+  // Hide banner when user signs in — NavBar's sign-in effect is the
+  // sole authority for removing stockdash_demo from localStorage.
   useEffect(() => {
     if (isSignedIn) {
-      localStorage.removeItem('stockdash_demo');
       setIsDemo(false);
     }
   }, [isSignedIn]);
