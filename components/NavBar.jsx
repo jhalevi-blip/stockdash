@@ -129,16 +129,15 @@ export default function NavBar() {
           window.dispatchEvent(new CustomEvent('portfolio-saved'));
         } else {
           // No Supabase record — use scoped localStorage if present
-          const scopedKey = `holdings_${userId}`;
           const local = loadUserHoldings(userId);
-          console.log('[NavBar] No Supabase data — reading key:', scopedKey, '— data:', local);
           if (local?.length) {
             saveUserHoldings(userId, local);
             setSavedHoldings(local);
-            window.dispatchEvent(new CustomEvent('portfolio-saved'));
-          } else {
-            console.warn('[NavBar] No holdings found in Supabase or localStorage for key:', scopedKey);
           }
+          // Always dispatch so fetchDashboard re-runs and renders the correct
+          // state — either the scoped localStorage data above, or the empty-state
+          // welcome card for a genuinely new user with no holdings anywhere.
+          window.dispatchEvent(new CustomEvent('portfolio-saved'));
         }
       })
       .catch(() => {});
