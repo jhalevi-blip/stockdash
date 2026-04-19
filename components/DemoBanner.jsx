@@ -51,6 +51,24 @@ export default function DemoBanner() {
           Sign Up Free →
         </button>
       </SignUpButton>
+      <button
+        onClick={() => {
+          localStorage.setItem('stockdash_demo_dismissed', 'true');
+          localStorage.removeItem('stockdash_demo');
+          setIsDemo(false);
+        }}
+        aria-label="Exit demo"
+        style={{
+          background: 'none',
+          border: 'none',
+          color: '#fde68a',
+          fontSize: 18,
+          lineHeight: 1,
+          cursor: 'pointer',
+          padding: '0 4px',
+          opacity: 0.7,
+        }}
+      >×</button>
     </div>
   );
 }

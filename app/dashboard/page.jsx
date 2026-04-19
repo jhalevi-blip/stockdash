@@ -8,6 +8,7 @@ import PortfolioAISummary from '@/components/PortfolioAISummary';
 import DemoPrompt from '@/components/DemoPrompt';
 import DashboardTour from '@/components/DashboardTour';
 import { saveUserHoldings } from '@/lib/holdingsStorage';
+import { startDemo } from '@/lib/startDemo';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
@@ -58,9 +59,20 @@ export default function DashboardPage() {
   const [sampleBanner,   setSampleBanner]   = useState(false);
   const [cash,           setCash]           = useState(null);   // { amount, currency }
   const [eurUsd,         setEurUsd]         = useState(1);
-  const { user } = useUser();
+  const { user, isLoaded, isSignedIn } = useUser();
   const userIdRef = useRef(null);
   useEffect(() => { userIdRef.current = user?.id ?? null; }, [user?.id]);
+
+  // Auto-start demo for anonymous visitors (e.g. arriving from Google)
+  // Waits for Clerk to settle so we never misfire against a signed-in session.
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (isSignedIn) return;
+    if (localStorage.getItem('stockdash_demo') === 'true') return;
+    if (localStorage.getItem('stockdash_tour_done')) return;
+    if (localStorage.getItem('stockdash_demo_dismissed')) return;
+    startDemo('/dashboard');
+  }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadChart = useCallback(async (ticker) => {
     setSelected(ticker);
