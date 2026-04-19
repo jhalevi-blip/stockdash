@@ -89,8 +89,16 @@ export default function NavBar() {
       localStorage.removeItem('stockdash_cash_amount');
       localStorage.removeItem('stockdash_cash_currency');
     } else {
-      // Cache is empty, anonymous, or already owned by this user — safe to migrate.
-      migrateIfNeeded(userId);
+      const hasScoped = !!localStorage.getItem(`holdings_${userId}`);
+      if (!hasScoped && localStorage.getItem(CACHE_KEY)) {
+        // First-time sign-in with a stale or unverified shared cache.
+        // Refusing to migrate ensures Supabase (not localStorage) is authoritative
+        // for new users — prevents inheriting another session's leftover data.
+        console.warn('[NavBar] First-time sign-in: refusing to migrate unverified stockdash_holdings');
+        clearHoldingsCache();
+      }
+      // If hasScoped (returning user), their scoped key is already the source of
+      // truth; /api/portfolio below will repopulate the shared cache via saveUserHoldings.
     }
     // Clear demo mode — real account takes over
     localStorage.removeItem('stockdash_demo');
