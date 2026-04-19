@@ -66,11 +66,13 @@ export default function DashboardPage() {
   // Auto-start demo for anonymous visitors (e.g. arriving from Google)
   // Waits for Clerk to settle so we never misfire against a signed-in session.
   useEffect(() => {
-    if (!isLoaded) return;
-    if (isSignedIn) return;
-    if (localStorage.getItem('stockdash_demo') === 'true') return;
-    if (localStorage.getItem('stockdash_tour_done')) return;
-    if (localStorage.getItem('stockdash_demo_dismissed')) return;
+    console.log('[auto-demo] effect fired, isLoaded=' + isLoaded + ', isSignedIn=' + isSignedIn + ', stockdash_demo=' + localStorage.getItem('stockdash_demo'));
+    if (!isLoaded) { console.log('[auto-demo] skipped because: isLoaded=false'); return; }
+    if (isSignedIn) { console.log('[auto-demo] skipped because: isSignedIn=true'); return; }
+    if (localStorage.getItem('stockdash_demo') === 'true') { console.log('[auto-demo] skipped because: stockdash_demo already set'); return; }
+    if (localStorage.getItem('stockdash_tour_done')) { console.log('[auto-demo] skipped because: stockdash_tour_done set'); return; }
+    if (localStorage.getItem('stockdash_demo_dismissed')) { console.log('[auto-demo] skipped because: stockdash_demo_dismissed set'); return; }
+    console.log('[auto-demo] calling startDemo');
     startDemo('/dashboard');
   }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 

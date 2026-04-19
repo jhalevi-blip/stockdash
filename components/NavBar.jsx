@@ -66,15 +66,19 @@ export default function NavBar() {
     hasSynced.current = true;
     const userId = user.id;
     const signingUpFromDemo = localStorage.getItem('stockdash_demo') === 'true';
+    console.log('[signin] effect fired, userId=' + userId + ', signingUpFromDemo=' + signingUpFromDemo);
+    console.log('[signin] localStorage at effect start — stockdash_holdings=' + localStorage.getItem('stockdash_holdings') + ', holdings_' + userId + '=' + localStorage.getItem('holdings_' + userId));
 
     if (signingUpFromDemo) {
       // New user arriving from demo — discard demo holdings so they start clean.
       // migrateIfNeeded would copy demo data into their scoped key, which the
       // Supabase fallback path would then silently adopt as their real portfolio.
+      console.log('[signin] demo branch: clearing stockdash_holdings and holdings_' + userId);
       localStorage.removeItem('stockdash_holdings');
       localStorage.removeItem(`holdings_${userId}`);
     } else {
       // Returning user signing back in — migrate unscoped data to their scoped key.
+      console.log('[signin] non-demo branch: migrateIfNeeded called');
       migrateIfNeeded(userId);
     }
     // Clear demo mode — real account takes over
@@ -107,8 +111,10 @@ export default function NavBar() {
             localStorage.setItem('stockdash_cash_currency', data.cash.currency ?? 'USD');
           }
         }
+        console.log('[signin] supabase result: signedIn=' + data.signedIn + ', holdingsCount=' + (data.holdings?.length ?? 0));
+        console.log('[signin] localStorage after demo-clear — stockdash_holdings=' + localStorage.getItem('stockdash_holdings') + ', holdings_' + userId + '=' + localStorage.getItem('holdings_' + userId));
         if (data.signedIn && data.holdings?.length) {
-          console.log('[NavBar] Supabase holdings found:', data.holdings.length, 'positions');
+          console.log('[signin] supabase branch: dispatching portfolio-saved with ' + data.holdings.length + ' holdings');
           saveUserHoldings(userId, data.holdings);
           setSavedHoldings(data.holdings);
           window.dispatchEvent(new CustomEvent('portfolio-saved'));
@@ -116,13 +122,14 @@ export default function NavBar() {
           // No Supabase record — use scoped localStorage if present
           const scopedKey = `holdings_${userId}`;
           const local = loadUserHoldings(userId);
-          console.log('[NavBar] No Supabase data — reading key:', scopedKey, '— data:', local);
+          console.log('[signin] fallback branch: loadUserHoldings(' + scopedKey + ')=' + JSON.stringify(local));
           if (local?.length) {
+            console.log('[signin] fallback branch: dispatching portfolio-saved with ' + local.length + ' holdings from localStorage');
             saveUserHoldings(userId, local);
             setSavedHoldings(local);
             window.dispatchEvent(new CustomEvent('portfolio-saved'));
           } else {
-            console.warn('[NavBar] No holdings found in Supabase or localStorage for key:', scopedKey);
+            console.log('[signin] fallback branch: nothing found — no portfolio-saved dispatched, user gets empty state');
           }
         }
       })
