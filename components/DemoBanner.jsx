@@ -35,7 +35,6 @@ export default function DemoBanner() {
       <span>You&apos;re viewing a demo portfolio — sign up to track your own holdings</span>
       <SignUpButton mode="modal">
         <button
-          onClick={() => localStorage.removeItem('stockdash_demo')}
           style={{
             background: '#f59e0b',
             border: 'none',
