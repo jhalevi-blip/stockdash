@@ -6,7 +6,7 @@ import { useUser, useClerk, SignInButton, SignUpButton, UserButton } from '@cler
 import PortfolioModal from './PortfolioModal';
 import { startDemo } from '@/lib/startDemo';
 import {
-  migrateIfNeeded, loadUserHoldings, saveUserHoldings, clearHoldingsCache, CACHE_KEY,
+  migrateIfNeeded, loadUserHoldings, saveUserHoldings, clearHoldingsCache, getCacheOwner, CACHE_KEY,
 } from '@/lib/holdingsStorage';
 
 const links = [
@@ -53,10 +53,10 @@ export default function NavBar() {
   // Clear shared cache when user signs out so the next user starts clean
   useEffect(() => {
     if (!isLoaded) return;
-    console.log('[signout-guard] isLoaded=true, isSignedIn=' + isSignedIn + ', wasSignedIn.current=' + wasSignedIn.current);
     if (wasSignedIn.current && !isSignedIn) {
-      console.log('[signout-guard] sign-out detected — calling clearHoldingsCache()');
-      clearHoldingsCache();
+      clearHoldingsCache(); // removes stockdash_holdings + owner
+      localStorage.removeItem('stockdash_cash_amount');
+      localStorage.removeItem('stockdash_cash_currency');
     }
     wasSignedIn.current = isSignedIn ?? false;
   }, [isLoaded, isSignedIn]);
@@ -68,25 +68,28 @@ export default function NavBar() {
     hasSynced.current = true;
     const userId = user.id;
     const signingUpFromDemo = localStorage.getItem('stockdash_demo') === 'true';
-
-    // Full localStorage snapshot at sign-in
-    const snapCache   = localStorage.getItem('stockdash_holdings');
-    const snapScoped  = localStorage.getItem('holdings_' + userId);
-    const snapCash    = localStorage.getItem('stockdash_cash_amount');
-    const snapCashCcy = localStorage.getItem('stockdash_cash_currency');
-    console.log('[signin] userId=' + userId + ', signingUpFromDemo=' + signingUpFromDemo);
-    console.log('[signin] stockdash_holdings:', snapCache ? JSON.parse(snapCache).map(h=>h.t) : 'empty');
-    console.log('[signin] holdings_' + userId + ':', snapScoped ? JSON.parse(snapScoped).map(h=>h.t) : 'empty');
-    console.log('[signin] cash:', snapCash, snapCashCcy);
+    const cacheOwner = getCacheOwner();
+    const cacheOwnedByOtherUser = cacheOwner && cacheOwner !== userId
+                                              && cacheOwner !== 'demo'
+                                              && cacheOwner !== 'anonymous';
 
     if (signingUpFromDemo) {
       // New user arriving from demo — discard demo holdings so they start clean.
       // migrateIfNeeded would copy demo data into their scoped key, which the
       // Supabase fallback path would then silently adopt as their real portfolio.
-      localStorage.removeItem('stockdash_holdings');
+      clearHoldingsCache();
       localStorage.removeItem(`holdings_${userId}`);
+      localStorage.removeItem('stockdash_cash_amount');
+      localStorage.removeItem('stockdash_cash_currency');
+    } else if (cacheOwnedByOtherUser) {
+      // Cache belongs to a different signed-in user — clear it entirely.
+      // Do NOT migrate: that would promote another user's data as this user's portfolio.
+      clearHoldingsCache();
+      localStorage.removeItem(`holdings_${userId}`);
+      localStorage.removeItem('stockdash_cash_amount');
+      localStorage.removeItem('stockdash_cash_currency');
     } else {
-      // Returning user signing back in — migrate unscoped data to their scoped key.
+      // Cache is empty, anonymous, or already owned by this user — safe to migrate.
       migrateIfNeeded(userId);
     }
     // Clear demo mode — real account takes over

@@ -7,7 +7,7 @@ import StockIntelSummary from '@/components/StockIntelSummary';
 import PortfolioAISummary from '@/components/PortfolioAISummary';
 import DemoPrompt from '@/components/DemoPrompt';
 import DashboardTour from '@/components/DashboardTour';
-import { saveUserHoldings } from '@/lib/holdingsStorage';
+import { saveUserHoldings, getCacheOwner } from '@/lib/holdingsStorage';
 import { startDemo, WELCOME_TICKERS } from '@/lib/startDemo';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
@@ -145,21 +145,22 @@ export default function DashboardPage() {
     }
 
     const localAtLoad = getLocalHoldings();
-    console.log('[dashboard] fetchDashboard (signed-in path): localAtLoad=', localAtLoad.map(h=>h.t), '| userId=', userIdRef.current);
+    // Only trust the shared cache if it belongs to the current user (defense-in-depth
+    // against the race where NavBar's owner-mismatch clear hasn't fired yet).
+    const cacheOwner = getCacheOwner();
+    const localIsValid = localAtLoad.length > 0 &&
+      (!cacheOwner || cacheOwner === userIdRef.current || cacheOwner === 'anonymous');
     fetch('/api/portfolio')
       .then(r => r.json())
       .then(data => {
         let h;
-        console.log('[dashboard] /api/portfolio response: signedIn=' + data.signedIn + ', holdingsCount=' + (data.holdings?.length ?? 0));
-        if (localAtLoad.length) {
-          console.log('[dashboard] using localAtLoad as source of truth:', localAtLoad.map(h=>h.t));
+        if (localIsValid) {
+          // localStorage is source of truth (updated by Edit Portfolio)
           h = localAtLoad;
         } else if (data.signedIn && data.holdings?.length) {
-          console.log('[dashboard] using Supabase holdings:', data.holdings.map(h=>h.t));
           h = data.holdings;
           saveUserHoldings(userIdRef.current, h);
         } else {
-          console.log('[dashboard] no holdings found — showing empty state');
           h = [];
         }
 
@@ -182,7 +183,7 @@ export default function DashboardPage() {
         });
       })
       .catch(() => {
-        setHoldings(localAtLoad);
+        setHoldings(localIsValid ? localAtLoad : []);
       })
       .finally(() => setLoading(false));
   }, [loadChart]);
