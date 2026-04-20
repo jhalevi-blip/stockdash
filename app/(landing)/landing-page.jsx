@@ -8,7 +8,7 @@ import { startDemo } from "../../lib/startDemo";
 const LivePreview        = dynamic(() => import("../../components/LivePreview"),        { ssr: false });
 const StockIntelPreview  = dynamic(() => import("../../components/StockIntelPreview"),  { ssr: false });
 
-const PAIN_SOURCES = ["Real-time quotes", "Fundamentals", "Insider filings", "13F data"];
+const PAIN_SOURCES = ["Live market data", "Fundamentals", "Insider filings", "13F data"];
 
 export default function LandingPage() {
   useEffect(() => {
