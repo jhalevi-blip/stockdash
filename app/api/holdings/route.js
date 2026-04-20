@@ -23,7 +23,9 @@ export async function GET() {
     .order('created_at');
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json(data ?? []);
+  return Response.json(data ?? [], {
+    headers: { 'Cache-Control': 'private, no-store' },
+  });
 }
 
 export async function POST(req) {
@@ -67,5 +69,7 @@ export async function POST(req) {
     }
   }
 
-  return Response.json({ ok: true });
+  return Response.json({ ok: true }, {
+    headers: { 'Cache-Control': 'private, no-store' },
+  });
 }

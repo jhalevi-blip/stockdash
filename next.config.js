@@ -62,7 +62,9 @@ const nextConfig = {
       },
       {
         // Remaining API routes — cache 4 hours
-        source: '/api/:path*',
+        // Excludes user-scoped and intentionally uncached routes.
+        // Add to the lookahead when creating new auth-gated routes.
+        source: '/api/:path((?!portfolio|holdings|usage|ai-summary|funds).*)',
         headers: [{ key: 'Cache-Control', value: 's-maxage=14400, stale-while-revalidate=3600' }],
       },
     ];

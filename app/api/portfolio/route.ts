@@ -16,7 +16,9 @@ export const fetchCache = 'force-no-store';
 
 export async function GET() {
   const { userId } = await auth();
-  if (!userId) return Response.json({ signedIn: false, holdings: [] });
+  if (!userId) return Response.json({ signedIn: false, holdings: [] }, {
+    headers: { 'Cache-Control': 'private, no-store' },
+  });
 
   const sb = getSupabaseAdmin();
   if (!sb) return Response.json({ error: 'Supabase not configured' }, { status: 500 });
@@ -37,7 +39,9 @@ export async function GET() {
   const holdings   = raw.filter((h: any) => h?.t !== '__CASH__');
   const cash = cashEntry ? { amount: cashEntry.amount, currency: cashEntry.currency ?? 'USD' } : null;
 
-  return Response.json({ signedIn: true, holdings, cash });
+  return Response.json({ signedIn: true, holdings, cash }, {
+    headers: { 'Cache-Control': 'private, no-store' },
+  });
 }
 
 export async function POST(req: Request) {
@@ -59,5 +63,7 @@ export async function POST(req: Request) {
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
 
-  return Response.json({ ok: true });
+  return Response.json({ ok: true }, {
+    headers: { 'Cache-Control': 'private, no-store' },
+  });
 }
