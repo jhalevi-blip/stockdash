@@ -8,7 +8,7 @@ import { startDemo } from "../../lib/startDemo";
 const LivePreview        = dynamic(() => import("../../components/LivePreview"),        { ssr: false });
 const StockIntelPreview  = dynamic(() => import("../../components/StockIntelPreview"),  { ssr: false });
 
-const PAIN_SOURCES = ["Yahoo Finance", "Seeking Alpha", "WhaleWisdom", "EDGAR", "Finviz", "Koyfin"];
+const PAIN_SOURCES = ["Real-time quotes", "Fundamentals", "Insider filings", "13F data"];
 
 export default function LandingPage() {
   useEffect(() => {
@@ -139,7 +139,7 @@ export default function LandingPage() {
             <span key={src} style={{ display: "flex", alignItems: "center" }}>
               <span style={{ color: "rgba(230,237,243,0.35)", fontSize: 13 }}>{src}</span>
               {i < PAIN_SOURCES.length - 1 && (
-                <span style={{ color: "rgba(230,237,243,0.18)", margin: "0 9px", fontSize: 13 }}>+</span>
+                <span style={{ color: "rgba(230,237,243,0.18)", margin: "0 9px", fontSize: 13 }}>·</span>
               )}
             </span>
           ))}
