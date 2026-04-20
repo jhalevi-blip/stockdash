@@ -172,7 +172,8 @@ export default function NavBar() {
       localStorage.removeItem('stockdash_cash_currency');
     }
     setSavedCash(cash?.amount > 0 ? cash : null);
-    if (isDemo) {
+    if (!isSignedIn) {
+      // Anonymous demo user — no Supabase persistence needed.
       window.dispatchEvent(new CustomEvent('portfolio-saved'));
       return;
     }
@@ -182,8 +183,10 @@ export default function NavBar() {
       body: JSON.stringify({ holdings, cash: cash?.amount > 0 ? cash : null }),
     });
     if (!res.ok) throw new Error('Save failed');
-    localStorage.setItem('portfolio_just_saved', 'true');
-    window.location.reload();
+    // localStorage already updated above; event re-triggers fetchDashboard.
+    // No page reload — Clerk is loaded at save time so userIdRef.current is set
+    // and localIsValid correctly trusts the owned localStorage cache.
+    window.dispatchEvent(new CustomEvent('portfolio-saved'));
   }
 
   function openModal() {
