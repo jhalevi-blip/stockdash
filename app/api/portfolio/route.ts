@@ -9,6 +9,11 @@
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 
+// user-specific data — must not be edge-cached
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return Response.json({ signedIn: false, holdings: [] });

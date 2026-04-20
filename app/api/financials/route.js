@@ -1,7 +1,8 @@
 // app/api/financials/route.js
 // Annual: SEC EDGAR XBRL API. Quarterly: FMP income-statement + FMP cash-flow-statement.
 
-export const revalidate = 86400;
+// ticker-scoped live data — force-dynamic prevents static prerender;
+// edge caching is controlled by the Cache-Control headers set in each response
 export const dynamic = 'force-dynamic';
 
 import { trackFMP } from '@/lib/apiUsage';
