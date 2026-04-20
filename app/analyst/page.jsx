@@ -42,6 +42,9 @@ export default function AnalystPage() {
   useEffect(() => {
     let tickers = [];
     try {
+      // TODO: reads stockdash_holdings without ownership check — a polluted browser
+      // may show stale data here. Track: consolidate all unscoped cache reads behind
+      // a single ownership-aware getter (dual-table consolidation pass).
       const stored = localStorage.getItem('stockdash_holdings');
       const holdings = stored ? JSON.parse(stored) : [];
       tickers = holdings.map(h => h.t);

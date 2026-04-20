@@ -89,16 +89,15 @@ export default function NavBar() {
       localStorage.removeItem('stockdash_cash_amount');
       localStorage.removeItem('stockdash_cash_currency');
     } else {
-      const hasScoped = !!localStorage.getItem(`holdings_${userId}`);
-      if (!hasScoped && localStorage.getItem(CACHE_KEY)) {
-        // First-time sign-in with a stale or unverified shared cache.
-        // Refusing to migrate ensures Supabase (not localStorage) is authoritative
-        // for new users — prevents inheriting another session's leftover data.
-        console.warn('[NavBar] First-time sign-in: refusing to migrate unverified stockdash_holdings');
+      // migrateIfNeeded is the single canonical migration path: only promotes
+      // the shared cache to the scoped key when owner === userId exactly.
+      // null-owner, 'anonymous', 'demo', or another userId all refuse silently.
+      migrateIfNeeded(userId);
+      // If migration was refused (no scoped key established) and a stale shared
+      // cache remains, clear it — Supabase becomes authoritative for this user.
+      if (!localStorage.getItem(`holdings_${userId}`) && localStorage.getItem(CACHE_KEY)) {
         clearHoldingsCache();
       }
-      // If hasScoped (returning user), their scoped key is already the source of
-      // truth; /api/portfolio below will repopulate the shared cache via saveUserHoldings.
     }
     // Clear demo mode — real account takes over
     localStorage.removeItem('stockdash_demo');
@@ -136,6 +135,16 @@ export default function NavBar() {
           setSavedHoldings(data.holdings);
           window.dispatchEvent(new CustomEvent('portfolio-saved'));
         } else {
+          // One-shot cleanup: clear the AMD placeholder written by the pre-b71bd55
+          // anonymous-cache race. Matches exact JSON — a real portfolio containing
+          // AMD alongside other positions will never equal this single-entry string.
+          const scopedRaw = localStorage.getItem(`holdings_${userId}`);
+          if (scopedRaw === '[{"c":1,"s":1,"t":"AMD"}]') {
+            localStorage.removeItem(`holdings_${userId}`);
+            clearHoldingsCache();
+            window.dispatchEvent(new CustomEvent('portfolio-saved'));
+            return;
+          }
           // No Supabase record — use scoped localStorage if present
           const local = loadUserHoldings(userId);
           if (local?.length) {

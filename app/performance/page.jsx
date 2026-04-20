@@ -16,6 +16,9 @@ const { tickers: DEMO_FALLBACK, shares: DEMO_SHARES } = WELCOME_TICKERS;
 
 function getLocalHoldings() {
   try {
+    // TODO: reads stockdash_holdings without ownership check — a polluted browser
+    // may show stale data here. Track: consolidate all unscoped cache reads behind
+    // a single ownership-aware getter (dual-table consolidation pass).
     const stored = localStorage.getItem('stockdash_holdings');
     return stored ? JSON.parse(stored) : [];
   } catch { return []; }

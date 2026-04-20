@@ -130,6 +130,9 @@ export default function FinancialsPage() {
 
   useEffect(() => {
     try {
+      // TODO: reads stockdash_holdings without ownership check — a polluted browser
+      // may show stale data here. Track: consolidate all unscoped cache reads behind
+      // a single ownership-aware getter (dual-table consolidation pass).
       const stored = localStorage.getItem('stockdash_holdings');
       let ts = stored ? JSON.parse(stored).map(h => h.t) : [];
       if (!ts.length && localStorage.getItem('stockdash_demo') === 'true') ts = getDemoTickers();

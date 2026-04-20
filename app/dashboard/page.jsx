@@ -144,28 +144,34 @@ export default function DashboardPage() {
       return;
     }
 
-    const localAtLoad = getLocalHoldings();
-    // Only trust the shared cache if it belongs to the current user (defense-in-depth
-    // against the race where NavBar's owner-mismatch clear hasn't fired yet).
-    const cacheOwner = getCacheOwner();
-    const localIsValid = localAtLoad.length > 0 &&
-      (!cacheOwner || cacheOwner === userIdRef.current || cacheOwner === 'anonymous');
     fetch('/api/portfolio')
       .then(r => r.json())
       .then(data => {
+        // Re-read localStorage inside the callback, not at function-start.
+        // A pre-Clerk-load capture becomes a stale closure: NavBar may clear the
+        // polluted shared cache while the fetch is in flight, but the captured
+        // value would still point at the old AMD placeholder and re-stamp it.
+        const localAtLoad = getLocalHoldings();
+        const cacheOwner  = getCacheOwner();
+        const userId      = userIdRef.current;
+        // Trust the cache only when it verifiably belongs to this signed-in user.
+        // Drop the 'anonymous' branch — the unscoped cache is polluted across the
+        // legacy install base; anonymous sessions fall through to [] or demo state.
+        const localIsValid = localAtLoad.length > 0 && cacheOwner === userId && !!userId;
+
         let h;
         if (localIsValid) {
           // localStorage is source of truth (updated by Edit Portfolio)
           h = localAtLoad;
         } else if (data.signedIn && data.holdings?.length) {
           h = data.holdings;
-          saveUserHoldings(userIdRef.current, h);
+          saveUserHoldings(userId, h);
         } else {
           h = [];
         }
 
         setHoldings(h);
-        saveUserHoldings(userIdRef.current, h);
+        saveUserHoldings(userId, h);
         if (!h.length) { setLoading(false); return; }
 
         const tickers = h.map(x => x.t).join(',');
@@ -183,6 +189,10 @@ export default function DashboardPage() {
         });
       })
       .catch(() => {
+        const localAtLoad  = getLocalHoldings();
+        const cacheOwner   = getCacheOwner();
+        const userId       = userIdRef.current;
+        const localIsValid = localAtLoad.length > 0 && cacheOwner === userId && !!userId;
         setHoldings(localIsValid ? localAtLoad : []);
       })
       .finally(() => setLoading(false));

@@ -12,6 +12,9 @@ const fmtK = n => n == null ? '—' : n >= 1e6 ? '$' + (n/1e6).toFixed(2) + 'B' 
 // Build portfolio keywords dynamically from localStorage ticker names
 function getPortfolioKeywords() {
   try {
+    // TODO: reads stockdash_holdings without ownership check — a polluted browser
+    // may show stale data here. Track: consolidate all unscoped cache reads behind
+    // a single ownership-aware getter (dual-table consolidation pass).
     const stored = localStorage.getItem('stockdash_holdings');
     return stored ? JSON.parse(stored).map(h => h.t) : [];
   } catch { return []; }
@@ -51,6 +54,9 @@ export default function InstitutionalPage() {
   useEffect(() => {
     let storedTickers = [];
     try {
+      // TODO: reads stockdash_holdings without ownership check — a polluted browser
+      // may show stale data here. Track: consolidate all unscoped cache reads behind
+      // a single ownership-aware getter (dual-table consolidation pass).
       const stored = localStorage.getItem('stockdash_holdings');
       storedTickers = stored ? JSON.parse(stored).map(h => h.t) : [];
       if (!storedTickers.length && localStorage.getItem('stockdash_demo') === 'true') {
