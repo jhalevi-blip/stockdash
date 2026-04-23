@@ -1,6 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import dynamic from "next/dynamic";
+import Logo from "@/components/Logo";
 import { SignInButton } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { startDemo } from "../../lib/startDemo";
@@ -30,9 +31,7 @@ export default function LandingPage() {
         borderBottom: "1px solid #1e2530",
         maxWidth: "100%",
       }}>
-        <span style={{ fontWeight: 800, fontSize: 14, letterSpacing: "0.07em", color: "#e6edf3" }}>
-          STOCKDASH
-        </span>
+        <Logo href="/" />
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <SignInButton mode="modal" forceRedirectUrl="/dashboard" appearance={{ baseTheme: dark }}>
             <button style={{
@@ -201,7 +200,7 @@ export default function LandingPage() {
         color: "rgba(230,237,243,0.22)", fontSize: 12,
         maxWidth: 760, margin: "0 auto",
       }}>
-        <span style={{ fontWeight: 800, letterSpacing: "0.06em", color: "rgba(230,237,243,0.35)" }}>STOCKDASH</span>
+        <Logo href="/" />
         <span>Free &amp; open · No ads · stockdashes.com</span>
       </footer>
     </div>
