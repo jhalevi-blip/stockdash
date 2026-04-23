@@ -146,7 +146,6 @@ export default function PerformancePage() {
   const [estimatedDate,  setEstimatedDate]  = useState('');
   const [startingCash,    setStartingCash]    = useState(0);
   const [cashCurrency,    setCashCurrency]    = useState('EUR'); // 'EUR' | 'USD'
-  const [selectedRange,   setSelectedRange]   = useState(null);  // '1M'|'3M'|'6M'|'1Y'|'ALL'|null
 
   // Load holdings (demo or real) and saved start date
   useEffect(() => {
@@ -439,34 +438,11 @@ export default function PerformancePage() {
     };
   }, [rawData, holdings, startDate, realizedData, startingCash, cashCurrency]);
 
-  function rangeToStartDate(range) {
-    if (range === 'ALL') return null;
-    const d = new Date();
-    if (range === '1M')      d.setMonth(d.getMonth() - 1);
-    else if (range === '3M') d.setMonth(d.getMonth() - 3);
-    else if (range === '6M') d.setMonth(d.getMonth() - 6);
-    else if (range === '1Y') d.setFullYear(d.getFullYear() - 1);
-    return d.toISOString().slice(0, 10);
-  }
-
-  function handleRangeClick(range) {
-    setSelectedRange(range);
-    if (range === 'ALL') {
-      setStartDate(null);
-      localStorage.removeItem('stockdash_start_date');
-      setDateInput(estimatedDate);
-    } else {
-      setStartDate(rangeToStartDate(range));
-    }
-    setShowDatePicker(false);
-  }
-
   function handleDateSave() {
     if (!dateInput) return;
     setStartDate(dateInput);
     localStorage.setItem('stockdash_start_date', dateInput);
     setShowDatePicker(false);
-    setSelectedRange(null);
   }
 
   function handleDateClear() {
@@ -474,7 +450,6 @@ export default function PerformancePage() {
     localStorage.removeItem('stockdash_start_date');
     setDateInput(estimatedDate);
     setShowDatePicker(false);
-    setSelectedRange(null);
   }
 
   // --- Render ---
@@ -659,28 +634,8 @@ export default function PerformancePage() {
         background: 'var(--bg-card)', border: '1px solid var(--border-color)',
         borderRadius: 10, padding: '20px 24px', marginBottom: 20,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
-            Portfolio vs SPY
-          </div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {['1M', '3M', '6M', '1Y', 'ALL'].map(r => (
-              <button
-                key={r}
-                onClick={() => handleRangeClick(r)}
-                style={{
-                  background: selectedRange === r ? 'var(--accent)' : 'none',
-                  border: `1px solid ${selectedRange === r ? 'var(--accent)' : 'var(--border-color)'}`,
-                  borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer',
-                  color: selectedRange === r ? '#fff' : 'var(--text-secondary)',
-                  fontWeight: selectedRange === r ? 600 : 400,
-                  lineHeight: 1,
-                }}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>
+          Portfolio vs SPY
         </div>
         {dataLoading || !chartData.length ? (
           <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
