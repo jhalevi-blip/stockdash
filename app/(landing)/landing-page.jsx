@@ -31,7 +31,7 @@ export default function LandingPage() {
         borderBottom: "1px solid #1e2530",
         maxWidth: "100%",
       }}>
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none" }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
             <rect x="1"  y="14" width="4" height="6" rx="0.5" fill="#c49a1a" />
             <rect x="8"  y="9"  width="4" height="11" rx="0.5" fill="#c49a1a" />
