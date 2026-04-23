@@ -10,8 +10,8 @@ export default function Logo({ href = '/dashboard' }) {
         <path d="M2 12 L10 6 L17.5 0.5" stroke="#c49a1a" strokeWidth="1.5" strokeLinecap="round" fill="none" />
         <path d="M13.5 0.5 L17.5 0.5 L17.5 4.5" stroke="#c49a1a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       </svg>
-      <span style={{ color: '#c49a1a', fontWeight: 800, fontSize: 13, letterSpacing: '0.06em' }}>STOCK</span>
-      <span style={{ color: '#2563eb', fontWeight: 800, fontSize: 13, letterSpacing: '0.06em' }}>DASHES</span>
+      <span style={{ color: '#c49a1a', fontWeight: 700, fontSize: 13, letterSpacing: '0.06em', fontFamily: 'Segoe UI, system-ui, sans-serif' }}>STOCK</span>
+      <span style={{ color: '#2563eb', fontWeight: 700, fontSize: 13, letterSpacing: '0.06em', fontFamily: 'Segoe UI, system-ui, sans-serif' }}>DASHES</span>
     </Link>
   );
 }
