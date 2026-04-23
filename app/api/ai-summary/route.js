@@ -1,5 +1,88 @@
 export const dynamic = 'force-dynamic';
 
+// ── Portfolio AI Summary: tool definition ─────────────────────────────────────
+const generatePortfolioSummaryTool = {
+  name: 'generate_portfolio_summary',
+  description: 'Generate a structured portfolio summary with a rating and adaptive sections for a retail investor.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      rating: {
+        type: 'number',
+        minimum: 1.0,
+        maximum: 10.0,
+        description: 'Overall portfolio rating on a 1-10 scale, half-point increments allowed (e.g., 6.5).',
+      },
+      rating_summary: {
+        type: 'string',
+        description: "One short sentence explaining the rating in the user's language.",
+      },
+      overview: {
+        type: 'string',
+        description: "1-2 sentences on overall portfolio health and returns, in the user's language. Include specific numbers.",
+      },
+      whats_working: {
+        type: ['string', 'null'],
+        description: '1-2 sentences on top performers with specific tickers and returns. Null if no position is above +10%.',
+      },
+      whats_dragging: {
+        type: ['string', 'null'],
+        description: '1-2 sentences on significant underperformers with specific tickers and returns. Null if no position is below -10%.',
+      },
+      biggest_risk: {
+        type: ['string', 'null'],
+        description: '1-2 sentences on the most important portfolio risk with specific data. Null if no major red flags.',
+      },
+      suggested_action: {
+        type: 'string',
+        description: "1-2 sentences of suggestive action ('Consider...' not 'Do...'). Always ends with the disclaimer translated into the user's language.",
+      },
+      language: {
+        type: 'string',
+        description: "ISO language code used for the text content (e.g., 'en', 'nl', 'de', 'fr').",
+      },
+    },
+    required: ['rating', 'rating_summary', 'overview', 'suggested_action', 'language'],
+  },
+};
+
+// ── Portfolio AI Summary: system prompt ───────────────────────────────────────
+const PORTFOLIO_SYSTEM_PROMPT = `You are a portfolio analyst for StockDashes, powered by Claude.
+
+You analyze retail investor stock portfolios and call the generate_portfolio_summary tool with structured insights. You never respond with prose outside the tool call.
+
+## Rating rubric (use consistently; avoid clustering at 7)
+
+- 9.0-10.0: Excellent — no position above 15%, strong diversification across sectors, positive returns, no position below -15%
+- 7.0-8.5: Good — minor issues only (one concentration point OR one large underperformer, not both)
+- 5.0-6.5: Mixed — positive aspects undermined by meaningful concentration or multiple underperformers
+- 3.0-4.5: Weak — extreme concentration, multiple large underperformers, or poor sector balance
+- 1.0-2.5: Severe — highly concentrated, most positions underperforming, fragile portfolio
+
+Use half-point increments (e.g., 6.5, 7.5) to avoid clustering at integer scores.
+
+## Tone
+
+- Suggestive, never prescriptive. Say "Consider trimming..." not "Trim...".
+- Specific with numbers. Include actual percentages and position weights from the data.
+- Direct but friendly. Written for a casual retail investor, not a finance professional.
+- No jargon without brief context.
+
+## Adaptive sections
+
+- If the portfolio has no position above +10%, omit the whats_working field.
+- If the portfolio has no position below -10%, omit the whats_dragging field.
+- If the portfolio has no meaningful concentration, sector imbalance, or other red flag, omit the biggest_risk field.
+- overview and suggested_action are always provided.
+
+## Language
+
+Write all text content in the language indicated by the user's browser locale. If the locale is unrecognized, default to English. The disclaimer sentence ("For informational purposes only, not financial advice.") must be translated naturally into the output language.
+
+## Numerical accuracy
+
+Every number you mention must be derivable from the data provided. Never invent numbers. If you cannot support a claim with the data, do not make the claim.`;
+
 export async function POST(request) {
   const body = await request.json();
   const key = process.env.ANTHROPIC_API_KEY;
@@ -67,11 +150,19 @@ export async function POST(request) {
     return Response.json({ summary: text.trim() });
   }
 
-  // Portfolio summary type
+  // Portfolio summary type — structured tool-use output via Claude Opus 4.7
   if (body.type === 'portfolio-summary') {
-    const { holdings, portfolioStats } = body;
+    const { holdings, portfolioStats, userLang } = body;
     if (!Array.isArray(holdings) || !holdings.length) {
       return Response.json({ error: 'Missing holdings' }, { status: 400 });
+    }
+
+    // Insufficient positions — no API call made, no cost incurred
+    if (holdings.length < 3) {
+      return Response.json({
+        error: 'insufficient_positions',
+        message: 'Add at least 3 positions for a meaningful AI analysis.',
+      }, { status: 200 });
     }
 
     const fmt2 = n => (n == null ? '—' : Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -81,7 +172,7 @@ export async function POST(request) {
       `- ${h.ticker}: ${h.shares} shares, avg cost $${fmt2(h.avgCost)}, current price $${fmt2(h.currentPrice)}, P&L: ${fmt1(h.pnlPct)}%, market value $${fmt2(h.marketValue)}`
     ).join('\n');
 
-    const prompt = `You are a portfolio analyst. Here is the user's stock portfolio:
+    const userMessage = `Here is the user's stock portfolio:
 
 Holdings:
 ${holdingLines}
@@ -91,15 +182,7 @@ Portfolio totals:
 - Total P&L: $${fmt2(portfolioStats.totalPnl)} (${fmt1(portfolioStats.totalPnlPct)}%)
 - Cash position: $${fmt2(portfolioStats.cash)}
 
-Write a 6-8 sentence portfolio summary covering:
-1. Overall portfolio health and performance
-2. Biggest winners and laggards
-3. Concentration risk (any single stock over 30% of portfolio?)
-4. Sector/geographic diversification
-5. One actionable insight based on the data
-
-Be direct and specific. Use the actual numbers. Write as a professional but approachable analyst.
-${body.userLang ? `Respond in this language: ${body.userLang}. If you don't recognize it, default to English.` : ''}`;
+User's browser locale: ${userLang || 'en'}`;
 
     let res, raw;
     try {
@@ -107,18 +190,37 @@ ${body.userLang ? `Respond in this language: ${body.userLang}. If you don't reco
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-0',
+          model: 'claude-opus-4-7',
           max_tokens: 1000,
-          messages: [{ role: 'user', content: prompt }],
+          system: PORTFOLIO_SYSTEM_PROMPT,
+          tools: [generatePortfolioSummaryTool],
+          tool_choice: { type: 'tool', name: 'generate_portfolio_summary' },
+          messages: [{ role: 'user', content: userMessage }],
         }),
       });
       raw = await res.json();
     } catch (e) {
+      console.error('[ai-summary] portfolio-summary network error:', e);
       return Response.json({ error: 'Network error reaching AI service' }, { status: 500 });
     }
-    if (!res.ok) return Response.json({ error: raw.error?.message ?? 'API error' }, { status: 500 });
-    const text = raw.content?.[0]?.text ?? '';
-    return Response.json({ summary: text.trim() });
+
+    if (!res.ok) {
+      console.error('[ai-summary] portfolio-summary API error — status:', res.status, '| body:', JSON.stringify(raw));
+      return Response.json({ error: raw.error?.message ?? 'API error' }, { status: 500 });
+    }
+
+    const toolUse = raw.content?.find(
+      block => block.type === 'tool_use' && block.name === 'generate_portfolio_summary'
+    );
+    if (!toolUse) {
+      console.error('[ai-summary] no tool_use block in response:', JSON.stringify(raw));
+      return Response.json({
+        error: 'generation_failed',
+        message: "We couldn't generate a summary. Please try again.",
+      }, { status: 200 });
+    }
+
+    return Response.json(toolUse.input, { status: 200 });
   }
 
   // Legacy path: news sentiment analysis
