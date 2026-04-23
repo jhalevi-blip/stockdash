@@ -12,7 +12,7 @@ export default function BlogLayout({ children }) {
         <Logo />
         <Link href="/blog" style={{ color: '#8b949e', fontSize: 13, textDecoration: 'none' }}>Blog</Link>
       </nav>
-      <main style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px 80px' }}>
+      <main style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px 80px', width: '100%' }}>
         {children}
       </main>
     </div>

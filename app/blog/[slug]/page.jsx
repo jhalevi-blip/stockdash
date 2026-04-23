@@ -128,18 +128,18 @@ export default async function BlogPost({ params }) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <article>
-        <header style={{ marginBottom: 40, paddingBottom: 24, borderBottom: '1px solid #21262d' }}>
+      <article style={{ maxWidth: 700, margin: '0 auto' }}>
+        <div style={{ marginBottom: 40, paddingBottom: 24, borderBottom: '1px solid #21262d' }}>
           <time style={{ fontSize: 12, color: '#6e7681', display: 'block', marginBottom: 10 }}>
             {new Date(frontmatter.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
           </time>
-          <h1 style={{ fontSize: 30, fontWeight: 700, color: '#e6edf3', lineHeight: 1.2, marginBottom: 12 }}>
+          <h1 style={{ fontSize: 30, fontWeight: 700, color: '#e6edf3', lineHeight: 1.2, margin: '0 0 12px' }}>
             {frontmatter.title}
           </h1>
           <p style={{ color: '#8b949e', fontSize: 16, lineHeight: 1.5 }}>
             {frontmatter.description}
           </p>
-        </header>
+        </div>
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
           {content}
         </ReactMarkdown>
