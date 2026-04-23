@@ -15,6 +15,7 @@ const LABELS = {
     suggestedAction: '💡 SUGGESTED ACTION',
     analyzing:       'Claude is analyzing your portfolio...',
     regenerate:      'Regenerate',
+    generateButton:  'Generate',
     usedToday:       '{count}/5 used today',
     networkError:    "Couldn't reach AI service. Please try again.",
     genericError:    'Something went wrong. Please try again.',
@@ -28,6 +29,7 @@ const LABELS = {
     suggestedAction: '💡 VOORGESTELDE ACTIE',
     analyzing:       'Claude analyseert je portfolio...',
     regenerate:      'Opnieuw genereren',
+    generateButton:  'Genereer',
     usedToday:       '{count}/5 vandaag gebruikt',
     networkError:    'Kan de AI-service niet bereiken. Probeer het opnieuw.',
     genericError:    'Er ging iets mis. Probeer het opnieuw.',
@@ -104,12 +106,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
   const showRegenerate     = !loading && !isInsufficientPositions && (!!summary || !!error);
 
   const generate = async () => {
-    console.log('[AISummary] generate() called', { holdings: holdings?.length, limitReached });
-    if (!holdings?.length || limitReached) {
-      console.log('[AISummary] early return', { noHoldings: !holdings?.length, limitReached });
-      return;
-    }
-    console.log('[AISummary] setting loading=true');
+    if (!holdings?.length || limitReached) return;
     setLoading(true);
     setError(null);
     setSummary(null);
@@ -126,7 +123,6 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
       }));
 
     const userLang = navigator.language || 'en';
-    console.log('[AISummary] fetching /api/ai-summary', { payloadSize: holdingsPayload.length });
 
     try {
       const res  = await fetch('/api/ai-summary', {
@@ -134,12 +130,9 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ type: 'portfolio-summary', holdings: holdingsPayload, portfolioStats, userLang }),
       });
-      console.log('[AISummary] response status:', res.status);
       const json = await res.json();
-      console.log('[AISummary] response json:', json);
 
       if (json.error) {
-        console.log('[AISummary] error branch', json.error);
         if (json.error === 'insufficient_positions') {
           setError({ type: 'insufficient_positions', message: json.message });
         } else if (json.error === 'generation_failed') {
@@ -148,7 +141,6 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
           setError({ type: 'generic', message: L.genericError });
         }
       } else {
-        console.log('[AISummary] success branch, setting summary');
         setSummary(json);
         if (json.language) setUiLang(json.language);
         setGeneratedAt(new Date());
@@ -157,11 +149,9 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
         setShowCount(true);
         writeUsage(newCount);
       }
-    } catch (err) {
-      console.error('[AISummary] fetch failed:', err);
+    } catch {
       setError({ type: 'network', message: L.networkError });
     } finally {
-      console.log('[AISummary] setting loading=false');
       setLoading(false);
     }
   };
@@ -187,8 +177,6 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
     { key: 'suggested_action', label: L.suggestedAction,  value: summary.suggested_action },
   ].filter(s => s.value != null && s.value !== '') : [];
 
-  console.log('[AISummary] render', { isMobile, loading, summary: !!summary, error, usageCount });
-
   return (
     <div
       style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '16px 20px', marginBottom: 24 }}
@@ -196,7 +184,11 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
     >
       {/* ── Header row ── */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        alignItems: isMobile ? 'flex-start' : 'center',
+        justifyContent: isMobile ? 'flex-start' : 'space-between',
+        gap: isMobile ? 12 : 0,
         marginBottom: (summary || loading || error) ? 14 : 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -212,7 +204,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, alignSelf: isMobile ? 'flex-end' : 'auto' }}>
           {generatedAt && minsAgo != null && (
             <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
               {minsAgo === 0 ? 'Just now' : `${minsAgo}m ago`}
@@ -234,15 +226,15 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
                     background: 'var(--accent)', color: '#fff',
                     border: 'none', borderRadius: 6,
                     padding: '6px 14px', fontSize: 12, fontWeight: 600,
-                    cursor: 'pointer', fontFamily: 'inherit',
+                    cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
                   }}
                 >
                   <span style={{ fontSize: 14 }}>✦</span>
-                  Generate Portfolio Summary
+                  {isMobile ? L.generateButton : 'Generate Portfolio Summary'}
                 </button>
               )}
               {showCount && (
-                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {L.usedToday.replace('{count}', usageCount)}
                 </span>
               )}
@@ -265,7 +257,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
                 </button>
               )}
               {showCount && (
-                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {L.usedToday.replace('{count}', usageCount)}
                 </span>
               )}
