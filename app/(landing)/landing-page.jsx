@@ -1,6 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { SignInButton } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { startDemo } from "../../lib/startDemo";
@@ -30,9 +31,9 @@ export default function LandingPage() {
         borderBottom: "1px solid #1e2530",
         maxWidth: "100%",
       }}>
-        <span style={{ fontWeight: 800, fontSize: 14, letterSpacing: "0.07em", color: "#e6edf3" }}>
+        <Link href="/" style={{ fontWeight: 800, fontSize: 14, letterSpacing: "0.07em", color: "#e6edf3", textDecoration: "none" }}>
           STOCKDASH
-        </span>
+        </Link>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <SignInButton mode="modal" forceRedirectUrl="/dashboard" appearance={{ baseTheme: dark }}>
             <button style={{
