@@ -36,7 +36,7 @@ export default function Sidebar() {
     <nav className="app-sidebar" data-tour="nav-tabs">
 
       {/* Logo */}
-      <Link href="/dashboard" className="sidebar-logo" style={{ textDecoration: 'none' }}>
+      <div className="sidebar-logo">
         <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
           <rect x="1"  y="14" width="4" height="6" rx="0.5" fill="#c49a1a" />
           <rect x="8"  y="9"  width="4" height="11" rx="0.5" fill="#c49a1a" />
@@ -46,7 +46,7 @@ export default function Sidebar() {
         </svg>
         <span style={{ color: '#c49a1a', fontWeight: 800, fontSize: 13, letterSpacing: '0.06em' }}>STOCK</span>
         <span style={{ color: '#2563eb', fontWeight: 800, fontSize: 13, letterSpacing: '0.06em' }}>DASHES</span>
-      </Link>
+      </div>
 
       {/* Nav links */}
       <div className="sidebar-links">
