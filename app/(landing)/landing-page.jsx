@@ -31,7 +31,7 @@ export default function LandingPage() {
         borderBottom: "1px solid #1e2530",
         maxWidth: "100%",
       }}>
-        <Logo href="/" />
+        <Logo />
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <SignInButton mode="modal" forceRedirectUrl="/dashboard" appearance={{ baseTheme: dark }}>
             <button style={{
@@ -200,7 +200,7 @@ export default function LandingPage() {
         color: "rgba(230,237,243,0.22)", fontSize: 12,
         maxWidth: 760, margin: "0 auto",
       }}>
-        <Logo href="/" />
+        <Logo />
         <span>Free &amp; open · No ads · stockdashes.com</span>
       </footer>
     </div>

@@ -16,7 +16,7 @@ export default function SignUpPage() {
     }}>
       <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
-          <Logo href="/" />
+          <Logo />
         </div>
         <p style={{ fontSize: 13, color: '#4b5563', margin: 0 }}>Free · Open · No Ads</p>
       </div>
