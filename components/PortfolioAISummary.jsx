@@ -104,7 +104,12 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
   const showRegenerate     = !loading && !isInsufficientPositions && (!!summary || !!error);
 
   const generate = async () => {
-    if (!holdings?.length || limitReached) return;
+    console.log('[AISummary] generate() called', { holdings: holdings?.length, limitReached });
+    if (!holdings?.length || limitReached) {
+      console.log('[AISummary] early return', { noHoldings: !holdings?.length, limitReached });
+      return;
+    }
+    console.log('[AISummary] setting loading=true');
     setLoading(true);
     setError(null);
     setSummary(null);
@@ -121,6 +126,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
       }));
 
     const userLang = navigator.language || 'en';
+    console.log('[AISummary] fetching /api/ai-summary', { payloadSize: holdingsPayload.length });
 
     try {
       const res  = await fetch('/api/ai-summary', {
@@ -128,9 +134,12 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ type: 'portfolio-summary', holdings: holdingsPayload, portfolioStats, userLang }),
       });
+      console.log('[AISummary] response status:', res.status);
       const json = await res.json();
+      console.log('[AISummary] response json:', json);
 
       if (json.error) {
+        console.log('[AISummary] error branch', json.error);
         if (json.error === 'insufficient_positions') {
           setError({ type: 'insufficient_positions', message: json.message });
         } else if (json.error === 'generation_failed') {
@@ -139,6 +148,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
           setError({ type: 'generic', message: L.genericError });
         }
       } else {
+        console.log('[AISummary] success branch, setting summary');
         setSummary(json);
         if (json.language) setUiLang(json.language);
         setGeneratedAt(new Date());
@@ -147,9 +157,11 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
         setShowCount(true);
         writeUsage(newCount);
       }
-    } catch {
+    } catch (err) {
+      console.error('[AISummary] fetch failed:', err);
       setError({ type: 'network', message: L.networkError });
     } finally {
+      console.log('[AISummary] setting loading=false');
       setLoading(false);
     }
   };
@@ -174,6 +186,8 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
     { key: 'biggest_risk',     label: L.biggestRisk,      value: summary.biggest_risk },
     { key: 'suggested_action', label: L.suggestedAction,  value: summary.suggested_action },
   ].filter(s => s.value != null && s.value !== '') : [];
+
+  console.log('[AISummary] render', { isMobile, loading, summary: !!summary, error, usageCount });
 
   return (
     <div
