@@ -1,9 +1,34 @@
 ---
-title: "How to Analyze Your Stock Portfolio (Step-by-Step Guide)"
-slug: "how-to-analyze-your-stock-portfolio"
-date: "2026-04-23"
-description: "A clear guide to understanding portfolio risk, concentration, diversification, and performance drivers. Plus how AI makes it 10x faster."
-author: "Jonathan Halevi"
+title: How to Analyze Your Stock Portfolio (Step-by-Step Guide)
+slug: how-to-analyze-your-stock-portfolio
+date: '2026-04-23'
+description: >-
+  A clear guide to understanding portfolio risk, concentration, diversification,
+  and performance drivers. Plus how AI makes it 10x faster.
+author: Jonathan Halevi
+summary:
+  tldr: >-
+    Tracking returns isn't the same as understanding your portfolio. Real
+    analysis means checking concentration (no stock over 20-25%), sector
+    exposure (no sector over 35-40%), correlation between holdings, and
+    performance attribution to see if one winner is carrying everything. The
+    post walks through a five-step process and shows how a portfolio of four
+    mega-cap tech names plus cash looks diversified but is really 90% tech and
+    one sector correction away from a ~27% drawdown. The real test of risk isn't
+    your returns — it's whether you'd hold through a 25-30% drawdown without
+    panic-selling.
+  key_takeaways:
+    - >-
+      Cap any single stock at 10-15% of your portfolio (20-25% absolute ceiling)
+      and any single sector at 40%, even if you own many names within it.
+    - >-
+      Run a performance attribution check: subtract your top winner's
+      contribution from your total return — if what's left trails the S&P 500,
+      one stock is carrying you, not your strategy.
+    - >-
+      Pressure-test your risk tolerance by asking if you'd hold through a 25-30%
+      drawdown; if not, reduce exposure now rather than during the correction.
+  read_time_minutes: 12
 ---
 
 Most investors track their returns, but very few actually understand what's going on inside their portfolio.
