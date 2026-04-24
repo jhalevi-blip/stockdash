@@ -26,7 +26,7 @@ function SkeletonRow() {
   );
 }
 
-export default function LivePreview() {
+export default function LivePreview({ showCta = true }) {
   const [rows, setRows]     = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -121,26 +121,27 @@ export default function LivePreview() {
         </table>
       </div>
 
-      {/* CTA */}
-      <div style={{ textAlign: "center", marginTop: 28 }}>
-        <button
-          onClick={() => startDemo("/dashboard")}
-          style={{
-            padding: "14px 32px", borderRadius: 10, border: "none", cursor: "pointer",
-            background: "#3b82f6", color: "#fff",
-            fontWeight: 700, fontSize: 15, fontFamily: "inherit",
-            boxShadow: "0 0 30px rgba(59,130,246,0.35)",
-            transition: "opacity 0.15s",
-          }}
-          onMouseEnter={e => e.currentTarget.style.opacity = "0.88"}
-          onMouseLeave={e => e.currentTarget.style.opacity = "1"}
-        >
-          Open This Dashboard →
-        </button>
-        <p style={{ color: "rgba(230,237,243,0.35)", fontSize: 12, marginTop: 10 }}>
-          No account needed · Loads in seconds
-        </p>
-      </div>
+      {showCta && (
+        <div style={{ textAlign: "center", marginTop: 28 }}>
+          <button
+            onClick={() => startDemo("/dashboard")}
+            style={{
+              padding: "14px 32px", borderRadius: 10, border: "none", cursor: "pointer",
+              background: "#3b82f6", color: "#fff",
+              fontWeight: 700, fontSize: 15, fontFamily: "inherit",
+              boxShadow: "0 0 30px rgba(59,130,246,0.35)",
+              transition: "opacity 0.15s",
+            }}
+            onMouseEnter={e => e.currentTarget.style.opacity = "0.88"}
+            onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+          >
+            Open This Dashboard →
+          </button>
+          <p style={{ color: "rgba(230,237,243,0.35)", fontSize: 12, marginTop: 10 }}>
+            No account needed · Loads in seconds
+          </p>
+        </div>
+      )}
 
       {/* Mobile: hide name column via inline style override */}
       <style>{`
