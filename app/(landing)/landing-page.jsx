@@ -6,7 +6,7 @@ import { SignInButton } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { startDemo } from "@/lib/startDemo";
 import PortfolioAISummary from "@/components/PortfolioAISummary";
-import { heroSummary, section1Summary } from "@/lib/demoAISummary";
+import { heroSummary } from "@/lib/demoAISummary";
 
 const LivePreview       = dynamic(() => import("@/components/LivePreview"),       { ssr: false });
 const StockIntelPreview = dynamic(() => import("@/components/StockIntelPreview"), { ssr: false });
@@ -133,6 +133,29 @@ export default function LandingPage() {
             <p style={{ color: "rgba(230,237,243,0.25)", fontSize: 12, margin: 0 }}>
               No account needed · Loads in seconds · Your data stays on your device
             </p>
+
+            <div style={{ marginTop: 32, paddingTop: 32, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
+                color: "rgba(230,237,243,0.3)", textTransform: "uppercase", marginBottom: 10,
+              }}>
+                What Claude looks for:
+              </div>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+                {[
+                  "Which position dominates your risk exposure",
+                  "Hidden correlation across positions that move as one",
+                  "Whether your winners are carrying underperformers",
+                  "Sector concentration with no defensive offset",
+                  "One concrete action to reduce your biggest vulnerability",
+                ].map((item) => (
+                  <li key={item} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    <span style={{ color: "#22d3ee", fontSize: 12, flexShrink: 0, marginTop: 1 }}>•</span>
+                    <span style={{ fontSize: 13, color: "rgba(230,237,243,0.45)", lineHeight: 1.5 }}>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
 
           {/* Right column — ~40% */}
@@ -146,47 +169,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── SECTION 1: Analyze your entire portfolio ── */}
-      <section style={{ borderTop: "1px solid #1e2530", paddingTop: 64, paddingBottom: 64 }}>
-        <div style={sectionWrap}>
-          <div className="section-row" style={{ display: "flex", gap: 48, alignItems: "flex-start" }}>
-            <div style={{ flex: "0 0 38%", minWidth: 0, paddingTop: 8 }}>
-              <span style={overlinePill}>FULL PORTFOLIO</span>
-              <h2 style={sectionH2Style}>Analyze your entire portfolio</h2>
-              <p style={sectionDescStyle}>
-                Rating, concentration risk, winners and laggards. Written in plain English. One click, your entire portfolio assessed by Claude.
-              </p>
-              <div style={{ marginTop: 20 }}>
-                <div style={{
-                  fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
-                  color: "rgba(230,237,243,0.3)", textTransform: "uppercase", marginBottom: 10,
-                }}>
-                  What Claude looks for:
-                </div>
-                <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-                  {[
-                    "Which position dominates your risk exposure",
-                    "Hidden correlation across positions that move as one",
-                    "Whether your winners are carrying underperformers",
-                    "Sector concentration with no defensive offset",
-                    "One concrete action to reduce your biggest vulnerability",
-                  ].map((item) => (
-                    <li key={item} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                      <span style={{ color: "#22d3ee", fontSize: 12, flexShrink: 0, marginTop: 1 }}>•</span>
-                      <span style={{ fontSize: 13, color: "rgba(230,237,243,0.45)", lineHeight: 1.5 }}>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <PortfolioAISummary initialSummary={section1Summary} />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── SECTION 2: Research any stock ── */}
+      {/* ── SECTION 1: Research any stock ── */}
       <section style={{ borderTop: "1px solid #1e2530", paddingTop: 64, paddingBottom: 64 }}>
         <div style={sectionWrap}>
           <div className="section-row" style={{ display: "flex", gap: 48, alignItems: "flex-start" }}>
@@ -207,7 +190,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── SECTION 3: Live market data ── */}
+      {/* ── SECTION 2: Live market data ── */}
       <section style={{ borderTop: "1px solid #1e2530", paddingTop: 64, paddingBottom: 64 }}>
         <div style={sectionWrap}>
           <div className="section-row" style={{ display: "flex", gap: 48, alignItems: "flex-start" }}>
@@ -225,7 +208,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── SECTION 4: Why Claude Opus 4.7? ── */}
+      {/* ── SECTION 3: Why Claude Opus 4.7? ── */}
       <section style={{ borderTop: "1px solid #1e2530", padding: "48px 24px", background: "rgba(255,255,255,0.015)" }}>
         <div style={{ maxWidth: 680, margin: "0 auto", textAlign: "center" }}>
           <div style={{
