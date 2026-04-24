@@ -185,6 +185,8 @@ Instead of spending hours analyzing your portfolio in a spreadsheet, you can get
 
 That's exactly what StockDashes does. You paste in your portfolio, and within seconds you get an AI-generated breakdown of what's working, what's risky, and what to consider changing, written like a friend explaining it to you, not a financial report.
 
+![StockDashes AI Portfolio Summary analyzing a sample stock portfolio](/blog/portfolio-ai-summary-example.png)
+
 ## Final Thoughts
 
 A strong portfolio isn't just about returns. It's about balance, risk management, and smart allocation.
