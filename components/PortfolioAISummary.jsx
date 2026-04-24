@@ -183,6 +183,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
     <div
       style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '16px 20px', marginBottom: 24 }}
       aria-busy={loading}
+      data-tour="portfolio-ai-summary"
     >
       {/* ── Header row ── */}
       <div style={{

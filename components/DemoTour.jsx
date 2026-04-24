@@ -88,19 +88,18 @@ const TOUR_CSS = `
 
 const STEPS = [
   {
-    element: '[data-tour="dashboard-summary"]',
+    element: '[data-tour="portfolio-ai-summary"]',
     popover: {
-      title: "Your portfolio at a glance",
-      description: "Live P&L, upcoming earnings, analyst targets, insider activity, and market pulse — all in one row.",
-      side: "bottom",
-      align: "start",
+      title: "Claude analyzes your portfolio",
+      description: "Rating, concentration risk, winners, and laggards. All in plain English, powered by Claude Opus 4.7.",
+      side: "top",
     },
   },
   {
     element: '[data-tour="stock-intel"]',
     popover: {
-      title: "Stock Intel — the killer feature",
-      description: "Select any stock for a full intelligence brief: bull/bear AI analysis, key metrics, and recent news.",
+      title: "AI analysis for any stock",
+      description: "Click any position for a full Claude analysis: bull case, bear case, valuation, and insider activity.",
       side: "top",
       align: "start",
     },
@@ -108,8 +107,8 @@ const STEPS = [
   {
     element: '[data-tour="nav-tabs"]',
     popover: {
-      title: "10 pages of research",
-      description: "Insider trades, 13F filings, peer comparisons, SEC filings, earnings history — click any tab to explore.",
+      title: "Deep data on every holding",
+      description: "13F filings, SEC reports, insider trades, peer comparisons. All free, no paywalls.",
       side: "bottom",
       align: "start",
     },
@@ -118,7 +117,7 @@ const STEPS = [
     element: '[data-tour="edit-portfolio"]',
     popover: {
       title: "Make it yours",
-      description: "Add your own tickers to track your real portfolio. Sign up to save it permanently.",
+      description: "Add your own tickers and let Claude analyze them. Sign up to save permanently.",
       side: "bottom",
       align: "end",
     },
@@ -133,7 +132,7 @@ export default function DemoTour() {
 
     const timer = setTimeout(async () => {
       // Only run on the dashboard where these elements exist
-      if (!document.querySelector('[data-tour="dashboard-summary"]')) return;
+      if (!document.querySelector('[data-tour="portfolio-ai-summary"]')) return;
 
       const { driver } = await import("driver.js");
 
