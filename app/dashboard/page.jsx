@@ -44,7 +44,7 @@ export default function DashboardPage() {
   const [period,         setPeriod]         = useState('1Y');
   const [loading,        setLoading]        = useState(true);
   const [tourRun,        setTourRun]        = useState(false);
-  const [panelTab,       setPanelTab]       = useState('chart');
+  const [panelTab,       setPanelTab]       = useState('intel');
   const [sortField,      setSortField]      = useState(null);
   const [sortDir,        setSortDir]        = useState('desc');
   const [spyChgPct,      setSpyChgPct]      = useState(null);
@@ -68,7 +68,6 @@ export default function DashboardPage() {
 
   const loadChart = useCallback(async (ticker) => {
     setSelected(ticker);
-    setPanelTab('chart');
     setCandles([]);
     setExtCandles([]);
     setEarningsHistory([]);
