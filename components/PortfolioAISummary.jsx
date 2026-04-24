@@ -76,21 +76,23 @@ function Skeleton({ style }) {
   );
 }
 
-export default function PortfolioAISummary({ holdings, portfolioStats }) {
-  const [summary,     setSummary]     = useState(null);   // structured object | null
+export default function PortfolioAISummary({ holdings, portfolioStats, initialSummary }) {
+  const [summary,     setSummary]     = useState(initialSummary ?? null);   // structured object | null
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState(null);   // { type, message } | null
   const [generatedAt, setGeneratedAt] = useState(null);
   const [usageCount,  setUsageCount]  = useState(0);
   const [showCount,   setShowCount]   = useState(false);
-  const [uiLang,      setUiLang]      = useState('en');
+  const [uiLang,      setUiLang]      = useState(initialSummary?.language ?? 'en');
   const [isMobile,    setIsMobile]    = useState(false);
 
   useEffect(() => {
-    const count = readUsage();
-    setUsageCount(count);
-    if (count > 0) setShowCount(true);
-    setUiLang((navigator.language || 'en').split('-')[0].toLowerCase());
+    if (!initialSummary) {
+      const count = readUsage();
+      setUsageCount(count);
+      if (count > 0) setShowCount(true);
+      setUiLang((navigator.language || 'en').split('-')[0].toLowerCase());
+    }
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -103,7 +105,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
 
   // Button visibility logic
   const showGenerateButton = !loading && !summary && (!error || isInsufficientPositions);
-  const showRegenerate     = !loading && !isInsufficientPositions && (!!summary || !!error);
+  const showRegenerate     = !initialSummary && !loading && !isInsufficientPositions && (!!summary || !!error);
 
   const generate = async () => {
     if (!holdings?.length || limitReached) return;
@@ -200,7 +202,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats }) {
             color: 'var(--text-muted)', border: '1px solid var(--border-color)',
             borderRadius: 3, padding: '1px 6px', textTransform: 'uppercase',
           }}>
-            Powered by Claude
+            Powered by Claude Opus 4.7
           </span>
         </div>
 
