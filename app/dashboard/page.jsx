@@ -652,6 +652,7 @@ export default function DashboardPage() {
                       <button
                         key={key}
                         onClick={() => setPanelTab(key)}
+                        {...(key === 'intel' ? { 'data-tour': 'stock-intel-tab' } : {})}
                         style={{
                           background: panelTab === key ? 'var(--accent)' : 'var(--bg-secondary)',
                           color: panelTab === key ? '#fff' : 'var(--text-secondary)',

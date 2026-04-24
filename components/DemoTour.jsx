@@ -88,7 +88,7 @@ const TOUR_CSS = `
 
 const STEPS = [
   {
-    element: '[data-tour="portfolio-ai-summary"]',
+    element: '[data-tour="portfolio-ai-summary-cta"]',
     popover: {
       title: "Claude analyzes your portfolio",
       description: "Rating, concentration risk, winners, and laggards. All in plain English, powered by Claude Opus 4.7.",
@@ -96,7 +96,7 @@ const STEPS = [
     },
   },
   {
-    element: '[data-tour="stock-intel"]',
+    element: '[data-tour="stock-intel-tab"]',
     popover: {
       title: "AI analysis for any stock",
       description: "Click any position for a full Claude analysis: bull case, bear case, valuation, and insider activity.",

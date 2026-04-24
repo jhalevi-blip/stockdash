@@ -224,6 +224,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
               ) : (
                 <button
                   onClick={generate}
+                  data-tour="portfolio-ai-summary-cta"
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
                     background: 'var(--accent)', color: '#fff',
