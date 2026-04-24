@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "generate-summaries": "node --env-file=.env.local scripts/generate-blog-summaries.mjs",
+    "generate-summaries:force": "node --env-file=.env.local scripts/generate-blog-summaries.mjs --force"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.0.8",

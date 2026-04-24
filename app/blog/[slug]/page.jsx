@@ -45,6 +45,61 @@ export async function generateMetadata({ params }) {
   };
 }
 
+function BlogSummaryBox({ summary }) {
+  if (!summary) return null;
+  return (
+    <div style={{
+      background: '#0d1117',
+      border: '1px solid #21262d',
+      borderRadius: 10,
+      padding: '20px 24px',
+      marginBottom: 32,
+    }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+        <span style={{
+          fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+          color: '#22d3ee', textTransform: 'uppercase',
+        }}>
+          Claude's TL;DR
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {summary.read_time_minutes && (
+            <span style={{ fontSize: 11, color: 'rgba(230,237,243,0.35)', fontWeight: 500 }}>
+              {summary.read_time_minutes} min read
+            </span>
+          )}
+          <span style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
+            color: 'rgba(230,237,243,0.45)',
+            background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.2)',
+            borderRadius: 100, padding: '3px 10px', textTransform: 'uppercase',
+          }}>
+            Powered by Claude Opus 4.7
+          </span>
+        </div>
+      </div>
+
+      {/* TL;DR */}
+      <p style={{ color: '#c9d1d9', fontSize: 14, lineHeight: 1.7, margin: '0 0 16px' }}>
+        {summary.tldr}
+      </p>
+
+      {/* Key takeaways */}
+      {Array.isArray(summary.key_takeaways) && summary.key_takeaways.length > 0 && (
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {summary.key_takeaways.map((item, i) => (
+            <li key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <span style={{ color: '#22d3ee', fontSize: 12, flexShrink: 0, marginTop: 2 }}>•</span>
+              <span style={{ fontSize: 13, color: 'rgba(230,237,243,0.6)', lineHeight: 1.55 }}>{item}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 const mdComponents = {
   h1: ({ children }) => (
     <h1 style={{ fontSize: 26, fontWeight: 700, color: '#e6edf3', margin: '32px 0 16px', lineHeight: 1.3 }}>{children}</h1>
@@ -142,6 +197,7 @@ export default async function BlogPost({ params }) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <article style={{ maxWidth: 700, margin: '0 auto' }}>
+        <BlogSummaryBox summary={frontmatter.summary ?? null} />
         <div style={{ marginBottom: 40, paddingBottom: 24, borderBottom: '1px solid #21262d' }}>
           <time style={{ fontSize: 12, color: '#6e7681', display: 'block', marginBottom: 10 }}>
             {new Date(frontmatter.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
