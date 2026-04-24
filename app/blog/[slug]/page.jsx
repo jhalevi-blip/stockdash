@@ -96,6 +96,19 @@ const mdComponents = {
   strong: ({ children }) => (
     <strong style={{ color: '#e6edf3', fontWeight: 600 }}>{children}</strong>
   ),
+  img: ({ node, ...props }) => (
+    <img
+      {...props}
+      style={{
+        maxWidth: '100%',
+        height: 'auto',
+        borderRadius: 8,
+        border: '1px solid #21262d',
+        display: 'block',
+        margin: '24px auto',
+      }}
+    />
+  ),
 };
 
 export default async function BlogPost({ params }) {
