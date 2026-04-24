@@ -92,7 +92,8 @@ const STEPS = [
     popover: {
       title: "Claude analyzes your portfolio",
       description: "Rating, concentration risk, winners, and laggards. All in plain English, powered by Claude Opus 4.7.",
-      side: "top",
+      side: "left",
+      align: "center",
     },
   },
   {
@@ -100,7 +101,7 @@ const STEPS = [
     popover: {
       title: "AI analysis for any stock",
       description: "Click any position for a full Claude analysis: bull case, bear case, valuation, and insider activity.",
-      side: "top",
+      side: "bottom",
       align: "start",
     },
   },
@@ -130,26 +131,56 @@ export default function DemoTour() {
     const tourDone = localStorage.getItem("stockdash_tour_done");
     if (!isDemo || tourDone) return;
 
-    const timer = setTimeout(async () => {
-      // Only run on the dashboard where these elements exist
-      if (!document.querySelector('[data-tour="portfolio-ai-summary"]')) return;
+    let rafId;
+    let resizeListener;
+    let driverObj;
+    const deadline = Date.now() + 3000;
 
-      const { driver } = await import("driver.js");
+    async function startWhenReady() {
+      const el = document.querySelector('[data-tour="portfolio-ai-summary-cta"]');
+      if (!el || document.readyState !== "complete") {
+        if (Date.now() < deadline) {
+          rafId = requestAnimationFrame(startWhenReady);
+        }
+        return;
+      }
 
-      const driverObj = driver({
-        popoverClass: "sd-tour-popover",
-        showProgress: true,
-        allowClose: true,
-        steps: STEPS,
-        onDestroyed: () => {
-          localStorage.setItem("stockdash_tour_done", "true");
-        },
+      // One final rAF to let layout settle after readyState === "complete"
+      rafId = requestAnimationFrame(async () => {
+        const { driver } = await import("driver.js");
+
+        driverObj = driver({
+          popoverClass: "sd-tour-popover",
+          showProgress: true,
+          allowClose: true,
+          stagePadding: 6,
+          steps: STEPS,
+          onDestroyed: () => {
+            localStorage.setItem("stockdash_tour_done", "true");
+            window.removeEventListener("resize", resizeListener);
+          },
+        });
+
+        driverObj.drive();
+
+        // Refresh tour position on resize while active
+        let resizeTimer;
+        resizeListener = () => {
+          clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => {
+            if (driverObj.isActive()) driverObj.refresh();
+          }, 100);
+        };
+        window.addEventListener("resize", resizeListener, { passive: true });
       });
+    }
 
-      driverObj.drive();
-    }, 1500);
+    rafId = requestAnimationFrame(startWhenReady);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (resizeListener) window.removeEventListener("resize", resizeListener);
+    };
   }, []);
 
   return <style>{TOUR_CSS}</style>;
