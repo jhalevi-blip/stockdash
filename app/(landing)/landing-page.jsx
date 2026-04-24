@@ -84,7 +84,7 @@ export default function LandingPage() {
         <div className="hero-cols" style={{ display: "flex", gap: 48, alignItems: "flex-start" }}>
 
           {/* Left column — ~60% */}
-          <div style={{ flex: "0 0 58%", minWidth: 0 }}>
+          <div style={{ flex: "0 0 50%", minWidth: 0 }}>
             <h1 style={{
               fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 800, lineHeight: 1.1,
               letterSpacing: "-0.02em", margin: "0 0 16px", color: "#e6edf3",
@@ -156,6 +156,28 @@ export default function LandingPage() {
               <p style={sectionDescStyle}>
                 Rating, concentration risk, winners and laggards. Written in plain English. One click, your entire portfolio assessed by Claude.
               </p>
+              <div style={{ marginTop: 20 }}>
+                <div style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
+                  color: "rgba(230,237,243,0.3)", textTransform: "uppercase", marginBottom: 10,
+                }}>
+                  What Claude looks for:
+                </div>
+                <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+                  {[
+                    "Which position dominates your risk exposure",
+                    "Hidden correlation across positions that move as one",
+                    "Whether your winners are carrying underperformers",
+                    "Sector concentration with no defensive offset",
+                    "One concrete action to reduce your biggest vulnerability",
+                  ].map((item) => (
+                    <li key={item} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      <span style={{ color: "#22d3ee", fontSize: 12, flexShrink: 0, marginTop: 1 }}>•</span>
+                      <span style={{ fontSize: 13, color: "rgba(230,237,243,0.45)", lineHeight: 1.5 }}>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <PortfolioAISummary initialSummary={section1Summary} />
