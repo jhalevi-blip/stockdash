@@ -1,6 +1,12 @@
 import '../globals.css';
+import { DM_Sans } from 'next/font/google';
 import { ClerkProvider } from '@clerk/nextjs';
 import DevModeAnalytics from './DevModeAnalytics';
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  display: 'swap',
+});
 
 export const metadata = { title: 'StockDashes — Research your portfolio like a professional' };
 
@@ -20,7 +26,7 @@ export default function LandingLayout({ children }: { children: React.ReactNode 
         cardBox: { background: '#ffffff' },
       },
     }}>
-      <html lang="en">
+      <html lang="en" data-theme="dark" className={dmSans.className}>
         <body>
           {children}
           <DevModeAnalytics />

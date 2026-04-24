@@ -1,5 +1,4 @@
 "use client";
-import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import Logo from "@/components/Logo";
 import { SignInButton } from "@clerk/nextjs";
@@ -12,13 +11,6 @@ const StockIntelPreview  = dynamic(() => import("../../components/StockIntelPrev
 const PAIN_SOURCES = ["Live market data", "Fundamentals", "Insider filings", "13F data"];
 
 export default function LandingPage() {
-  useEffect(() => {
-    const link = document.createElement("link");
-    link.href = "https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap";
-    link.rel = "stylesheet";
-    document.head.appendChild(link);
-  }, []);
-
   const wrap = { maxWidth: 760, margin: "0 auto", padding: "0 24px" };
 
   return (
