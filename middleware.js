@@ -73,7 +73,7 @@ export default async function middleware(req, ev) {
     }
   }
 
-  return res;
+  return res ?? NextResponse.next();
 }
 
 export const config = {
