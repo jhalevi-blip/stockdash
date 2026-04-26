@@ -273,7 +273,10 @@ export default function LandingPage() {
         maxWidth: 760, margin: "0 auto",
       }}>
         <Logo />
-        <span>Free &amp; open · No ads · stockdashes.com</span>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+          <span>Free &amp; open · No ads · stockdashes.com</span>
+          <a href="/privacy" style={{ color: 'rgba(230,237,243,0.22)', textDecoration: 'none' }}>Privacy Policy</a>
+        </div>
       </footer>
     </div>
   );

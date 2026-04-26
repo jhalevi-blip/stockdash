@@ -65,6 +65,9 @@ export default function Sidebar() {
           <span>{dark ? '🌙' : '🌔'}</span>
           <span>{dark ? 'Dark' : 'Light'}</span>
         </button>
+        <Link href="/privacy" style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', textDecoration: 'none', padding: '8px 0 0' }}>
+          Privacy Policy
+        </Link>
       </div>
 
     </nav>
