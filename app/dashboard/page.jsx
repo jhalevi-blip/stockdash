@@ -266,11 +266,9 @@ export default function DashboardPage() {
 
   const cashUSD    = cash ? cash.amount * (cash.currency === 'EUR' ? eurUsd : 1) : 0;
   const totalMkt   = rows.reduce((s, r) => s + (r.mktVal  ?? 0), 0);
-  const totalCost  = rows.reduce((s, r) => s + (r.costVal ?? 0), 0);
   const totalPnl   = rows.reduce((s, r) => s + (r.pnlAmt  ?? 0), 0);
   const pricedCost = rows.reduce((s, r) => s + (r.pnlAmt != null ? r.costVal : 0), 0);
   const totalPct   = pricedCost > 0 ? (totalPnl / pricedCost) * 100 : 0;
-  const isLive    = Object.values(prices).some(p => p?.marketOpen);
 
   if (loading) return (
     <main style={{ padding: '20px 24px' }}>
@@ -326,40 +324,6 @@ export default function DashboardPage() {
 
       <DashboardSummary holdings={holdings} rows={rows} earnings={earnings} news={news}
         onMacro={m => setSpyChgPct(m?.indices?.SPY?.changesPercentage ?? null)} />
-
-      {/* Summary cards */}
-      <div
-        data-tour="summary-cards"
-        className="summary-bar"
-        style={{ marginBottom: 24, borderRadius: 8, border: '1px solid', overflow: 'hidden' }}
-      >
-        {[
-          { label: 'Portfolio Value', value: '$' + fmt(totalMkt), sub: null },
-          ...(cash && cashUSD > 0 ? [{
-            label: 'Cash',
-            value: (cash.currency !== 'USD' ? cash.currency + ' ' : '$') + fmt(cash.amount),
-            sub:   cash.currency !== 'USD' ? `≈ $${fmt(cashUSD)} · excl. from P&L` : 'Excl. from P&L',
-          }] : []),
-          { label: 'Cost Basis',      value: '$' + fmt(totalCost), sub: `${holdings.length} positions` },
-          { label: 'Total P&L',       value: (totalPnl >= 0 ? '+$' : '-$') + fmt(Math.abs(totalPnl)), sub: fmtD(totalPct), pos: totalPnl >= 0 },
-          { label: 'Status',          value: isLive ? 'Live' : 'Closed', dot: true, live: isLive, sub: isLive ? 'Market open' : 'Last close' },
-        ].map(s => (
-          <div key={s.label} className="stat">
-            <div className="stat-label">{s.label}</div>
-            <div className="stat-value" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 18 }}>
-              {s.dot && (
-                <span className={`dot ${s.live ? 'dot-live' : 'dot-idle'}`} />
-              )}
-              {s.value}
-            </div>
-            {s.sub && (
-              <div className="stat-sub" style={{ color: s.pos != null ? (s.pos ? '#16a34a' : '#dc2626') : undefined }}>
-                {s.sub}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
 
       <PortfolioAISummary
         holdings={rows}
@@ -503,6 +467,22 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody>
+              {cash && cash.amount > 0 && (
+                <tr key="CASH" style={{ opacity: 0.8 }}>
+                  <td className="left tkr" style={{ color: 'var(--text-secondary)' }}>
+                    {cash.currency !== 'USD'
+                      ? `CASH · ${cash.currency} ${fmt(cash.amount)} ≈ $${fmt(cashUSD)}`
+                      : `CASH · $${fmt(cash.amount)}`}
+                  </td>
+                  <td className="neutral">—</td>
+                  <td className="neutral">—</td>
+                  <td className="neutral">—</td>
+                  <td className="neutral">—</td>
+                  <td>{cashUSD > 0 ? '$' + fmt(cashUSD) : '—'}</td>
+                  <td className="neutral">—</td>
+                  <td className="neutral">—</td>
+                </tr>
+              )}
               {sortedRows.map(r => (
                 <tr key={r.t} onClick={() => loadChart(r.t)} style={{ cursor: 'pointer' }}>
                   <td className="left tkr">{r.t}</td>
@@ -521,27 +501,6 @@ export default function DashboardPage() {
                   </td>
                 </tr>
               ))}
-              {cash && cashUSD > 0 && (
-                <tr key="CASH" style={{ opacity: 0.75 }}>
-                  <td className="left tkr" style={{ color: 'var(--text-secondary)', letterSpacing: '0.02em' }}>
-                    CASH
-                    <div style={{ fontSize: 10, fontStyle: 'italic', color: 'var(--text-muted)', fontWeight: 400, letterSpacing: 0, marginTop: 1 }}>
-                      excl. from P&amp;L
-                    </div>
-                  </td>
-                  <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>
-                    {fmt(cash.amount)} {cash.currency}
-                  </td>
-                  <td className="price-val" style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-                    {cash.currency === 'EUR' ? `€1 = $${fmt(eurUsd, 4)}` : cash.currency === 'GBP' ? 'GBP' : '$1.00'}
-                  </td>
-                  <td className="neutral">—</td>
-                  <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>${fmt(cashUSD)}</td>
-                  <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>${fmt(cashUSD)}</td>
-                  <td className="neutral">—</td>
-                  <td className="neutral">—</td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>

@@ -7,13 +7,6 @@ const STATUS_SKIPPED  = 'skipped';
 
 const STEPS = [
   {
-    target: '[data-tour="summary-cards"]',
-    title: 'Portfolio at a glance',
-    content: 'Portfolio value, cost basis, total P&L and market status — your key numbers at a glance.',
-    disableBeacon: true,
-    placement: 'bottom',
-  },
-  {
     target: '[data-tour="holdings-table"]',
     title: 'Your holdings',
     content: 'All your positions in one place. Click any row to dive into full stock intel below.',
