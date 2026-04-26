@@ -311,8 +311,7 @@ export default function DashboardPage() {
 
       <style>{`
         @media (max-width: 600px) {
-          [data-tour="dashboard-summary"] { order: 4; }
-          [data-section="daily-snapshot"] { order: 5; }
+          [data-tour="dashboard-summary"] { order: 5; }
           [data-tour="holdings-table"]    { order: 6; }
           [data-tour="price-chart"]       { order: 7; }
           [data-section="earnings"]       { order: 8; }
