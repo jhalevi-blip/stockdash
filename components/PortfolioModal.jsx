@@ -99,7 +99,7 @@ const iStyle = {
   outline: 'none', boxSizing: 'border-box',
 };
 // 16px prevents iOS auto-zoom on focus; minHeight 44px meets HIG tap target
-const iStyleMobile = { ...iStyle, fontSize: 16, minHeight: 44 };
+const iStyleMobile = { ...iStyle, fontSize: 16, minHeight: 44, minWidth: 0 };
 
 const COLS = '2fr 150px 170px 190px 44px';
 
@@ -135,7 +135,7 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
   };
 
   function addRow() {
-    setRows(r => [...r, { t: '', s: 0, c: 0, d: '' }]);
+    setRows(r => [{ t: '', s: 0, c: 0, d: '' }, ...r]);
   }
 
   const addStockBtn = () => (
