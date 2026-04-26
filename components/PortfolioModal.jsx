@@ -348,12 +348,14 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
                   />
                 </div>
                 {/* Date — full width */}
-                <input
-                  value={row.d ?? ''}
-                  onChange={e => setRows(prev => prev.map((x, idx) => idx === i ? { ...x, d: e.target.value } : x))}
-                  type="date"
-                  style={{ ...iStyleMobile, border: '1px solid var(--border-color)', color: row.d ? 'var(--text-primary)' : 'var(--text-muted)', colorScheme: 'dark' }}
-                />
+                <div style={{ width: '100%', overflow: 'hidden', borderRadius: 6 }}>
+                  <input
+                    value={row.d ?? ''}
+                    onChange={e => setRows(prev => prev.map((x, idx) => idx === i ? { ...x, d: e.target.value } : x))}
+                    type="date"
+                    style={{ ...iStyleMobile, border: '1px solid var(--border-color)', color: row.d ? 'var(--text-primary)' : 'var(--text-muted)', colorScheme: 'dark' }}
+                  />
+                </div>
               </div>
 
             </div>
