@@ -64,7 +64,7 @@ export default async function middleware(req, ev) {
     }
     if (Object.keys(utmData).length > 0) {
       const response = res instanceof NextResponse ? res : NextResponse.next();
-      response.cookies.set('sd_attribution', encodeURIComponent(JSON.stringify(utmData)), {
+      response.cookies.set('sd_attribution', JSON.stringify(utmData), {
         path: '/',
         maxAge: 60 * 60 * 24 * 90, // 90 days
         sameSite: 'lax',
