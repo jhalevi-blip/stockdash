@@ -4,7 +4,7 @@
 
 ## Who we are
 
-StockDashes is operated by Jonathan Halevi as an individual, based in the Netherlands. For the purposes of GDPR, Jonathan Halevi is the data controller responsible for personal data collected through stockdashes.com.
+StockDashes is operated by **JH Financieel Advies** (KvK: 34097836), based in Heemstede, the Netherlands. For the purposes of GDPR, JH Financieel Advies is the data controller responsible for personal data collected through stockdashes.com.
 
 If you have any questions about this Privacy Policy or how your data is handled, contact: **privacy@stockdashes.com**.
 
@@ -110,4 +110,4 @@ We may update this Privacy Policy from time to time. The "Last updated" date at 
 For questions about this policy or to exercise your rights:
 
 **Email:** privacy@stockdashes.com  
-**Data controller:** Jonathan Halevi (individual), based in the Netherlands
+**Data controller:** JH Financieel Advies, KvK: 34097836, Heemstede, the Netherlands
