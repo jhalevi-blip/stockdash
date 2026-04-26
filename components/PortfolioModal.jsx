@@ -99,7 +99,7 @@ const iStyle = {
   outline: 'none', boxSizing: 'border-box',
 };
 // 16px prevents iOS auto-zoom on focus; minHeight 44px meets HIG tap target
-const iStyleMobile = { ...iStyle, fontSize: 16, minHeight: 44, minWidth: 0 };
+const iStyleMobile = { ...iStyle, fontSize: 16, minHeight: 44, minWidth: 0, maxWidth: '100%' };
 
 const COLS = '2fr 150px 170px 190px 44px';
 
