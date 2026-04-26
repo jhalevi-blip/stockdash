@@ -350,6 +350,16 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      <PortfolioAISummary
+        holdings={rows}
+        portfolioStats={{
+          totalValue:  totalMkt,
+          totalPnl,
+          totalPnlPct: totalPct,
+          cash:        cashUSD,
+        }}
+      />
+
       {/* Daily Snapshot */}
       {(() => {
         const dailyRows = rows.filter(r => r.chgPct != null && r.price != null);
@@ -526,16 +536,6 @@ export default function DashboardPage() {
         </div>
         <div className="note">Click a row to view chart and stock intel.</div>
       </section>
-
-      <PortfolioAISummary
-        holdings={rows}
-        portfolioStats={{
-          totalValue:  totalMkt,
-          totalPnl,
-          totalPnlPct: totalPct,
-          cash:        cashUSD,
-        }}
-      />
 
       {/* Tabbed detail panel — shown when a holding row is clicked */}
       {selected && (() => {
