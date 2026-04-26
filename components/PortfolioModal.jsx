@@ -1,5 +1,7 @@
 'use client';
 import { useState, useRef } from 'react';
+import { track } from '@/lib/posthog';
+import { getAttribution } from '@/lib/attribution';
 
 // ── TickerInput ────────────────────────────────────────────────────────────────
 function TickerInput({ value, onChange, onSelect, inputStyle }) {
@@ -124,9 +126,13 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
       ...(r.d ? { d: r.d } : {}),
     }));
     const cashData = cashAmount > 0 ? { amount: cashAmount, currency: cashCurrency } : null;
+    const holdingsCountBefore = holdings.length;
     setSaving(true); setError('');
     try {
       await onSave(parsed, cashData);
+      if (holdingsCountBefore === 0 && parsed.length > 0) {
+        track('first_ticker_added', { ticker_count: parsed.length, attribution: getAttribution() });
+      }
       onClose();
     } catch {
       setError('Failed to save. Please try again.');

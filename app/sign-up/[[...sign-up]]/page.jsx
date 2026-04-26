@@ -1,9 +1,16 @@
 'use client';
+import { useEffect } from 'react';
 import { SignUp } from '@clerk/nextjs';
 import { dark } from '@clerk/themes';
 import Logo from '@/components/Logo';
+import { track } from '@/lib/posthog';
+import { getAttribution } from '@/lib/attribution';
 
 export default function SignUpPage() {
+  useEffect(() => {
+    track('sign_up_view', { attribution: getAttribution() });
+  }, []);
+
   return (
     <div style={{
       minHeight: '100vh',

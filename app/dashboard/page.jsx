@@ -9,6 +9,8 @@ import DemoPrompt from '@/components/DemoPrompt';
 import DashboardTour from '@/components/DashboardTour';
 import { saveUserHoldings, getCacheOwner } from '@/lib/holdingsStorage';
 import { startDemo, WELCOME_TICKERS } from '@/lib/startDemo';
+import { track, identifyUser } from '@/lib/posthog';
+import { getAttribution } from '@/lib/attribution';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
@@ -54,6 +56,33 @@ export default function DashboardPage() {
   const { user, isLoaded, isSignedIn } = useUser();
   const userIdRef = useRef(null);
   useEffect(() => { userIdRef.current = user?.id ?? null; }, [user?.id]);
+
+  // Funnel events: identify user, sign_up_completed (30s window), returned_d1/d7
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user) return;
+    identifyUser(user.id, { email: user.primaryEmailAddress?.emailAddress });
+
+    const createdAt = user.createdAt ? new Date(user.createdAt).getTime() : null;
+    const now = Date.now();
+
+    // sign_up_completed — fire once within 30 seconds of account creation
+    if (createdAt && now - createdAt < 30_000 && !localStorage.getItem('sd_signup_fired')) {
+      localStorage.setItem('sd_signup_fired', '1');
+      track('sign_up_completed', { attribution: getAttribution() });
+    }
+
+    // returned_d1 — fire once on first visit at least 1 day after signup
+    if (createdAt && now - createdAt >= 86_400_000 && !localStorage.getItem('sd_d1_fired')) {
+      localStorage.setItem('sd_d1_fired', '1');
+      track('returned_d1', { attribution: getAttribution() });
+    }
+
+    // returned_d7 — fire once on first visit at least 7 days after signup
+    if (createdAt && now - createdAt >= 7 * 86_400_000 && !localStorage.getItem('sd_d7_fired')) {
+      localStorage.setItem('sd_d7_fired', '1');
+      track('returned_d7', { attribution: getAttribution() });
+    }
+  }, [isLoaded, isSignedIn, user]);
 
   // Auto-start demo for anonymous visitors (e.g. arriving from Google)
   // Waits for Clerk to settle so we never misfire against a signed-in session.
