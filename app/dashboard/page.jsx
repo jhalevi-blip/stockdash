@@ -309,7 +309,18 @@ export default function DashboardPage() {
   );
 
   return (
-    <main style={{ padding: '20px 24px' }}>
+    <main style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column' }}>
+
+      <style>{`
+        @media (max-width: 600px) {
+          [data-tour="dashboard-summary"] { order: 4; }
+          [data-section="daily-snapshot"] { order: 5; }
+          [data-tour="holdings-table"]    { order: 6; }
+          [data-tour="price-chart"]       { order: 7; }
+          [data-section="earnings"]       { order: 8; }
+          [data-section="news"]           { order: 9; }
+        }
+      `}</style>
 
       <DashboardTour run={tourRun} onStop={() => setTourRun(false)} />
 
@@ -384,7 +395,7 @@ export default function DashboardPage() {
         const labelStyle = { fontSize: 10, color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 8 };
 
         return (
-          <div style={{ marginBottom: 24 }}>
+          <div data-section="daily-snapshot" style={{ marginBottom: 24 }}>
             <div style={labelStyle}>Daily Snapshot</div>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
 
@@ -776,7 +787,7 @@ export default function DashboardPage() {
 
       {/* Earnings calendar */}
       {earnings.length > 0 && (
-        <section>
+        <section data-section="earnings">
           <div className="section-title">Upcoming Earnings</div>
           <div className="earnings-grid">
             {earnings.map(e => {
@@ -801,7 +812,7 @@ export default function DashboardPage() {
 
       {/* News */}
       {news.length > 0 && (
-        <section>
+        <section data-section="news">
           <div className="section-title">Latest News</div>
           <div className="news-feed">
             {news.map((n, i) => (
