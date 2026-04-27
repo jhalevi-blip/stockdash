@@ -8,6 +8,8 @@ const rateLimitStore = new Map();
 const WINDOW_MS = 60_000; // 1 minute
 const MAX_REQUESTS = 60;
 
+const UTM_PARAMS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+
 function isRateLimited(ip) {
   const now = Date.now();
   const entry = rateLimitStore.get(ip);
@@ -29,7 +31,7 @@ const clerkHandler = clerkMiddleware((auth, req) => {
   }
 });
 
-export default function middleware(req, ev) {
+export default async function middleware(req, ev) {
   if (req.nextUrl.pathname.startsWith('/api/')) {
     const ip =
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
@@ -50,7 +52,28 @@ export default function middleware(req, ev) {
     }
   }
 
-  return clerkHandler(req, ev);
+  const res = await clerkHandler(req, ev);
+
+  // First-touch UTM attribution — set once, never overwritten
+  if (!req.cookies.get('sd_attribution')) {
+    const { searchParams } = req.nextUrl;
+    const utmData = {};
+    for (const param of UTM_PARAMS) {
+      const val = searchParams.get(param);
+      if (val) utmData[param] = val;
+    }
+    if (Object.keys(utmData).length > 0) {
+      const response = res instanceof NextResponse ? res : NextResponse.next();
+      response.cookies.set('sd_attribution', JSON.stringify(utmData), {
+        path: '/',
+        maxAge: 60 * 60 * 24 * 90, // 90 days
+        sameSite: 'lax',
+      });
+      return response;
+    }
+  }
+
+  return res ?? NextResponse.next();
 }
 
 export const config = {

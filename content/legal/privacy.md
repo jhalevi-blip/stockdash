@@ -46,6 +46,8 @@ StockDashes uses the following third-party processors. Each processes data on ou
 
 **Anthropic** — AI analysis. When you generate AI summaries of your portfolio or stocks, your portfolio data is sent to Anthropic's Claude API to produce analysis. Anthropic does not use this data to train their models. [Privacy policy](https://www.anthropic.com/legal/privacy)
 
+**PostHog** — Product analytics (only if you consent). Tracks anonymized funnel events (e.g. sign-up, first portfolio save) to help us understand how users progress through the product. Data is stored on PostHog's EU servers. [Privacy policy](https://posthog.com/privacy)
+
 **Google Analytics** — Website analytics (only if you consent). Tracks anonymized usage data to help us understand how the site is used. [Privacy policy](https://policies.google.com/privacy)
 
 **Microsoft Clarity** — Session recordings (only if you consent). Records anonymized session replays to help us identify usability issues. [Privacy policy](https://privacy.microsoft.com/privacystatement)
@@ -71,7 +73,8 @@ stockdashes.com uses cookies and similar technologies. You can manage your prefe
 We use:
 
 - **Strictly necessary cookies** — Required for the site to function (authentication, session management). These cannot be disabled
-- **Analytics cookies** — Help us understand site usage. Only active with your consent
+- **Attribution cookies** — `sd_attribution` stores your first-visit UTM parameters (e.g. `utm_source=google`) to help us understand which marketing channels bring users to the site. This cookie is set server-side on your first visit if UTM parameters are present and is never updated. It does not contain personal data
+- **Analytics cookies** — Help us understand site usage (Google Analytics, PostHog). Only active with your consent
 
 ## Your rights under GDPR
 

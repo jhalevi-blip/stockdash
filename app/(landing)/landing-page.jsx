@@ -7,6 +7,8 @@ import { dark } from "@clerk/themes";
 import { startDemo } from "@/lib/startDemo";
 import PortfolioAISummary from "@/components/PortfolioAISummary";
 import { heroSummary } from "@/lib/demoAISummary";
+import { track } from "@/lib/posthog";
+import { getAttribution } from "@/lib/attribution";
 
 const LivePreview       = dynamic(() => import("@/components/LivePreview"),       { ssr: false });
 const StockIntelPreview = dynamic(() => import("@/components/StockIntelPreview"), { ssr: false });
@@ -31,6 +33,10 @@ export default function LandingPage() {
   // Fix 5: IntersectionObserver for StockIntelPreview — mounts only when near viewport
   const sipRef = useRef(null);
   const [sipVisible, setSipVisible] = useState(false);
+
+  useEffect(() => {
+    track('landing_view', { attribution: getAttribution() });
+  }, []);
 
   useEffect(() => {
     const el = sipRef.current;
