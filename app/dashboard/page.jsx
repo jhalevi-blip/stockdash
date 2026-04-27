@@ -355,6 +355,7 @@ export default function DashboardPage() {
 
       <PortfolioAISummary
         holdings={rows}
+        isSignedIn={!!isSignedIn}
         portfolioStats={{
           totalValue:  totalMkt,
           totalPnl,
@@ -764,7 +765,7 @@ export default function DashboardPage() {
               {/* Stock Intel tab */}
               {panelTab === 'intel' && (
                 <div data-tour="stock-intel">
-                  <StockIntelSummary holdings={holdings} rows={rows} selectedTicker={selected} />
+                  <StockIntelSummary holdings={holdings} rows={rows} selectedTicker={selected} isSignedIn={!!isSignedIn} />
                 </div>
               )}
             </div>
