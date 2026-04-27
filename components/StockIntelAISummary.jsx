@@ -273,13 +273,8 @@ export default function StockIntelAISummary({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, alignSelf: isMobile ? 'flex-end' : 'auto' }}>
-          {/* Not signed in */}
-          {!isSignedIn && (
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{L.signInPrompt}</span>
-          )}
-
-          {/* Signed in — idle state */}
-          {isSignedIn && showGenerate && (
+          {/* Idle state */}
+          {showGenerate && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
               {dailyLimitReached ? (
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{L.dailyLimitReached}</span>
@@ -309,8 +304,8 @@ export default function StockIntelAISummary({
             </div>
           )}
 
-          {/* Signed in — summary or error state */}
-          {isSignedIn && showRegenerate && (
+          {/* Summary or error state */}
+          {showRegenerate && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
               {tickerLimitReached ? (
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{L.tickerLimitReached}</span>
