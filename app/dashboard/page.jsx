@@ -355,6 +355,7 @@ export default function DashboardPage() {
 
       <PortfolioAISummary
         holdings={rows}
+        isSignedIn={!!isSignedIn}
         portfolioStats={{
           totalValue:  totalMkt,
           totalPnl,

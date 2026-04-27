@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 
-const LIMIT = 5;
-const STORAGE_KEY = 'portfolio_ai_usage';
+const STORAGE_KEY_ANON = 'portfolio_ai_usage_anon';
+const STORAGE_KEY_USER = 'portfolio_ai_usage_user';
 
 // ── Label translations (EN + NL; others fall back to EN) ─────────────────────
 const LABELS = {
@@ -16,7 +16,8 @@ const LABELS = {
     analyzing:       'Claude is analyzing your portfolio...',
     regenerate:      'Regenerate',
     generateButton:  'Generate',
-    usedToday:       '{count}/5 used today',
+    usedToday:           '{count}/{limit} used today',
+    limitReachedMessage: 'Daily limit reached ({limit}/{limit}). Come back tomorrow.',
     networkError:    "Couldn't reach AI service. Please try again.",
     genericError:    'Something went wrong. Please try again.',
   },
@@ -30,7 +31,8 @@ const LABELS = {
     analyzing:       'Claude analyseert je portfolio...',
     regenerate:      'Opnieuw genereren',
     generateButton:  'Genereer',
-    usedToday:       '{count}/5 vandaag gebruikt',
+    usedToday:           '{count}/{limit} vandaag gebruikt',
+    limitReachedMessage: 'Daglimiet bereikt ({limit}/{limit}). Kom morgen terug.',
     networkError:    'Kan de AI-service niet bereiken. Probeer het opnieuw.',
     genericError:    'Er ging iets mis. Probeer het opnieuw.',
   },
@@ -52,16 +54,16 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function readUsage() {
+function readUsage(key) {
   try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const stored = JSON.parse(localStorage.getItem(key));
     if (stored?.date === todayStr()) return stored.count ?? 0;
   } catch {}
   return 0;
 }
 
-function writeUsage(count) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: todayStr(), count }));
+function writeUsage(key, count) {
+  localStorage.setItem(key, JSON.stringify({ date: todayStr(), count }));
 }
 
 // ── Skeleton shimmer block (uses existing @keyframes pulse from globals.css) ──
@@ -76,7 +78,10 @@ function Skeleton({ style }) {
   );
 }
 
-export default function PortfolioAISummary({ holdings, portfolioStats, initialSummary }) {
+export default function PortfolioAISummary({ holdings, portfolioStats, initialSummary, isSignedIn = false }) {
+  const STORAGE_KEY = isSignedIn ? STORAGE_KEY_USER : STORAGE_KEY_ANON;
+  const LIMIT       = isSignedIn ? 5 : 2;
+
   const [summary,     setSummary]     = useState(initialSummary ?? null);   // structured object | null
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState(null);   // { type, message } | null
@@ -88,7 +93,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
 
   useEffect(() => {
     if (!initialSummary) {
-      const count = readUsage();
+      const count = readUsage(STORAGE_KEY);
       setUsageCount(count);
       if (count > 0) setShowCount(true);
       setUiLang((navigator.language || 'en').split('-')[0].toLowerCase());
@@ -97,7 +102,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  }, [initialSummary, isSignedIn]);
 
   const limitReached            = usageCount >= LIMIT;
   const L                       = getLabels(uiLang);
@@ -149,7 +154,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
         const newCount = usageCount + 1;
         setUsageCount(newCount);
         setShowCount(true);
-        writeUsage(newCount);
+        writeUsage(STORAGE_KEY, newCount);
       }
     } catch {
       setError({ type: 'network', message: L.networkError });
@@ -219,7 +224,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
               {limitReached ? (
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  Daily limit reached (5/5). Come back tomorrow.
+                  {L.limitReachedMessage.replaceAll('{limit}', LIMIT)}
                 </span>
               ) : (
                 <button
@@ -239,7 +244,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
               )}
               {showCount && (
                 <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                  {L.usedToday.replace('{count}', usageCount)}
+                  {L.usedToday.replace('{count}', usageCount).replace('{limit}', LIMIT)}
                 </span>
               )}
             </div>
@@ -262,7 +267,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
               )}
               {showCount && (
                 <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                  {L.usedToday.replace('{count}', usageCount)}
+                  {L.usedToday.replace('{count}', usageCount).replace('{limit}', LIMIT)}
                 </span>
               )}
             </div>
