@@ -1,5 +1,6 @@
 'use client';
 import { useState, useCallback, useEffect } from 'react';
+import StockIntelAISummary from '@/components/StockIntelAISummary';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => n == null ? '—' : (n >= 0 ? '+' : '') + fmt(Math.abs(n), d) + '%';
@@ -191,6 +192,21 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker, isSi
           gap: 12,
           width: '100%',
         }}>
+
+          {/* 0 — AI Summary (full width, first) */}
+          <StockIntelAISummary
+            ticker={ticker}
+            isSignedIn={isSignedIn}
+            dataLoading={loading}
+            row={row}
+            analystD={analystD}
+            valD={valD}
+            finD={finD}
+            earningsHist={data?.earningsHist ?? null}
+            insiders={insiders}
+            siD={siD}
+            peersList={peersList}
+          />
 
           {/* 1 — Position */}
           <Card title="My Position">
