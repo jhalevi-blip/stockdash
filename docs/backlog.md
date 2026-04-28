@@ -72,6 +72,20 @@ Identified during the Build 2 design discussion. Priority TBD — wait for user 
 
 ---
 
+## GTM Learnings
+
+### PSG Discord (private stock group) — low fit
+
+*Logged: 2026-04-28*
+
+Three posts over 6 weeks (Apr 11, Apr 15, Apr 28), zero meaningful engagement on each. Apr 28 portfolio-share attempt got mod-corrected to keep promotional content in #sell-me-something only.
+
+**Implication:** PSG is not a viable primary distribution channel. The only on-topic channel for promotional content (#sell-me-something) doesn't get engagement. Other channels are off-limits even when content fits.
+
+**Strategy:** Deprioritize PSG. Maintain occasional presence (low effort) but invest GTM time elsewhere — LinkedIn, other Discords (Meet Kevin, Shkreli), SEO, partnerships.
+
+---
+
 ## Bug Fixes / Polish
 
 ### CookieHub button color
