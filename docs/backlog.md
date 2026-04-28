@@ -84,6 +84,8 @@ Three posts over 6 weeks (Apr 11, Apr 15, Apr 28), zero meaningful engagement on
 
 **Strategy:** Deprioritize PSG. Maintain occasional presence (low effort) but invest GTM time elsewhere — LinkedIn, other Discords (Meet Kevin, Shkreli), SEO, partnerships.
 
+**Update 2026-04-28 evening:** Apr 28 portfolio-share post (deleted ~50 min after posting due to mod correction) generated 1 PSG-attributed signup before deletion. Single user (`newtonjordan466@gmail.com`) clicked through with full UTM (`utm_source=psg_discord, utm_medium=portfolio_channel, utm_campaign=portfolio_share_apr28`), reached dashboard, completed signup. Suggests portfolio-share channel content works *when the post survives* — the constraint is the channel rules, not the audience interest.
+
 ---
 
 ## Bug Fixes / Polish
