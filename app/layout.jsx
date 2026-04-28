@@ -28,7 +28,7 @@ export default function RootLayout({ children }) {
         <Script id="theme-init" strategy="beforeInteractive">{`try{var t=localStorage.getItem('stockdash_theme');document.documentElement.setAttribute('data-theme',t==='light'?'light':'dark')}catch(e){document.documentElement.setAttribute('data-theme','dark')}try{if(localStorage.getItem('dev_mode')==='true')document.documentElement.setAttribute('data-va-disable','true')}catch(e){}`}</Script>
         <Script id="gcm-default" strategy="beforeInteractive">{`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','analytics_storage':'denied','functionality_storage':'granted','security_storage':'granted','wait_for_update':500});`}</Script>
         <Script id="cookiehub" strategy="beforeInteractive" src="https://cdn.cookiehub.eu/c2/9cb2f0a8.js" />
-        <Script id="cookiehub-init" strategy="afterInteractive">{`(function(){function init(){if(window.cookiehub){window.cookiehub.load({});}else{setTimeout(init,50);}}init();})();`}</Script>
+        <Script id="cookiehub-init" strategy="afterInteractive">{`(function(){function init(){if(window.cookiehub){var host=window.location.hostname;var config={};if(host==='stockdashes.com'||host.endsWith('.stockdashes.com')){config.cookieDomain='.stockdashes.com';}window.cookiehub.load(config);}else{setTimeout(init,50);}}init();})();`}</Script>
         {process.env.VERCEL_ENV === 'production' && (
           <>
             <Script src="https://www.googletagmanager.com/gtag/js?id=G-NK5GB4WDZL" strategy="afterInteractive" />
