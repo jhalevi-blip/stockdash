@@ -14,6 +14,7 @@ const LABELS = {
     analyzing:          'Claude is analyzing this stock...',
     regenerate:         'Regenerate',
     generateButton:     'Generate AI Summary',
+    loadingData:        'Loading data…',
     networkError:       "Couldn't reach AI service. Please try again.",
     genericError:       'Something went wrong. Please try again.',
     tickerLimitReached: 'Already regenerated twice for this ticker today',
@@ -32,6 +33,7 @@ const LABELS = {
     analyzing:          'Claude analyseert dit aandeel...',
     regenerate:         'Opnieuw genereren',
     generateButton:     'AI-samenvatting genereren',
+    loadingData:        'Gegevens laden…',
     networkError:       'Kan de AI-service niet bereiken. Probeer het opnieuw.',
     genericError:       'Er ging iets mis. Probeer het opnieuw.',
     tickerLimitReached: 'Vandaag al 2x opnieuw gegenereerd voor dit aandeel',
@@ -120,7 +122,7 @@ function Skeleton({ style }) {
 }
 
 export default function StockIntelAISummary({
-  ticker, isSignedIn, dataLoading,
+  ticker, isSignedIn, dataLoading, dataReady,
   row, analystD, valD, finD, earningsHist, insiders, siD, peersList,
 }) {
   const [summary,      setSummary]      = useState(null);
@@ -281,19 +283,19 @@ export default function StockIntelAISummary({
               ) : (
                 <button
                   onClick={generate}
-                  disabled={dataLoading}
+                  disabled={dataLoading || !dataReady}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
                     background: 'var(--accent)', color: '#fff',
                     border: 'none', borderRadius: 6,
                     padding: '6px 14px', fontSize: 12, fontWeight: 600,
-                    cursor: dataLoading ? 'not-allowed' : 'pointer',
-                    opacity: dataLoading ? 0.6 : 1,
+                    cursor: (dataLoading || !dataReady) ? 'not-allowed' : 'pointer',
+                    opacity: (dataLoading || !dataReady) ? 0.6 : 1,
                     fontFamily: 'inherit', whiteSpace: 'nowrap',
                   }}
                 >
                   <span style={{ fontSize: 14 }}>✦</span>
-                  {L.generateButton}
+                  {(dataLoading || !dataReady) ? L.loadingData : L.generateButton}
                 </button>
               )}
               {distinctCount > 0 && (
