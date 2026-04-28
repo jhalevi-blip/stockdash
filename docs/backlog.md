@@ -8,6 +8,22 @@ Last updated: 2026-04-28
 
 ## Active / Next Up
 
+### Stock Intel (AI) mobile UI fix
+
+**Priority:** High.
+
+The Stock Intel section's AI Summary component renders poorly on mobile. Specific issues TBD — needs investigation. Likely candidates:
+- Generate button placement / tap target
+- Section header layout (rating, counter, regenerate button collide on narrow viewports)
+- Output sections (Thesis / Bull / Bear / What to Watch) text-wrapping
+- Counter strings ("Generation X of 2", "X/10 tickers analyzed today") may overflow
+
+**Why now:** Tomorrow's PSG traffic includes mobile users. A degraded mobile experience on the headline feature undermines today's launch.
+
+**Approach:** Investigate first to identify all specific layout breaks, then a single mobile-targeted fix pass on `components/StockIntelAISummary.jsx` and possibly the parent `components/StockIntelSummary.jsx`. Use existing `isMobile` state where present. May need new media queries.
+
+---
+
 ### Build 2 — Risk Profile (revised)
 
 User-selectable investing style that changes how the AI prioritizes and frames its analysis.
