@@ -131,6 +131,16 @@ Sign-up doesn't work on Vercel preview deployments because:
 
 **When to revisit:** When revenue justifies a Clerk Pro subscription (~$25–100/month).
 
+### Wire CookieHub → GA4 consent update
+
+GCM defaults correctly set to `denied` in `app/layout.jsx` line 29. But no `gtag('consent','update',...)` ever fires when the user accepts — GA4 is stuck in cookieless/modelled mode for all users on all sessions.
+
+PostHog is correctly gated via the polling pattern in `lib/posthog.js`. Fix is to add the `gtag` consent update call in the same polling block (or use a `cookiehub.on()` callback if the API supports it).
+
+Side note: `@next/third-parties` is installed in `package.json` but never imported anywhere — can be removed in the same PR.
+
+~15 min fix, low priority — PostHog is primary analytics, GA is decoration.
+
 ### API route auth checks
 `/api/ai-summary` and `/api/stock-ai-summary` currently have no per-route auth — anyone with the URL pattern can POST and consume Anthropic credits. Mitigated today by the global 60 req/min/IP middleware limit and the front-end UI rate limits, but a determined caller could bypass both. Defer until either spend becomes meaningful or there's a public abuse incident.
 
