@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import StockIntelAISummary from '@/components/StockIntelAISummary';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
@@ -90,12 +90,15 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker, isSi
   const [finQData,         setFinQData]         = useState(null);   // quarterly data, keyed by ticker
   const [finQLoading,      setFinQLoading]      = useState(false);
 
+  const fetchTokenRef = useRef(0);
+
   const selectStock = useCallback(async (t) => {
     if (!t) {
       setTicker(''); setData(null);
       setFinPeriod('Annual'); setFinQData(null);
       return;
     }
+    const myToken = ++fetchTokenRef.current;
     setTicker(t);
     setLoading(true);
     setData(null);
@@ -115,6 +118,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker, isSi
         fetch(`/api/short-interest-data?tickers=${t}`).then(r => r.json()).catch(() => []),
       ]);
 
+    if (myToken !== fetchTokenRef.current) return;
     setData({ analyst, insider, earningsHist, valuation, peers, financials, news, filings, shortInterest });
     setLoading(false);
   }, []);
@@ -198,6 +202,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker, isSi
             ticker={ticker}
             isSignedIn={isSignedIn}
             dataLoading={loading}
+            dataReady={data !== null}
             row={row}
             analystD={analystD}
             valD={valD}
