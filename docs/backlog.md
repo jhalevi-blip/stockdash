@@ -59,7 +59,11 @@ Identified during the Build 2 design discussion. Priority TBD — wait for user 
 ## Bug Fixes / Polish
 
 ### CookieHub button color
-Banner accept button still shows CookieHub default blue (`#181eed`) on production. Color was changed in CookieHub dashboard but propagation seems delayed or didn't save. Re-verify in CookieHub dashboard. If saved correctly, the issue is CDN propagation — give it more time. If not saved, retry. Cosmetic, not blocking.
+Banner accept button shows CookieHub default `#181eed` instead of site accent `#58a6ff`. Color was changed in CookieHub dashboard (Save & Close confirmed multiple times, dashboard preview shows correct color), but production stockdashes.com still renders the old color even after hard refresh in fresh incognito.
+
+Likely causes (in priority order): CookieHub CDN cache slow to propagate, CookieHub free plan customization limitation, something in CookieHub's serving pipeline.
+
+Next step if revisited: open a CookieHub support ticket. Genuinely cosmetic — not blocking anything.
 
 ### Empty data cards on AMD Stock Intel
 Sometimes valuation, short interest, and insider activity cards render empty even though the data is available. Possibly related to the same fetch-race family as the data-race fix shipped 2026-04-28, but this one persists across refreshes for AMD specifically. Investigate after Build 2.
