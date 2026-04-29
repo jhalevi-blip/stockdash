@@ -149,6 +149,18 @@ Next step if revisited: open a CookieHub support ticket. Genuinely cosmetic — 
 ### Empty data cards on AMD Stock Intel
 Sometimes valuation, short interest, and insider activity cards render empty even though the data is available. Possibly related to the same fetch-race family as the data-race fix shipped 2026-04-28, but this one persists across refreshes for AMD specifically. Investigate after Build 2.
 
+### Local dev: /api/portfolio returns 500 with Clerk Development user IDs (medium priority — local dev hygiene)
+
+`POST/GET /api/portfolio` returns 500 in local dev environment. Likely cause: RLS policy on the `portfolios` table doesn't accept Clerk Development user ID format, or a server-side constraint differs between dev and prod Clerk instances.
+
+**Workaround:** Test authenticated routes by shipping to production via feature branches and checking on the Vercel deployment.
+
+**When to revisit:** When local testing of authenticated flows becomes important enough to justify the investigation.
+
+### Layout.jsx hydration warning (low priority — local dev hygiene)
+
+`<html>` contains a nested `<script>` causing hydration mismatches in dev. Pre-existing, not blocking anything in production. Worth a clean-up pass when doing a broader layout refactor.
+
 ### Sign Up button in Chrome (preview deployments)
 Reported during 2026-04-27 QA: clicking Sign Up on a Vercel preview URL went to `/sign-up` but the Clerk form didn't render. Root cause now understood (see "Parked" below). Production sign-up works fine. Defer.
 
