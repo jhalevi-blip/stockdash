@@ -108,6 +108,21 @@ Re-evaluate ~2026-05-05 when PostHog has 10+ days of capture data and signed-up 
 
 ## Bug Fixes / Polish
 
+### Supabase schema migrations (medium priority — data hygiene)
+
+Create `migrations/` folder with versioned `.sql` files for the current schema. Currently the schema exists only as code comments in `app/api/portfolio/route.ts` and `lib/apiUsage.ts`. Important for portability, onboarding, and version control of schema changes.
+
+Tables to cover:
+- `portfolios` (user_id PK, holdings jsonb, updated_at)
+- `api_usage` (api + date composite PK, count, plus `increment_api_usage` RPC)
+- `portfolio_correlations` (future table — stub the migration now so it's ready)
+
+### Supabase pg_dump backups (medium priority — data hygiene)
+
+Set up periodic `pg_dump` backups of the Supabase database. Monthly cadence is fine. Belt-and-suspenders against accidental data loss and vendor risk.
+
+Supabase provides a connection string for direct Postgres access — `pg_dump` can run against it. Options: a simple cron job on any always-on machine, a GitHub Actions scheduled workflow, or Supabase's built-in PITR (Point-in-Time Recovery) if available on the current plan.
+
 ### Refactor: consolidate isMobile in StockIntelAISummary
 
 `components/StockIntelAISummary.jsx` has its own inline `useState`/`useEffect` for mobile detection. Consolidate to use the shared `lib/useIsMobile` hook for consistency. Low priority — no user-facing impact.
