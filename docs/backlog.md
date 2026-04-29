@@ -10,7 +10,9 @@ Last updated: 2026-04-29
 
 ### SEO Post #2
 
-Keyword research, topic selection, angle, draft.
+Keyword research, topic, angle, draft. Strategy locked: educational tutorials, AI-assisted angle, retail investor audience. Build topical cluster around portfolio analysis / risk / diversification.
+
+**Sanity check on ship:** verify auto-generated sitemap picks up new post at build time (should "just work" with `app/sitemap.js` but worth confirming once).
 
 ---
 
@@ -106,6 +108,10 @@ Re-evaluate ~2026-05-05 when PostHog has 10+ days of capture data and signed-up 
 
 `components/StockIntelAISummary.jsx` has its own inline `useState`/`useEffect` for mobile detection. Consolidate to use the shared `lib/useIsMobile` hook for consistency. Low priority — no user-facing impact.
 
+### Refactor: shared Nav component
+
+Currently 3 independent nav implementations: landing (`landing-page.jsx`), blog (`app/blog/layout.jsx`), app (`components/NavBar.jsx`). Out of scope today — would touch every route. Revisit when nav needs a meaningful feature addition that would require updating all three.
+
 ### Wire CookieHub → GA4 consent update
 
 GCM defaults correctly set to `denied` in `app/layout.jsx`. But no `gtag('consent','update',...)` ever fires when the user accepts — GA4 is stuck in cookieless/modelled mode for all users on all sessions. PostHog is fine.
@@ -148,6 +154,8 @@ Sign-up doesn't work on Vercel preview deployments because:
 
 ## Done (recent)
 
+- **2026-04-29** — `feat`: blog navigation links added to landing nav, landing footer, app desktop nav, and app mobile drawer. `/blog` no longer orphaned from all other surfaces.
+- **2026-04-29** — Google Search Console verified for stockdashes.com (TXT record via Cloudflare DNS). Sitemap submitted (3 URLs: `/`, `/blog`, `/blog/how-to-analyze-your-stock-portfolio`). Indexing requested for all 3.
 - **2026-04-29** — `fix(stock-intel)`: responsive mobile layout — `span={2}` cards collapse to full width on mobile, News+Filings grid stacks. Shared `useIsMobile` hook added to `lib/`.
 - **2026-04-28** — `fix(cookiehub)`: scope consent cookie to root domain so banner doesn't re-prompt across routes.
 - **2026-04-28** — `fix(stock-intel)`: prevent AI generation against stale or partial data (generation-ID pattern + tighter button gating + "Loading data…" label).
