@@ -8,11 +8,15 @@ Last updated: 2026-04-29
 
 ## Active / Next Up
 
-### SEO Post #2
+### SEO Post #3
 
-Keyword research, topic, angle, draft. Strategy locked: educational tutorials, AI-assisted angle, retail investor audience. Build topical cluster around portfolio analysis / risk / diversification.
+Strategy locked: educational tutorials, beginner-friendly tone, AI-assisted angle, retail investor audience. Build topical cluster around portfolio analysis / risk / diversification. No personal portfolio details. Light StockDashes CTA at end only.
 
-**Sanity check on ship:** verify auto-generated sitemap picks up new post at build time (should "just work" with `app/sitemap.js` but worth confirming once).
+**Candidate topics:**
+- "How Much of Your Portfolio Should Be in One Stock?" (concentration deep-dive, builds on Post #1's 10-15% rule)
+- "Sector Diversification: How to Actually Diversify Your Portfolio" (companion to correlation post)
+- "How to Calculate Performance Attribution in Your Portfolio" (technical, smaller audience but differentiated)
+- "What Is Beta in Stocks? (And Why It Matters Less Than You Think)" (myth-busting angle)
 
 ---
 
@@ -154,8 +158,10 @@ Sign-up doesn't work on Vercel preview deployments because:
 
 ## Done (recent)
 
+- **2026-04-29** — SEO Post #2 published: "Are Your Stocks Really Diversified? How to Check Correlation". Educational tutorial, builds on Post #1, ~12 min read.
+- **2026-04-29** — Google Search Console: sitemap resubmitted with 4 URLs (`/`, `/blog`, Post #1, Post #2). Indexing requested for all 4.
 - **2026-04-29** — `feat`: blog navigation links added to landing nav, landing footer, app desktop nav, and app mobile drawer. `/blog` no longer orphaned from all other surfaces.
-- **2026-04-29** — Google Search Console verified for stockdashes.com (TXT record via Cloudflare DNS). Sitemap submitted (3 URLs: `/`, `/blog`, `/blog/how-to-analyze-your-stock-portfolio`). Indexing requested for all 3.
+- **2026-04-29** — Google Search Console verified for stockdashes.com (TXT record via Cloudflare DNS). Sitemap submitted. Indexing requested.
 - **2026-04-29** — `fix(stock-intel)`: responsive mobile layout — `span={2}` cards collapse to full width on mobile, News+Filings grid stacks. Shared `useIsMobile` hook added to `lib/`.
 - **2026-04-28** — `fix(cookiehub)`: scope consent cookie to root domain so banner doesn't re-prompt across routes.
 - **2026-04-28** — `fix(stock-intel)`: prevent AI generation against stale or partial data (generation-ID pattern + tighter button gating + "Loading data…" label).
