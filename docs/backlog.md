@@ -1,206 +1,94 @@
-# StockDashes Backlog
+# StockDashes Roadmap
 
-Living document. Items here are not commitments — they're a snapshot of what's been discussed and where each thing stands. Reorder as priorities shift.
+_Last updated: 2026-04-29_
 
-Last updated: 2026-04-29
+## Conventions
 
----
-
-## Active / Next Up
-
-### SEO Post #3
-
-Strategy locked: educational tutorials, beginner-friendly tone, AI-assisted angle, retail investor audience. Build topical cluster around portfolio analysis / risk / diversification. No personal portfolio details. Light StockDashes CTA at end only.
-
-**Candidate topics:**
-- "How Much of Your Portfolio Should Be in One Stock?" (concentration deep-dive, builds on Post #1's 10-15% rule)
-- "Sector Diversification: How to Actually Diversify Your Portfolio" (companion to correlation post)
-- "How to Calculate Performance Attribution in Your Portfolio" (technical, smaller audience but differentiated)
-- "What Is Beta in Stocks? (And Why It Matters Less Than You Think)" (myth-busting angle)
+- Status: `[ ]` not started, `[~]` in progress, `[!]` blocked, `[x]` shipped this week
+- Now = max 5 items, this week's focus
+- Recently Shipped = last 14 days, prune older entries when updating
+- SEO post ships weekly at ~2000 words. Current week's titled post lives in Now. Next 2-3 topics queued in Next.
+- Update the "Last updated" date when you edit
 
 ---
 
-### Build 2 — Risk Profile (revised)
+## Now (this week)
 
-User-selectable investing style that changes how the AI prioritizes and frames its analysis.
+- [~] **Cache-Control audit** — add `private, no-store` to all responses in `/api/portfolio`, `/api/ai-summary`, `/api/usage`. Same pattern as correlation fix. Single PR.
+- [ ] **Correlation prompt integration** — wire `/api/correlation` into the dashboard; pass matrix data to the Portfolio AI prompt.
+- [ ] **Hidden Bet UI** — single-line concentration callout at the top of the Portfolio AI Summary card, surfacing the dominant theme/sector/macro driver across holdings. Output of the correlation prompt integration.
+- [ ] **Correlation dashboard section** — display the correlation matrix and top/bottom pairs to signed-in users.
+- [ ] **SEO post: "How Much of Your Portfolio Should Be in One Stock?"** — concentration deep-dive; pairs with Post #2 on correlation; ~2000 words; ship by 2026-05-05.
 
-**Approach:** Path 1 — ship Option B-lite with current data, expand based on user feedback. Don't source new data speculatively; let user complaints tell us what to invest in.
-
-**Key principle: meta-transparency.** The AI explicitly names *what it's doing differently* because of the profile. Example output for an Aggressive user looking at AMD:
-
-> "I'm prioritizing thesis-validation signals over diversification critique because of your aggressive profile. The most thesis-relevant data point I see is [X]."
-
-This makes the feature feel substantive even when the underlying data is unchanged.
-
-**Profile dimensions to validate with users (start simple, evolve):**
-- Thesis-driven vs. Allocation-driven
-- Inform vs. Suggest
-- Phase 1: 3-toggle (Conservative / Balanced / Aggressive). Refine in Phase 2.
-
-**Anti-pattern to avoid:** Confirmation-bias machine. Even with the profile set, the AI must still surface contrary information. Frame it as "concentrated by design — but here's the failure mode you should watch for," not validation.
-
-**Build sequence:**
-- Phase 1 (1–2 days): Single profile toggle in user settings, prompt parameterization on tone + prioritization, meta-transparency in output.
-- Phase 2 (after 2–3 weeks of user feedback): Refine prompts based on complaints. Possibly split "Aggressive" into "Concentrated" vs. "Trader" if users tell us those differ.
-- Phase 3 (later): Custom profiles, per-analysis override, account-level vs. session-level setting.
+After correlation UI ships: delete `/correlation-debug`, then run audit pass (production smoke test, FMP/Anthropic usage, Search Console indexing, PostHog D1/D7, backlog hygiene, code health, dev environment).
 
 ---
 
-### Data gaps for Aggressive / Thesis-driven analysis
+## Next (this month)
 
-Identified during the Build 2 design discussion. Priority TBD — wait for user feedback in Phase 2 to tell us which matters most.
+**SEO post queue:**
+- SEO post: "Sector Diversification: How to Actually Diversify Your Portfolio" — companion to the correlation post; practical retail-investor angle
+- SEO post: "What Is Beta in Stocks? (And Why It Matters Less Than You Think)" — myth-busting angle; accessible, broad search appeal
 
-**Currently in the Stock Intel AI prompt:** ticker, price, analyst target, valuation multiples, financials (annual), earnings beats/misses, insiders, short interest, peers, user position.
-
-**Missing data that would strengthen thesis-tracking:**
-
-| Data | Status | Likely source |
-|---|---|---|
-| Segment revenue (e.g., AMD data center %) | Partial — only annual totals today | FMP higher tier, or Finnhub |
-| Forward guidance changes (raised / cut / maintained) | Not in prompt | Earnings call transcripts API |
-| Analyst estimate revisions (rising / falling / flat) | Not in prompt — different from target | FMP estimates, Refinitiv |
-| Sector rotation indicators | Not in prompt | Custom calculation from price data |
-| Competitor wins/losses (e.g., NVDA vs AMD capacity) | Not in prompt | News + entity extraction |
-| Management commentary tone changes earnings call to call | Not in prompt | Earnings call transcripts + sentiment |
-| Options market positioning (gamma, IV skew) | Not in prompt | CBOE, OPRA, or aggregator |
-
-**Prioritization principle:** Don't source any of these speculatively. Wait until users in Phase 2 tell us which matters. The biggest mistake would be paying for an estimates-revision API for six months and discovering nobody cared.
+**Fixes and hygiene:**
+- **Wire CookieHub → GA4 consent update** — GCM defaults to `denied` but `gtag('consent','update',...)` never fires when the user accepts. GA4 is stuck in cookieless/modelled mode for all sessions. Fix: add consent update call in the CookieHub callback block in `lib/posthog.js`. ~15 min. Also remove unused `@next/third-parties` from `package.json` in the same PR.
+- **AMD empty data cards** — On the Stock Intel page for AMD specifically, valuation, short interest, and insider activity cards sometimes render empty even though data is available. Persists across full page refreshes (unlike the data-race fix shipped 2026-04-28, which was session-level). Noticed during QA 2026-04-28. ⚠️ Production bug on a named stock page — promote to Now if it recurs or affects other tickers.
+- **Supabase schema migrations** — Document `portfolios` and `api_usage` table schemas as versioned `.sql` files in `db/migrations/`. Currently schemas exist only as comments in `app/api/portfolio/route.ts` and `lib/apiUsage.ts`. `portfolio_correlations` already done (migration 001).
+- **Supabase pg_dump backups** — Set up monthly `pg_dump` of the Supabase database. Options: cron job on any always-on machine, GitHub Actions scheduled workflow, or Supabase PITR. Belt-and-suspenders against data loss and vendor risk.
+- **Retention diagnostic re-evaluate** — Check PostHog D1/D7/WAU around 2026-05-05 when there are 10+ days of capture data and signed-up users have enough tenure to show a signal.
 
 ---
 
-## GTM Learnings
+## Later (this quarter)
 
-### PSG Discord (private stock group) — low fit
-
-*Logged: 2026-04-28*
-
-Three posts over 6 weeks (Apr 11, Apr 15, Apr 28), zero meaningful engagement on each. Apr 28 portfolio-share attempt got mod-corrected to keep promotional content in #sell-me-something only.
-
-**Implication:** PSG is not a viable primary distribution channel. The only on-topic channel for promotional content (#sell-me-something) doesn't get engagement. Other channels are off-limits even when content fits.
-
-**Strategy:** Deprioritize PSG. Maintain occasional presence (low effort) but invest GTM time elsewhere — LinkedIn, other Discords (Meet Kevin, Shkreli), SEO, partnerships.
-
-**Update 2026-04-28 evening:** Apr 28 portfolio-share post (deleted ~50 min after posting due to mod correction) generated 1 PSG-attributed signup before deletion. Single user (`newtonjordan466@gmail.com`) clicked through with full UTM (`utm_source=psg_discord, utm_medium=portfolio_channel, utm_campaign=portfolio_share_apr28`), reached dashboard, completed signup. Suggests portfolio-share channel content works *when the post survives* — the constraint is the channel rules, not the audience interest.
-
-### GTM Strategy — 2026-04-28
-
-**Horizon:** 6+ months, willing to grind.
-
-**Primary channel:** SEO content (compounds, plays to strength, forces strategic thinking about messaging and direction).
-
-**Cadence target:** 2 posts per week.
-
-**Secondary channel (after retention validated):** One platform deep — likely LinkedIn given finance audience.
-
-**Deferred:** Meet Kevin Discord, Martin Shkreli Discord, additional Discord channels. Don't spread thin.
-
-**First check:** Retention data via PostHog (D1, D7, WAU). Built tomorrow before further GTM work. Distribution effort scales after retention is understood.
+**Build 2 — Risk Profile**
+User-selectable investing style (Conservative / Balanced / Aggressive) that changes how the AI prioritizes and frames its analysis. Phase 1: single 3-toggle in user settings, prompt parameterization on tone and prioritization, meta-transparency in output (the AI names *what it's doing differently* because of the selected profile). Expand in Phase 2 based on user feedback. Anti-pattern to avoid: confirmation-bias machine — the AI must still surface contrary information regardless of profile.
 
 ---
 
-## Deferred
+## Blocked / Waiting On
 
-### Retention diagnostic (D1/D7)
-
-Re-evaluate ~2026-05-05 when PostHog has 10+ days of capture data and signed-up users have enough tenure.
-
----
-
-## Bug Fixes / Polish
-
-### Supabase schema migrations (medium priority — data hygiene)
-
-Create `migrations/` folder with versioned `.sql` files for the current schema. Currently the schema exists only as code comments in `app/api/portfolio/route.ts` and `lib/apiUsage.ts`. Important for portability, onboarding, and version control of schema changes.
-
-Tables to cover:
-- `portfolios` (user_id PK, holdings jsonb, updated_at)
-- `api_usage` (api + date composite PK, count, plus `increment_api_usage` RPC)
-- `portfolio_correlations` (future table — stub the migration now so it's ready)
-
-### Supabase pg_dump backups (medium priority — data hygiene)
-
-Set up periodic `pg_dump` backups of the Supabase database. Monthly cadence is fine. Belt-and-suspenders against accidental data loss and vendor risk.
-
-Supabase provides a connection string for direct Postgres access — `pg_dump` can run against it. Options: a simple cron job on any always-on machine, a GitHub Actions scheduled workflow, or Supabase's built-in PITR (Point-in-Time Recovery) if available on the current plan.
-
-### Refactor: consolidate isMobile in StockIntelAISummary
-
-`components/StockIntelAISummary.jsx` has its own inline `useState`/`useEffect` for mobile detection. Consolidate to use the shared `lib/useIsMobile` hook for consistency. Low priority — no user-facing impact.
-
-### Refactor: shared Nav component
-
-Currently 3 independent nav implementations: landing (`landing-page.jsx`), blog (`app/blog/layout.jsx`), app (`components/NavBar.jsx`). Out of scope today — would touch every route. Revisit when nav needs a meaningful feature addition that would require updating all three.
-
-### Wire CookieHub → GA4 consent update
-
-GCM defaults correctly set to `denied` in `app/layout.jsx`. But no `gtag('consent','update',...)` ever fires when the user accepts — GA4 is stuck in cookieless/modelled mode for all users on all sessions. PostHog is fine.
-
-Fix: add `gtag` consent update call in the CookieHub polling block in `lib/posthog.js` (or a `cookiehub.on()` callback). ~15 min fix.
-
-Also: remove unused `@next/third-parties` from `package.json` in the same PR.
-
-### CookieHub button color
-Banner accept button shows CookieHub default `#181eed` instead of site accent `#58a6ff`. Color was changed in CookieHub dashboard (Save & Close confirmed multiple times, dashboard preview shows correct color), but production stockdashes.com still renders the old color even after hard refresh in fresh incognito.
-
-Likely causes (in priority order): CookieHub CDN cache slow to propagate, CookieHub free plan customization limitation, something in CookieHub's serving pipeline.
-
-Next step if revisited: open a CookieHub support ticket. Genuinely cosmetic — not blocking anything.
-
-### Empty data cards on AMD Stock Intel
-Sometimes valuation, short interest, and insider activity cards render empty even though the data is available. Possibly related to the same fetch-race family as the data-race fix shipped 2026-04-28, but this one persists across refreshes for AMD specifically. Investigate after Build 2.
-
-### Local dev: /api/portfolio returns 500 with Clerk Development user IDs (medium priority — local dev hygiene)
-
-`POST/GET /api/portfolio` returns 500 in local dev environment. Likely cause: RLS policy on the `portfolios` table doesn't accept Clerk Development user ID format, or a server-side constraint differs between dev and prod Clerk instances.
-
-**Workaround:** Test authenticated routes by shipping to production via feature branches and checking on the Vercel deployment.
-
-**When to revisit:** When local testing of authenticated flows becomes important enough to justify the investigation.
-
-### Layout.jsx hydration warning (low priority — local dev hygiene)
-
-`<html>` contains a nested `<script>` causing hydration mismatches in dev. Pre-existing, not blocking anything in production. Worth a clean-up pass when doing a broader layout refactor.
-
-### Sign Up button in Chrome (preview deployments)
-Reported during 2026-04-27 QA: clicking Sign Up on a Vercel preview URL went to `/sign-up` but the Clerk form didn't render. Root cause now understood (see "Parked" below). Production sign-up works fine. Defer.
+- **Clerk preview deployment auth** — Sign-up doesn't work on Vercel preview URLs. Clerk Production instance only allows `stockdashes.com`; `*.vercel.app` preview URLs can't be added on the Hobby plan ("Satellites" feature requires Clerk Pro). Workaround: merge to main and test on production. Unblock when: Clerk Pro purchased (~$25–100/mo).
+- **API route auth checks (`/api/ai-summary`, `/api/stock-ai-summary`)** — No per-route auth; anyone with the URL pattern can POST and consume Anthropic credits. Mitigated today by global 60 req/min/IP middleware and front-end rate limits. Unblock when: Anthropic spend becomes meaningful or a public abuse incident occurs.
 
 ---
 
-## Parked / Blocked
+## Someday / Maybe
 
-### Clerk preview deployment auth
-Sign-up doesn't work on Vercel preview deployments because:
-1. Clerk Production instance only allows the configured primary domain (`stockdashes.com`).
-2. `*.vercel.app` preview URLs are not subdomains of the primary domain, so they can't be added via the "Allowed Subdomains" feature on the Hobby plan.
-3. The "Satellites" feature that would solve this is gated behind Clerk Pro (paid).
-
-**Implication:** Signed-in QA on preview branches is not possible. Workaround is to merge to main and test on production. Code paths for signed-in users remain testable by code review.
-
-**When to revisit:** When revenue justifies a Clerk Pro subscription (~$25–100/month).
-
-### API route auth checks
-`/api/ai-summary` and `/api/stock-ai-summary` currently have no per-route auth — anyone with the URL pattern can POST and consume Anthropic credits. Mitigated today by the global 60 req/min/IP middleware limit and the front-end UI rate limits, but a determined caller could bypass both. Defer until either spend becomes meaningful or there's a public abuse incident.
+- **Data gaps for Aggressive / Thesis-driven analysis** — Segment revenue, forward guidance changes, analyst estimate revisions, sector rotation indicators, competitor wins/losses, management commentary tone, options market positioning. Don't source speculatively — wait for Build 2 Phase 2 user feedback to tell us which matters most.
+- **Shared Nav component refactor** — Currently 3 independent nav implementations: landing (`landing-page.jsx`), blog (`app/blog/layout.jsx`), app (`components/NavBar.jsx`). Revisit when nav needs a feature addition that would require updating all three anyway.
+- **Consolidate `isMobile` in `StockIntelAISummary`** — Component has its own inline `useState`/`useEffect` for mobile detection. Consolidate to use the shared `lib/useIsMobile` hook. No user-facing impact.
 
 ---
 
-## Done (recent)
+## Recently Shipped (last 14 days)
 
-- **2026-04-29** — SEO Post #2 published: "Are Your Stocks Really Diversified? How to Check Correlation". Educational tutorial, builds on Post #1, ~12 min read.
-- **2026-04-29** — Google Search Console: sitemap resubmitted with 4 URLs (`/`, `/blog`, Post #1, Post #2). Indexing requested for all 4.
-- **2026-04-29** — `feat`: blog navigation links added to landing nav, landing footer, app desktop nav, and app mobile drawer. `/blog` no longer orphaned from all other surfaces.
-- **2026-04-29** — Google Search Console verified for stockdashes.com (TXT record via Cloudflare DNS). Sitemap submitted. Indexing requested.
-- **2026-04-29** — `fix(stock-intel)`: responsive mobile layout — `span={2}` cards collapse to full width on mobile, News+Filings grid stacks. Shared `useIsMobile` hook added to `lib/`.
-- **2026-04-28** — `fix(cookiehub)`: scope consent cookie to root domain so banner doesn't re-prompt across routes.
-- **2026-04-28** — `fix(stock-intel)`: prevent AI generation against stale or partial data (generation-ID pattern + tighter button gating + "Loading data…" label).
-- **2026-04-27** — `feat(stock-intel-ai)`: parity with Portfolio AI quality, anonymous gate removed, asymmetric Portfolio AI cap (2 anon / 5 signed-in) with separate localStorage keys.
-- **2026-04-27** — Anthropic daily spend alert configured.
-- **2026-04-26** — PostHog analytics live in production with 6-event funnel + UTM attribution.
+- 2026-04-29 — `fix(correlation)`: Cache-Control: private, no-store on all responses — fixes Vercel edge-caching user-specific correlation data (security + functional bug)
+- 2026-04-29 — `feat(correlation)`: persistence layer — `portfolio_correlations` table, `lib/holdingsFingerprint.js`, `lib/correlationStore.js`, `/api/correlation` route
+- 2026-04-29 — `feat(correlation)`: historical-prices route, Pearson correlation math (`lib/correlation.js`), `/correlation-debug` throwaway debug page
+- 2026-04-29 — SEO Post #2 published: "Are Your Stocks Really Diversified? How to Check Correlation" (~12 min read)
+- 2026-04-29 — Google Search Console: verified stockdashes.com (TXT via Cloudflare DNS), sitemap submitted (4 URLs), indexing requested
+- 2026-04-29 — Blog navigation links added to landing nav, landing footer, app desktop nav, app mobile drawer
+- 2026-04-29 — `fix(stock-intel)`: responsive mobile layout — `span={2}` cards collapse to full width on mobile, News+Filings grid stacks. Shared `useIsMobile` hook added to `lib/`
+- 2026-04-28 — `fix(cookiehub)`: scope consent cookie to root domain so banner doesn't re-prompt across routes
+- 2026-04-28 — `fix(stock-intel)`: prevent AI generation against stale/partial data (generation-ID pattern, tighter button gating, "Loading data…" label)
+- 2026-04-27 — `feat(stock-intel-ai)`: parity with Portfolio AI quality, anonymous gate removed, asymmetric rate cap (2 anon / 5 signed-in) with separate localStorage keys
+- 2026-04-27 — Anthropic daily spend alert configured
+- 2026-04-26 — PostHog analytics live in production: 6-event funnel + UTM attribution
 
 ---
 
-## How to use this file
+## Notes
 
-- Add new items as they come up. Don't worry about ordering on first add — sort during the next session.
-- Mark "Active / Next Up" sparingly — fewer than three things at a time, ideally one.
-- Move items to "Done" with a date and the commit message style summary when shipped.
-- Move items to "Parked / Blocked" with the reason and a "When to revisit" note.
+**Clerk dev/prod environment split**
+- Local (`.env.local`): Clerk Development keys — `pk_test_*` / `sk_test_*`. Test users created locally do NOT exist in production.
+- Vercel (production env vars): Clerk Production keys — `pk_live_*` / `sk_live_*`.
+- Symptom of mismatch: `Clerk: Handshake token verification failed` on `localhost:3000`. Fix: `dashboard.clerk.com` → switch to Development environment → copy API keys → update `.env.local` → restart `npm run dev`.
+
+**Supabase migrations tracking**
+- `db/migrations/001_portfolio_correlations.sql` — created and run in Supabase SQL Editor 2026-04-29.
+- `portfolios` and `api_usage` table schemas not yet in `db/migrations/` — see Next section.
+
+**Local dev: /api/portfolio returns 500**
+- Likely cause: RLS policy on `portfolios` table doesn't accept Clerk Development user ID format.
+- Workaround: test authenticated routes by shipping to a feature branch and checking on the Vercel preview deployment.
