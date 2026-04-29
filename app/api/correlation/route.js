@@ -6,16 +6,18 @@ import { calculateCorrelationMatrix } from '@/lib/correlation';
 
 export const dynamic = 'force-dynamic';
 
+const NO_CACHE = { headers: { 'Cache-Control': 'private, no-store, max-age=0' } };
+
 export async function GET(request) {
   // ── Auth ──────────────────────────────────────────────────────────────────
   const { userId } = await auth();
   if (!userId) {
-    return Response.json({ error: 'Authentication required' }, { status: 401 });
+    return Response.json({ error: 'Authentication required' }, { status: 401, ...NO_CACHE });
   }
 
   const sb = getSupabaseAdmin();
   if (!sb) {
-    return Response.json({ error: 'Database not configured' }, { status: 500 });
+    return Response.json({ error: 'Database not configured' }, { status: 500, ...NO_CACHE });
   }
 
   // ── Load portfolio ────────────────────────────────────────────────────────
@@ -26,14 +28,14 @@ export async function GET(request) {
     .single();
 
   if (portfolioError && portfolioError.code !== 'PGRST116') {
-    return Response.json({ error: portfolioError.message }, { status: 500 });
+    return Response.json({ error: portfolioError.message }, { status: 500, ...NO_CACHE });
   }
 
   const allHoldings = Array.isArray(portfolioData?.holdings) ? portfolioData.holdings : [];
   const holdings    = allHoldings.filter(h => h?.t && h.t !== '__CASH__');
 
   if (holdings.length < 2) {
-    return Response.json({ error: 'Need at least 2 holdings for correlation' }, { status: 400 });
+    return Response.json({ error: 'Need at least 2 holdings for correlation' }, { status: 400, ...NO_CACHE });
   }
 
   // ── Fingerprint + cache check ─────────────────────────────────────────────
@@ -48,7 +50,7 @@ export async function GET(request) {
   }
 
   if (!isStale(cached, fingerprint)) {
-    return Response.json({ cached: true, ...cached });
+    return Response.json({ cached: true, ...cached }, NO_CACHE);
   }
 
   // ── Stale: fetch prices and recompute ─────────────────────────────────────
@@ -69,7 +71,7 @@ export async function GET(request) {
     historicalData = await priceRes.json();
   } catch (err) {
     console.error('[correlation] historical-prices fetch failed:', err);
-    return Response.json({ error: 'Failed to fetch historical price data' }, { status: 500 });
+    return Response.json({ error: 'Failed to fetch historical price data' }, { status: 500, ...NO_CACHE });
   }
 
   const priceData    = historicalData.data ?? [];
@@ -78,7 +80,7 @@ export async function GET(request) {
   if (priceData.length < 2) {
     return Response.json(
       { error: 'Insufficient price data for correlation', failedTickers },
-      { status: 500 }
+      { status: 500, ...NO_CACHE }
     );
   }
 
@@ -86,7 +88,7 @@ export async function GET(request) {
   if (!matrixResult) {
     return Response.json(
       { error: 'Insufficient aligned trading days for stable correlation (<30)' },
-      { status: 500 }
+      { status: 500, ...NO_CACHE }
     );
   }
 
@@ -107,8 +109,8 @@ export async function GET(request) {
   } catch (err) {
     console.error('[correlation] saveCorrelation failed:', err);
     // Return the result anyway — don't fail the user because of a save failure
-    return Response.json({ cached: false, ...correlationData });
+    return Response.json({ cached: false, ...correlationData }, NO_CACHE);
   }
 
-  return Response.json({ cached: false, ...newRow });
+  return Response.json({ cached: false, ...newRow }, NO_CACHE);
 }
