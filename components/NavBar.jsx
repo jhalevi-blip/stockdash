@@ -284,6 +284,10 @@ export default function NavBar() {
         className="desktop-nav"
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <a href="/blog" style={{
+            color: 'var(--text-secondary)', fontSize: 12, fontWeight: 500,
+            textDecoration: 'none', padding: '4px 8px',
+          }}>Blog</a>
           {showEditPortfolio && (
             <button
               data-tour="edit-portfolio"
@@ -367,6 +371,16 @@ export default function NavBar() {
                 )}
               </Link>
             ))}
+            <a href="/blog" onClick={() => setOpen(false)} style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '14px 20px', fontSize: 14, fontWeight: 600,
+              color: 'var(--text-secondary)',
+              borderBottom: '1px solid var(--border-color)',
+              textDecoration: 'none',
+            }}>
+              <span style={{ fontSize: 18 }}>📝</span>
+              Blog
+            </a>
             {isLoaded && !isSignedIn && (
               <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid var(--border-color)' }}>
                 {!isDemo && (

@@ -70,6 +70,7 @@ export default function LandingPage() {
       }}>
         <Logo />
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <a href="/blog" style={{ color: "#8b949e", fontSize: 13, fontWeight: 500, textDecoration: "none", marginRight: 8 }}>Blog</a>
           <SignInButton mode="modal" forceRedirectUrl="/dashboard" appearance={{ baseTheme: dark }}>
             <button style={{
               background: "none", border: "1px solid #30363d", borderRadius: 6,
@@ -281,6 +282,7 @@ export default function LandingPage() {
         <Logo />
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           <span>Free &amp; open · No ads · stockdashes.com</span>
+          <a href="/blog" style={{ color: 'rgba(230,237,243,0.22)', textDecoration: 'none' }}>Blog</a>
           <a href="/privacy" style={{ color: 'rgba(230,237,243,0.22)', textDecoration: 'none' }}>Privacy Policy</a>
         </div>
       </footer>
