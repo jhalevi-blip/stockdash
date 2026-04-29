@@ -2,25 +2,15 @@
 
 Living document. Items here are not commitments — they're a snapshot of what's been discussed and where each thing stands. Reorder as priorities shift.
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 ---
 
 ## Active / Next Up
 
-### Stock Intel (AI) mobile UI fix
+### SEO Post #2
 
-**Priority:** High.
-
-The Stock Intel section's AI Summary component renders poorly on mobile. Specific issues TBD — needs investigation. Likely candidates:
-- Generate button placement / tap target
-- Section header layout (rating, counter, regenerate button collide on narrow viewports)
-- Output sections (Thesis / Bull / Bear / What to Watch) text-wrapping
-- Counter strings ("Generation X of 2", "X/10 tickers analyzed today") may overflow
-
-**Why now:** Tomorrow's PSG traffic includes mobile users. A degraded mobile experience on the headline feature undermines today's launch.
-
-**Approach:** Investigate first to identify all specific layout breaks, then a single mobile-targeted fix pass on `components/StockIntelAISummary.jsx` and possibly the parent `components/StockIntelSummary.jsx`. Use existing `isMobile` state where present. May need new media queries.
+Keyword research, topic selection, angle, draft.
 
 ---
 
@@ -102,7 +92,27 @@ Three posts over 6 weeks (Apr 11, Apr 15, Apr 28), zero meaningful engagement on
 
 ---
 
+## Deferred
+
+### Retention diagnostic (D1/D7)
+
+Re-evaluate ~2026-05-05 when PostHog has 10+ days of capture data and signed-up users have enough tenure.
+
+---
+
 ## Bug Fixes / Polish
+
+### Refactor: consolidate isMobile in StockIntelAISummary
+
+`components/StockIntelAISummary.jsx` has its own inline `useState`/`useEffect` for mobile detection. Consolidate to use the shared `lib/useIsMobile` hook for consistency. Low priority — no user-facing impact.
+
+### Wire CookieHub → GA4 consent update
+
+GCM defaults correctly set to `denied` in `app/layout.jsx`. But no `gtag('consent','update',...)` ever fires when the user accepts — GA4 is stuck in cookieless/modelled mode for all users on all sessions. PostHog is fine.
+
+Fix: add `gtag` consent update call in the CookieHub polling block in `lib/posthog.js` (or a `cookiehub.on()` callback). ~15 min fix.
+
+Also: remove unused `@next/third-parties` from `package.json` in the same PR.
 
 ### CookieHub button color
 Banner accept button shows CookieHub default `#181eed` instead of site accent `#58a6ff`. Color was changed in CookieHub dashboard (Save & Close confirmed multiple times, dashboard preview shows correct color), but production stockdashes.com still renders the old color even after hard refresh in fresh incognito.
@@ -131,16 +141,6 @@ Sign-up doesn't work on Vercel preview deployments because:
 
 **When to revisit:** When revenue justifies a Clerk Pro subscription (~$25–100/month).
 
-### Wire CookieHub → GA4 consent update
-
-GCM defaults correctly set to `denied` in `app/layout.jsx` line 29. But no `gtag('consent','update',...)` ever fires when the user accepts — GA4 is stuck in cookieless/modelled mode for all users on all sessions.
-
-PostHog is correctly gated via the polling pattern in `lib/posthog.js`. Fix is to add the `gtag` consent update call in the same polling block (or use a `cookiehub.on()` callback if the API supports it).
-
-Side note: `@next/third-parties` is installed in `package.json` but never imported anywhere — can be removed in the same PR.
-
-~15 min fix, low priority — PostHog is primary analytics, GA is decoration.
-
 ### API route auth checks
 `/api/ai-summary` and `/api/stock-ai-summary` currently have no per-route auth — anyone with the URL pattern can POST and consume Anthropic credits. Mitigated today by the global 60 req/min/IP middleware limit and the front-end UI rate limits, but a determined caller could bypass both. Defer until either spend becomes meaningful or there's a public abuse incident.
 
@@ -148,6 +148,7 @@ Side note: `@next/third-parties` is installed in `package.json` but never import
 
 ## Done (recent)
 
+- **2026-04-29** — `fix(stock-intel)`: responsive mobile layout — `span={2}` cards collapse to full width on mobile, News+Filings grid stacks. Shared `useIsMobile` hook added to `lib/`.
 - **2026-04-28** — `fix(cookiehub)`: scope consent cookie to root domain so banner doesn't re-prompt across routes.
 - **2026-04-28** — `fix(stock-intel)`: prevent AI generation against stale or partial data (generation-ID pattern + tighter button gating + "Loading data…" label).
 - **2026-04-27** — `feat(stock-intel-ai)`: parity with Portfolio AI quality, anonymous gate removed, asymmetric Portfolio AI cap (2 anon / 5 signed-in) with separate localStorage keys.
