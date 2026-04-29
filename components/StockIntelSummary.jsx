@@ -1,6 +1,7 @@
 'use client';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import StockIntelAISummary from '@/components/StockIntelAISummary';
+import { useIsMobile } from '@/lib/useIsMobile';
 
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => n == null ? '—' : (n >= 0 ? '+' : '') + fmt(Math.abs(n), d) + '%';
@@ -53,7 +54,7 @@ function Skeleton({ height = 48 }) {
   return <div style={{ height, background: 'var(--border-color)', borderRadius: 4 }} />;
 }
 
-function Card({ title, loading, children, span }) {
+function Card({ title, loading, children, span, isMobile }) {
   return (
     <div style={{
       background: 'var(--bg-card)',
@@ -63,7 +64,7 @@ function Card({ title, loading, children, span }) {
       display: 'flex',
       flexDirection: 'column',
       gap: 8,
-      gridColumn: span ? `span ${span}` : undefined,
+      gridColumn: span ? (isMobile ? '1 / -1' : `span ${span}`) : undefined,
     }}>
       <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
         {title}
@@ -91,6 +92,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker, isSi
   const [finQLoading,      setFinQLoading]      = useState(false);
 
   const fetchTokenRef = useRef(0);
+  const isMobile = useIsMobile();
 
   const selectStock = useCallback(async (t) => {
     if (!t) {
@@ -343,7 +345,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker, isSi
           </Card>
 
           {/* 5 — Earnings History */}
-          <Card title="Earnings History" loading={loading} span={2}>
+          <Card title="Earnings History" loading={loading} span={2} isMobile={isMobile}>
             {earnHist.length > 0 ? (
               <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr 110px', rowGap: 5 }}>
                 {earnHist.map(e => {
@@ -415,7 +417,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker, isSi
                 ))}
               </div>
             </div>
-          } loading={loading} span={2}>
+          } loading={loading} span={2} isMobile={isMobile}>
             {finPeriod === 'Annual' ? (
               finD?.revenue?.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -501,7 +503,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker, isSi
           </Card>
 
           {/* 7 — Peers */}
-          <Card title="Peer Comparison" loading={loading} span={2}>
+          <Card title="Peer Comparison" loading={loading} span={2} isMobile={isMobile}>
             {peersList.length > 0 ? (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -532,7 +534,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker, isSi
           </Card>
 
           {/* 8 + 9 — News and SEC Filings: always fill full width */}
-          <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             <Card title="Recent News" loading={loading}>
               {newsList.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
