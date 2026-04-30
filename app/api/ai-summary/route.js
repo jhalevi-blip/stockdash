@@ -45,7 +45,7 @@ const generatePortfolioSummaryTool = {
       },
       portfolio_shape: {
         type: ['object', 'null'],
-        description: 'Structured analysis of how the portfolio clusters across investing lenses. Null if portfolio has fewer than 3 positions or no meaningful clusters.',
+        description: 'Structured analysis of how the portfolio clusters across investing lenses. Null ONLY if the portfolio has fewer than 3 positions — always attempt this for 3+ position portfolios.',
         properties: {
           headline: {
             type: 'string',
@@ -101,7 +101,7 @@ const generatePortfolioSummaryTool = {
         required: ['headline', 'primary_clusters'],
       },
     },
-    required: ['rating', 'rating_summary', 'overview', 'suggested_action', 'language'],  // portfolio_shape is intentionally optional
+    required: ['rating', 'rating_summary', 'overview', 'suggested_action', 'language', 'portfolio_shape'],
   },
 };
 
@@ -337,7 +337,6 @@ User's browser locale: ${userLang || 'en'}`;
     }
 
     const result = toolUse.input;
-    const _debugRawInput = JSON.parse(JSON.stringify(result)); // TEMP: capture before any mutation
 
     // ── Defend against missing suggested_action ───────────────────────────────
     if (!result.suggested_action) {
@@ -374,7 +373,7 @@ User's browser locale: ${userLang || 'en'}`;
       }
     }
 
-    return Response.json({ ...result, _debug_raw_input: _debugRawInput }, { status: 200 }); // TEMP
+    return Response.json(result, { status: 200 });
   }
 
   // Legacy path: news sentiment analysis
