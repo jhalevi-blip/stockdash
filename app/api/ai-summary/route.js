@@ -306,7 +306,7 @@ User's browser locale: ${userLang || 'en'}`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
-          model: 'claude-opus-4-7',
+          model: 'claude-sonnet-4-6',
           max_tokens: 1500,
           system: PORTFOLIO_SYSTEM_PROMPT,
           tools: [generatePortfolioSummaryTool],
