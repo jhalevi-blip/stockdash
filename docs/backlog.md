@@ -1,6 +1,6 @@
 # StockDashes Roadmap
 
-_Last updated: 2026-04-29_
+_Last updated: 2026-04-30_
 
 ## Conventions
 
@@ -14,7 +14,6 @@ _Last updated: 2026-04-29_
 
 ## Now (this week)
 
-- [~] **Cache-Control audit** — add `private, no-store` to all responses in `/api/portfolio`, `/api/ai-summary`, `/api/usage`. Same pattern as correlation fix. Single PR.
 - [ ] **Correlation prompt integration** — wire `/api/correlation` into the dashboard; pass matrix data to the Portfolio AI prompt.
 - [ ] **Hidden Bet UI** — single-line concentration callout at the top of the Portfolio AI Summary card, surfacing the dominant theme/sector/macro driver across holdings. Output of the correlation prompt integration.
 - [ ] **Correlation dashboard section** — display the correlation matrix and top/bottom pairs to signed-in users.
@@ -35,6 +34,7 @@ After correlation UI ships: delete `/correlation-debug`, then run audit pass (pr
 - **AMD empty data cards** — On the Stock Intel page for AMD specifically, valuation, short interest, and insider activity cards sometimes render empty even though data is available. Persists across full page refreshes (unlike the data-race fix shipped 2026-04-28, which was session-level). Noticed during QA 2026-04-28. ⚠️ Production bug on a named stock page — promote to Now if it recurs or affects other tickers.
 - **Supabase schema migrations** — Document `portfolios` and `api_usage` table schemas as versioned `.sql` files in `db/migrations/`. Currently schemas exist only as comments in `app/api/portfolio/route.ts` and `lib/apiUsage.ts`. `portfolio_correlations` already done (migration 001).
 - **Supabase pg_dump backups** — Set up monthly `pg_dump` of the Supabase database. Options: cron job on any always-on machine, GitHub Actions scheduled workflow, or Supabase PITR. Belt-and-suspenders against data loss and vendor risk.
+- **Fix malformed Cache-Control on `/api/institutional`** — `stale-while-revalidate` has no value (invalid header). 5-min fix.
 - **Retention diagnostic re-evaluate** — Check PostHog D1/D7/WAU around 2026-05-05 when there are 10+ days of capture data and signed-up users have enough tenure to show a signal.
 
 ---
@@ -63,6 +63,7 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 
 ## Recently Shipped (last 14 days)
 
+- 2026-04-30 — Cache-Control audit complete: 3 authed routes already protected, headers normalized to `private, no-store`. No vulnerabilities found.
 - 2026-04-29 — `fix(correlation)`: Cache-Control: private, no-store on all responses — fixes Vercel edge-caching user-specific correlation data (security + functional bug)
 - 2026-04-29 — `feat(correlation)`: persistence layer — `portfolio_correlations` table, `lib/holdingsFingerprint.js`, `lib/correlationStore.js`, `/api/correlation` route
 - 2026-04-29 — `feat(correlation)`: historical-prices route, Pearson correlation math (`lib/correlation.js`), `/correlation-debug` throwaway debug page
