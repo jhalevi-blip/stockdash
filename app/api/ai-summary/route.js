@@ -1,3 +1,5 @@
+import { summarizeCorrelationMatrix } from '@/lib/correlation';
+
 export const dynamic = 'force-dynamic';
 
 // ── Portfolio AI Summary: tool definition ─────────────────────────────────────
@@ -41,8 +43,65 @@ const generatePortfolioSummaryTool = {
         type: 'string',
         description: "ISO language code used for the text content (e.g., 'en', 'nl', 'de', 'fr').",
       },
+      portfolio_shape: {
+        type: ['object', 'null'],
+        description: 'Structured analysis of how the portfolio clusters across investing lenses. Null if portfolio has fewer than 3 positions or no meaningful clusters.',
+        properties: {
+          headline: {
+            type: 'string',
+            description: "A single sentence, 15-25 words, naming the 1-2 strongest clusters with weights. Written in the active voice of a conviction investor. Example: \"What you're really long: AI capex (3 positions, 58% of equity) and homebuilders (2 positions, 12% of equity).\"",
+          },
+          primary_clusters: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 3,
+            items: {
+              type: 'object',
+              properties: {
+                lens: {
+                  type: 'string',
+                  enum: ['sector', 'theme', 'macro', 'geographic', 'size_style', 'commodity_input', 'supply_chain', 'event_policy', 'liquidity_fund_flow', 'factor_style'],
+                  description: 'Which lens this cluster is grouped under. Stays in English (enum value).',
+                },
+                label:             { type: 'string', description: 'Plain-English name of the cluster, e.g. "AI capex" or "rate-sensitive growth". Translated to user locale.' },
+                concentration_pct: { type: 'number', minimum: 0, maximum: 100, description: 'Sum of position weights in this cluster, as a percentage of total equity.' },
+                positions:         { type: 'array', items: { type: 'string' }, description: 'Tickers in this cluster.' },
+                explanation:       { type: 'string', description: 'One sentence explaining why these positions move together. Translated to user locale.' },
+                confidence: {
+                  type: 'string',
+                  enum: ['data_verified', 'pattern_based'],
+                  description: 'data_verified if cluster has 2+ positions AND avg pairwise r within cluster > 0.5. pattern_based otherwise — including single-position clusters and thematic/sector knowledge clusters. Liquidity/fund flow clusters MUST be pattern_based.',
+                },
+              },
+              required: ['lens', 'label', 'concentration_pct', 'positions', 'explanation', 'confidence'],
+            },
+          },
+          honorable_mentions: {
+            type: ['array', 'null'],
+            maxItems: 3,
+            description: 'Smaller clusters worth naming but not dominant. Null if none worth surfacing.',
+            items: {
+              type: 'object',
+              properties: {
+                lens:      { type: 'string', enum: ['sector', 'theme', 'macro', 'geographic', 'size_style', 'commodity_input', 'supply_chain', 'event_policy', 'liquidity_fund_flow', 'factor_style'] },
+                label:     { type: 'string' },
+                positions: { type: 'array', items: { type: 'string' } },
+                note:      { type: 'string', description: 'One sentence on why this is worth flagging.' },
+              },
+              required: ['lens', 'label', 'positions', 'note'],
+            },
+          },
+          blind_spots: {
+            type: ['array', 'null'],
+            maxItems: 2,
+            description: 'What the portfolio is conspicuously NOT exposed to. One or two short statements. Null if portfolio is broadly diversified.',
+            items: { type: 'string' },
+          },
+        },
+        required: ['headline', 'primary_clusters'],
+      },
     },
-    required: ['rating', 'rating_summary', 'overview', 'suggested_action', 'language'],
+    required: ['rating', 'rating_summary', 'overview', 'suggested_action', 'language'],  // portfolio_shape is intentionally optional
   },
 };
 
@@ -75,13 +134,44 @@ Use half-point increments (e.g., 6.5, 7.5) to avoid clustering at integer scores
 - If the portfolio has no meaningful concentration, sector imbalance, or other red flag, omit the biggest_risk field.
 - overview and suggested_action are always provided.
 
+## Portfolio Shape — "What You're Really Long"
+
+Analyze the portfolio across these 10 lenses and identify which 1-3 clusters are the STRONGEST signals for THIS portfolio. Do not surface weak clusters to fill quota — the value is in ranking, not coverage.
+
+The 10 lenses:
+1. sector — GICS sector (e.g., semiconductors, software, energy, financials)
+2. theme — investable thesis (AI capex, GLP-1, reshoring, defense, EV transition, nuclear renaissance)
+3. macro — what macro driver moves these positions (rates, inflation, dollar strength, recession sensitivity)
+4. geographic — country/region exposure (US-domestic, China-exposed, Taiwan-dependent, EM)
+5. size_style — market cap and growth/value tilt (mega-cap growth, profitless small-cap, value)
+6. commodity_input — what commodity inputs matter (oil, copper, semis-input, energy-input)
+7. supply_chain — physical supply chain dependencies (Taiwan fabs, China manufacturing, Mexico nearshoring)
+8. event_policy — election/regulatory/policy sensitivity (FDA, antitrust, tariffs, election outcomes)
+9. liquidity_fund_flow — known hedge fund / ETF crowding patterns (Mag 7, profitless tech basket, AI capex consensus)
+10. factor_style — systematic factor exposure (momentum, quality, low-vol, high-beta, profitability)
+
+## Rules for portfolio_shape
+
+- Use correlation data as evidence. Pairs with r > 0.7 are strong evidence of shared exposure. Pairs with r < 0.3 are evidence of genuine diversification. Per-ticker average correlation tells you which positions move with the pack vs. which are real diversifiers.
+- For each primary cluster, mark confidence:
+    - "data_verified" if the cluster has 2+ positions AND the average pairwise r within the cluster > 0.5
+    - "pattern_based" otherwise — including single-position clusters (no pairwise data) and any cluster where the underlying signal is thematic/sector knowledge rather than correlation evidence
+- liquidity_fund_flow clusters MUST be marked "pattern_based" — we do not have 13F data yet. Reference well-known crowding patterns from training knowledge only (e.g., "AI Magnificent" basket, profitless tech consensus).
+- The headline is the single most important sentence — it appears prominently in the UI. Write it in the active voice of a conviction investor. Examples:
+  - "What you're really long: AI capex (3 positions, 58% of equity) and homebuilders (2 positions, 12% of equity)."
+  - "What you're really long: rate-sensitive growth — 7 of 10 positions, 71% of equity."
+- blind_spots should name what the portfolio CONSPICUOUSLY lacks — defensives, dividend payers, international exposure, fixed-income proxies, energy. Only surface 1-2 if they're meaningful absences. Skip if the portfolio is genuinely broad.
+- If the portfolio has fewer than 3 positions, set portfolio_shape to null entirely.
+- All free-text fields (headline, label, explanation, note, blind_spots items) translate to the user's locale. The lens and confidence enum values stay in English.
+- Numerical accuracy rule applies: every equity weight you cite must be derivable from the marketValue fields provided. Cash is excluded from equity weights and carries no thesis exposure.
+
 ## Language
 
 Write all text content in the language indicated by the user's browser locale. If the locale is unrecognized, default to English. The disclaimer sentence ("For informational purposes only, not financial advice.") must be translated naturally into the output language.
 
 ## Numerical accuracy
 
-Every number you mention must be derivable from the data provided. Never invent numbers. If you cannot support a claim with the data, do not make the claim.`;
+Every number you mention must be derivable from the data provided. Equity weights (expressed as % of total equity, excluding cash) must be computed from the marketValue fields given; do not include cash in a position's weight calculation. Never invent numbers. If you cannot support a claim with the data, do not make the claim.`;
 
 export async function POST(request) {
   const body = await request.json();
@@ -152,7 +242,7 @@ export async function POST(request) {
 
   // Portfolio summary type — structured tool-use output via Claude Opus 4.7
   if (body.type === 'portfolio-summary') {
-    const { holdings, portfolioStats, userLang } = body;
+    const { holdings, portfolioStats, userLang, correlationData } = body;
     if (!Array.isArray(holdings) || !holdings.length) {
       return Response.json({ error: 'Missing holdings' }, { status: 400 });
     }
@@ -168,19 +258,39 @@ export async function POST(request) {
     const fmt2 = n => (n == null ? '—' : Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
     const fmt1 = n => (n == null ? '—' : Number(n).toFixed(1));
 
-    const holdingLines = holdings.map(h =>
-      `- ${h.ticker}: ${h.shares} shares, avg cost $${fmt2(h.avgCost)}, current price $${fmt2(h.currentPrice)}, P&L: ${fmt1(h.pnlPct)}%, market value $${fmt2(h.marketValue)}`
-    ).join('\n');
+    const equityValue = portfolioStats.totalValue || 1; // guard against div/0; totalValue is equity only (excludes cash)
+    const holdingLines = holdings.map(h => {
+      const weightPct = fmt1((h.marketValue / equityValue) * 100);
+      return `- ${h.ticker}: ${h.shares} shares, avg cost $${fmt2(h.avgCost)}, current price $${fmt2(h.currentPrice)}, P&L: ${fmt1(h.pnlPct)}%, market value $${fmt2(h.marketValue)} (${weightPct}% of equity)`;
+    }).join('\n');
+
+    let correlationBlock;
+    if (correlationData?.tickers?.length >= 2 && correlationData?.matrix) {
+      const { top_pairs, bottom_pairs, per_ticker_avg } = summarizeCorrelationMatrix(
+        correlationData.tickers,
+        correlationData.matrix,
+      );
+      const pairFmt = ({ a, b, r }) => `${a}/${b}: r=${r}`;
+      correlationBlock = `Correlation data (Pearson r over ${correlationData.trading_days_used ?? '?'} trading days, ${correlationData.aligned_date_start} to ${correlationData.aligned_date_end}):
+- Most correlated pairs: ${top_pairs.map(pairFmt).join(', ')}
+- Least correlated pairs: ${bottom_pairs.map(pairFmt).join(', ')}
+- Per-ticker avg r vs. rest of portfolio: ${per_ticker_avg.map(t => `${t.ticker}: ${t.avg_r}`).join(', ')}`;
+    } else {
+      correlationBlock = 'Correlation data: unavailable — do not claim data_verified confidence for any cluster.';
+    }
 
     const userMessage = `Here is the user's stock portfolio:
 
-Holdings:
+Holdings (with equity weights):
 ${holdingLines}
+Note: Weights are % of total equity; cash is reported separately and has no thesis exposure.
 
 Portfolio totals:
-- Total market value: $${fmt2(portfolioStats.totalValue)}
+- Total equity value: $${fmt2(portfolioStats.totalValue)}
 - Total P&L: $${fmt2(portfolioStats.totalPnl)} (${fmt1(portfolioStats.totalPnlPct)}%)
 - Cash position: $${fmt2(portfolioStats.cash)}
+
+${correlationBlock}
 
 User's browser locale: ${userLang || 'en'}`;
 
@@ -191,7 +301,7 @@ User's browser locale: ${userLang || 'en'}`;
         headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
           model: 'claude-opus-4-7',
-          max_tokens: 1000,
+          max_tokens: 1500,
           system: PORTFOLIO_SYSTEM_PROMPT,
           tools: [generatePortfolioSummaryTool],
           tool_choice: { type: 'tool', name: 'generate_portfolio_summary' },
