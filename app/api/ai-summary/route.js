@@ -64,7 +64,7 @@ const generatePortfolioSummaryTool = {
                   description: 'Which lens this cluster is grouped under. Stays in English (enum value).',
                 },
                 label:             { type: 'string', description: 'Plain-English name of the cluster, e.g. "AI capex" or "rate-sensitive growth". Translated to user locale.' },
-                concentration_pct: { type: 'number', minimum: 10, maximum: 100, description: 'Sum of position weights in this cluster, as a percentage of total equity.' },
+                concentration_pct: { type: 'number', minimum: 0, maximum: 100, description: 'Sum of position weights in this cluster, as a percentage of total equity.' },
                 positions:         { type: 'array', items: { type: 'string' }, description: 'Tickers in this cluster.' },
                 explanation:       { type: 'string', description: 'One sentence explaining why these positions move together. Translated to user locale.' },
                 confidence: {
@@ -336,7 +336,44 @@ User's browser locale: ${userLang || 'en'}`;
       }, { status: 200 });
     }
 
-    return Response.json(toolUse.input, { status: 200 });
+    const result = toolUse.input;
+
+    // ── Defend against missing suggested_action ───────────────────────────────
+    if (!result.suggested_action) {
+      console.warn('[ai-summary] portfolio-summary: suggested_action missing from generation');
+      result.suggested_action = 'For informational purposes only, not financial advice.';
+    }
+
+    // ── Post-generation normalization: enforce 10% weight floor ───────────────
+    if (result.portfolio_shape?.primary_clusters) {
+      const kept = [];
+      const demoted = [];
+      for (const cluster of result.portfolio_shape.primary_clusters) {
+        if (cluster.concentration_pct >= 10) {
+          kept.push(cluster);
+        } else {
+          demoted.push({
+            lens:      cluster.lens,
+            label:     cluster.label,
+            positions: cluster.positions,
+            note:      cluster.explanation,
+          });
+        }
+      }
+      if (kept.length === 0) {
+        result.portfolio_shape = null;
+      } else {
+        result.portfolio_shape.primary_clusters = kept;
+        if (demoted.length > 0) {
+          result.portfolio_shape.honorable_mentions = [
+            ...(result.portfolio_shape.honorable_mentions ?? []),
+            ...demoted,
+          ];
+        }
+      }
+    }
+
+    return Response.json(result, { status: 200 });
   }
 
   // Legacy path: news sentiment analysis
