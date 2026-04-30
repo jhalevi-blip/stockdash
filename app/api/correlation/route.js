@@ -6,7 +6,7 @@ import { calculateCorrelationMatrix } from '@/lib/correlation';
 
 export const dynamic = 'force-dynamic';
 
-const NO_CACHE = { headers: { 'Cache-Control': 'private, no-store, max-age=0' } };
+const NO_CACHE = { headers: { 'Cache-Control': 'private, no-store' } };
 
 export async function GET(request) {
   // ── Auth ──────────────────────────────────────────────────────────────────
