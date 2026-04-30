@@ -14,12 +14,10 @@ _Last updated: 2026-04-30_
 
 ## Now (this week)
 
-- [ ] **Correlation prompt integration** — wire `/api/correlation` into the dashboard; pass matrix data to the Portfolio AI prompt.
-- [ ] **Hidden Bet UI** — single-line concentration callout at the top of the Portfolio AI Summary card, surfacing the dominant theme/sector/macro driver across holdings. Output of the correlation prompt integration.
-- [ ] **Correlation dashboard section** — display the correlation matrix and top/bottom pairs to signed-in users.
+- [ ] **Correlation Analysis dashboard section** — sorted pair list (top correlated, bottom correlated). New section below Portfolio Intelligence card. No heatmap.
+- [ ] **Delete `/correlation-debug`** — cleanup, throwaway from yesterday.
+- [ ] **Audit pass** — production smoke test, FMP/Anthropic usage check, Search Console indexing, PostHog D1/D7, backlog hygiene, code health, dev environment.
 - [ ] **SEO post: "How Much of Your Portfolio Should Be in One Stock?"** — concentration deep-dive; pairs with Post #2 on correlation; ~2000 words; ship by 2026-05-05.
-
-After correlation UI ships: delete `/correlation-debug`, then run audit pass (production smoke test, FMP/Anthropic usage, Search Console indexing, PostHog D1/D7, backlog hygiene, code health, dev environment).
 
 ---
 
@@ -64,6 +62,11 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 ## Recently Shipped (last 14 days)
 
 - 2026-04-30 — Cache-Control audit complete: 3 authed routes already protected, headers normalized to `private, no-store`. No vulnerabilities found.
+- 2026-04-30 — `feat(correlation)`: summarizeCorrelationMatrix helper added to lib/correlation.js for compact LLM prompt input
+- 2026-04-30 — `feat(ai-summary)`: portfolio_shape field shipped — 10-lens analysis (sector, theme, macro, geographic, size_style, commodity_input, supply_chain, event_policy, liquidity_fund_flow, factor_style) with confidence flags, honorable mentions, blind spots. Post-generation enforcement of 10% weight floor and suggested_action fallback. portfolio_shape is required[] to ensure consistent generation.
+- 2026-04-30 — `feat(ui)`: "What You're Really Long" block rendered in Portfolio Intelligence card — headline + primary clusters with confidence glyphs and tooltips, expandable honorable mentions and blind spots. correlationData fetch wired into generate() (signed-in users only).
+- 2026-04-30 — `feat(ui)`: Renamed "Portfolio AI Summary" → "Portfolio Intelligence"; expand toggle copy sharpened to "Show blind spots & more"
+- 2026-04-30 — docs: backlog restructured into living roadmap (Now/Next/Later/Blocked/Someday/Recently Shipped); GTM learnings archived to docs/gtm-notes.md
 - 2026-04-29 — `fix(correlation)`: Cache-Control: private, no-store on all responses — fixes Vercel edge-caching user-specific correlation data (security + functional bug)
 - 2026-04-29 — `feat(correlation)`: persistence layer — `portfolio_correlations` table, `lib/holdingsFingerprint.js`, `lib/correlationStore.js`, `/api/correlation` route
 - 2026-04-29 — `feat(correlation)`: historical-prices route, Pearson correlation math (`lib/correlation.js`), `/correlation-debug` throwaway debug page
