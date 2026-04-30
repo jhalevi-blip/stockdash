@@ -64,7 +64,7 @@ const generatePortfolioSummaryTool = {
                   description: 'Which lens this cluster is grouped under. Stays in English (enum value).',
                 },
                 label:             { type: 'string', description: 'Plain-English name of the cluster, e.g. "AI capex" or "rate-sensitive growth". Translated to user locale.' },
-                concentration_pct: { type: 'number', minimum: 0, maximum: 100, description: 'Sum of position weights in this cluster, as a percentage of total equity.' },
+                concentration_pct: { type: 'number', minimum: 10, maximum: 100, description: 'Sum of position weights in this cluster, as a percentage of total equity.' },
                 positions:         { type: 'array', items: { type: 'string' }, description: 'Tickers in this cluster.' },
                 explanation:       { type: 'string', description: 'One sentence explaining why these positions move together. Translated to user locale.' },
                 confidence: {
