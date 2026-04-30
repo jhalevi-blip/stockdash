@@ -13,6 +13,14 @@ const LABELS = {
     whatsDragging:   "⚠️ WHAT'S DRAGGING",
     biggestRisk:     '🎯 BIGGEST RISK',
     suggestedAction: '💡 SUGGESTED ACTION',
+    // ── portfolio_shape labels ──────────────────────────────────────────────
+    shape:             "🎯 WHAT YOU'RE REALLY LONG",
+    shapeMore:         'Show more',
+    shapeLess:         'Show less',
+    shapeHonorable:    '👁️ HONORABLE MENTIONS',
+    shapeBlindSpots:   '🚩 BLIND SPOTS',
+    shapeDataVerified: 'Data-verified: positions in this cluster are correlated (avg r > 0.5)',
+    shapePatternBased: 'Pattern-based: thesis inferred from market knowledge, not correlation data',
     analyzing:       'Claude is analyzing your portfolio...',
     regenerate:      'Regenerate',
     generateButton:  'Generate',
@@ -89,7 +97,8 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
   const [usageCount,  setUsageCount]  = useState(0);
   const [showCount,   setShowCount]   = useState(false);
   const [uiLang,      setUiLang]      = useState(initialSummary?.language ?? 'en');
-  const [isMobile,    setIsMobile]    = useState(false);
+  const [isMobile,      setIsMobile]      = useState(false);
+  const [shapeExpanded, setShapeExpanded] = useState(false);
 
   useEffect(() => {
     if (!initialSummary) {
@@ -131,11 +140,31 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
 
     const userLang = navigator.language || 'en';
 
+    // Fetch correlation matrix for signed-in users only (/api/correlation requires auth)
+    let correlationData = null;
+    if (isSignedIn) {
+      try {
+        const corrRes = await fetch('/api/correlation');
+        if (corrRes.ok) {
+          correlationData = await corrRes.json();
+          correlationData = {
+            tickers:            correlationData.tickers,
+            matrix:             correlationData.matrix,
+            trading_days_used:  correlationData.trading_days_used,
+            aligned_date_start: correlationData.aligned_date_start,
+            aligned_date_end:   correlationData.aligned_date_end,
+          };
+        }
+      } catch (e) {
+        console.warn('[portfolio-ai] correlation fetch failed, proceeding without:', e.message);
+      }
+    }
+
     try {
       const res  = await fetch('/api/ai-summary', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ type: 'portfolio-summary', holdings: holdingsPayload, portfolioStats, userLang }),
+        body:    JSON.stringify({ type: 'portfolio-summary', holdings: holdingsPayload, portfolioStats, userLang, correlationData }),
       });
       const json = await res.json();
 
@@ -347,6 +376,129 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
           </div>
 
           <div style={{ borderTop: '1px solid #21262d' }} />
+
+          {/* ── "What You're Really Long" block ── */}
+          {summary?.portfolio_shape && (
+            <>
+              <div style={{
+                display: 'flex',
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: isMobile ? 6 : 20,
+                padding: '16px 0',
+                alignItems: 'flex-start',
+              }}>
+                <h3 style={{
+                  width: isMobile ? 'auto' : 160,
+                  flexShrink: 0,
+                  fontSize: 11, fontWeight: 600,
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.05em',
+                  margin: 0,
+                  paddingTop: isMobile ? 0 : 2,
+                }}>
+                  {L.shape}
+                </h3>
+
+                <div style={{ flex: 1 }}>
+                  {/* Headline */}
+                  <p style={{ fontSize: 14, color: '#c9d1d9', lineHeight: 1.6, margin: 0, fontStyle: 'italic', marginBottom: 16 }}>
+                    {summary.portfolio_shape.headline}
+                  </p>
+
+                  {/* Primary clusters */}
+                  {summary.portfolio_shape.primary_clusters.map((c, i) => (
+                    <div key={i} style={{ marginBottom: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#c9d1d9' }}>
+                          {c.label}
+                        </span>
+                        <span
+                          title={c.confidence === 'data_verified' ? L.shapeDataVerified : L.shapePatternBased}
+                          style={{ fontSize: 12, color: '#8b949e', cursor: 'help' }}
+                        >
+                          {c.confidence === 'data_verified' ? '✓' : '~'}
+                        </span>
+                        <span style={{ fontSize: 12, color: '#8b949e', marginLeft: 'auto' }}>
+                          {c.concentration_pct}% · {c.positions.join(', ')}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 13, color: '#8b949e', lineHeight: 1.5, margin: 0 }}>
+                        {c.explanation}
+                      </p>
+                    </div>
+                  ))}
+
+                  {/* Expand toggle */}
+                  {(summary.portfolio_shape.honorable_mentions?.length > 0 ||
+                    summary.portfolio_shape.blind_spots?.length > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => setShapeExpanded(v => !v)}
+                      style={{
+                        background: 'none', border: 'none',
+                        color: '#58a6ff', fontSize: 12, fontWeight: 500,
+                        cursor: 'pointer', padding: '4px 0', marginTop: 4,
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {shapeExpanded ? L.shapeLess : L.shapeMore}
+                    </button>
+                  )}
+
+                  {/* Honorable mentions + blind spots — collapsed by default */}
+                  {shapeExpanded && (
+                    <div style={{ marginTop: 12 }}>
+                      {summary.portfolio_shape.honorable_mentions?.length > 0 && (
+                        <>
+                          <p style={{
+                            fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
+                            letterSpacing: '0.05em', margin: 0, marginTop: 16, marginBottom: 8,
+                          }}>
+                            {L.shapeHonorable}
+                          </p>
+                          {summary.portfolio_shape.honorable_mentions.map((m, i) => (
+                            <div key={i} style={{ marginBottom: 12 }}>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: '#c9d1d9' }}>
+                                  {m.label}
+                                </span>
+                                <span style={{ fontSize: 12, color: '#8b949e', marginLeft: 'auto' }}>
+                                  {m.positions.join(', ')}
+                                </span>
+                              </div>
+                              <p style={{ fontSize: 13, color: '#8b949e', lineHeight: 1.5, margin: 0 }}>
+                                {m.note}
+                              </p>
+                            </div>
+                          ))}
+                        </>
+                      )}
+
+                      {summary.portfolio_shape.blind_spots?.length > 0 && (
+                        <>
+                          <p style={{
+                            fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
+                            letterSpacing: '0.05em', margin: 0, marginTop: 16, marginBottom: 8,
+                          }}>
+                            {L.shapeBlindSpots}
+                          </p>
+                          <ul style={{ paddingLeft: 16, margin: 0 }}>
+                            {summary.portfolio_shape.blind_spots.map((b, i) => (
+                              <li key={i} style={{ fontSize: 13, color: '#c9d1d9', lineHeight: 1.5, marginBottom: 4 }}>
+                                {b}
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid #21262d' }} />
+            </>
+          )}
 
           {/* Section rows — dividers only between rendered rows */}
           {sections.map((section, i) => (
