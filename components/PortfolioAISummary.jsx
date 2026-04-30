@@ -15,7 +15,7 @@ const LABELS = {
     suggestedAction: '💡 SUGGESTED ACTION',
     // ── portfolio_shape labels ──────────────────────────────────────────────
     shape:             "🎯 WHAT YOU'RE REALLY LONG",
-    shapeMore:         'Show more',
+    shapeMore:         'Show blind spots & more',
     shapeLess:         'Show less',
     shapeHonorable:    '👁️ HONORABLE MENTIONS',
     shapeBlindSpots:   '🚩 BLIND SPOTS',
@@ -230,7 +230,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
-            Portfolio AI Summary
+            Portfolio Intelligence
           </span>
           <span style={{
             fontSize: 9, fontWeight: 600, letterSpacing: '0.04em',
