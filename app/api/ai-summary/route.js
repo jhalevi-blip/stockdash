@@ -105,6 +105,27 @@ const generatePortfolioSummaryTool = {
   },
 };
 
+// ── Correlation Takeaways: tool definition ────────────────────────────────────
+const generateCorrelationTakeawaysTool = {
+  name: 'generate_correlation_takeaways',
+  description: 'Generate 2-3 plain-English takeaways from a portfolio correlation matrix.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      takeaways: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 3,
+        items: {
+          type: 'string',
+          description: 'A single takeaway sentence, 1-2 sentences max, written for a retail investor. Plain English. Reference specific tickers and r-values from the data.',
+        },
+      },
+    },
+    required: ['takeaways'],
+  },
+};
+
 // ── Portfolio AI Summary: system prompt ───────────────────────────────────────
 const PORTFOLIO_SYSTEM_PROMPT = `You are a portfolio analyst for StockDashes, powered by Claude.
 
@@ -179,6 +200,34 @@ Write all text content in the language indicated by the user's browser locale. I
 
 Every number you mention must be derivable from the data provided. Equity weights (expressed as % of total equity, excluding cash) must be computed from the marketValue fields given; do not include cash in a position's weight calculation. Never invent numbers. If you cannot support a claim with the data, do not make the claim.`;
 
+// ── Correlation Takeaways: system prompt ──────────────────────────────────────
+const CORRELATION_TAKEAWAYS_SYSTEM_PROMPT = `You are a portfolio analyst for StockDashes, generating insights about correlation patterns.
+
+You receive a summary of a user's portfolio correlation matrix: their top 5 most-correlated pairs, bottom 5 least-correlated pairs, and per-ticker average correlation to the rest of the portfolio.
+
+Your job: generate 2-3 plain-English takeaways that surface the most useful observations from this data. Call the generate_correlation_takeaways tool with structured output. Never respond with prose outside the tool call.
+
+## What makes a good takeaway
+
+- **Specific.** Name the actual tickers and reference real r-values from the data. "PHM and LEN move in lockstep at r=0.88" not "you have correlated positions."
+- **Action-relevant.** Surface patterns the user can act on or think about: paired bets they might think are diversified but aren't, real diversifiers worth preserving, clusters that move as one despite being multiple positions.
+- **Plain language.** Written for a retail investor, not a quant. "Move together," "behave as one bet," "real diversifier" — not "exhibit positive correlation."
+- **Different angles.** Each takeaway should surface a different observation, not paraphrase the same point three ways.
+
+## What to look for
+
+- **The strongest pair (top of top_pairs):** if r > 0.7, this is a "double bet" worth naming.
+- **Tickers with very low avg correlation to the rest of the portfolio:** these are real diversifiers. Name them.
+- **Clusters of 3+ tickers that all share moderate-to-high correlations with each other:** these behave as one bet expressed through multiple names.
+- **Surprising disconnects:** two tickers a user might assume move together (same sector, same theme) that don't.
+
+## Output rules
+
+- 2-3 takeaways total. Don't pad to 3 if only 2 patterns are worth naming.
+- Each takeaway is 1-2 sentences. No bullets within takeaways. No section headers.
+- Reference at least one specific r-value or ticker per takeaway.
+- Never fabricate numbers. Every r-value or correlation claim must be derivable from the data provided.`;
+
 export async function POST(request) {
   const body = await request.json();
   const key = process.env.ANTHROPIC_API_KEY;
@@ -244,6 +293,62 @@ export async function POST(request) {
     if (!res.ok) return Response.json({ error: raw.error?.message ?? 'API error' }, { status: 500 });
     const text = raw.content?.[0]?.text ?? '';
     return Response.json({ summary: text.trim() });
+  }
+
+  // Correlation takeaways type — fast structured output via Claude Haiku
+  if (body.type === 'correlation-takeaways') {
+    const { correlationData } = body;
+    if (!correlationData?.tickers || correlationData.tickers.length < 2 || !correlationData.matrix) {
+      return Response.json({ error: 'Missing or insufficient correlation data' }, { status: 400 });
+    }
+
+    const { top_pairs, bottom_pairs, per_ticker_avg } = summarizeCorrelationMatrix(
+      correlationData.tickers,
+      correlationData.matrix,
+    );
+    const pairFmt = ({ a, b, r }) => `${a}/${b}: r=${r}`;
+    const userMessage = `Correlation data for a retail investor's portfolio (Pearson r over ${correlationData.trading_days_used ?? '?'} trading days, ${correlationData.aligned_date_start} to ${correlationData.aligned_date_end}):
+
+Most correlated pairs: ${top_pairs.map(pairFmt).join(', ')}
+Least correlated pairs: ${bottom_pairs.map(pairFmt).join(', ')}
+Per-ticker average correlation to rest of portfolio: ${per_ticker_avg.map(t => `${t.ticker}: ${t.avg_r}`).join(', ')}
+
+Generate 2-3 takeaways using the generate_correlation_takeaways tool.`;
+
+    let res, raw;
+    try {
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 300,
+          system: CORRELATION_TAKEAWAYS_SYSTEM_PROMPT,
+          tools: [generateCorrelationTakeawaysTool],
+          tool_choice: { type: 'tool', name: 'generate_correlation_takeaways' },
+          messages: [{ role: 'user', content: userMessage }],
+        }),
+      });
+      raw = await res.json();
+    } catch (e) {
+      console.error('[ai-summary] correlation-takeaways fetch failed:', e.message);
+      return Response.json({ error: 'generation_failed', message: 'Could not generate takeaways.' }, { status: 200 });
+    }
+
+    if (!res.ok) {
+      console.error('[ai-summary] correlation-takeaways non-200:', JSON.stringify(raw));
+      return Response.json({ error: 'generation_failed', message: 'Could not generate takeaways.' }, { status: 200 });
+    }
+
+    const toolUse = raw.content?.find(
+      block => block.type === 'tool_use' && block.name === 'generate_correlation_takeaways'
+    );
+    if (!toolUse?.input?.takeaways) {
+      console.error('[ai-summary] correlation-takeaways no tool_use:', JSON.stringify(raw));
+      return Response.json({ error: 'generation_failed', message: 'Could not generate takeaways.' }, { status: 200 });
+    }
+
+    return Response.json(toolUse.input, { status: 200 });
   }
 
   // Portfolio summary type — structured tool-use output via Claude Opus 4.7

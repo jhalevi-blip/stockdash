@@ -46,10 +46,12 @@ const sectionLabelStyle = {
 };
 
 export default function CorrelationPairList({ isSignedIn }) {
-  const [correlationData, setCorrelationData] = useState(null);
-  const [loading,         setLoading]         = useState(false);
-  const [error,           setError]           = useState(null);
-  const [isMobile,        setIsMobile]        = useState(false);
+  const [correlationData,  setCorrelationData]  = useState(null);
+  const [loading,          setLoading]          = useState(false);
+  const [error,            setError]            = useState(null);
+  const [isMobile,         setIsMobile]         = useState(false);
+  const [takeaways,        setTakeaways]        = useState(null);
+  const [takeawaysLoading, setTakeawaysLoading] = useState(false);
   const L = LABELS.en;
 
   useEffect(() => {
@@ -76,6 +78,25 @@ export default function CorrelationPairList({ isSignedIn }) {
           return;
         }
         setCorrelationData(data);
+
+        // Chained takeaways fetch — non-blocking, slides in when ready
+        setTakeawaysLoading(true);
+        fetch('/api/ai-summary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'correlation-takeaways', correlationData: data }),
+        })
+          .then(r => r.json())
+          .then(t => {
+            if (cancelled) return;
+            if (t.takeaways && Array.isArray(t.takeaways) && t.takeaways.length > 0) {
+              setTakeaways(t.takeaways);
+            }
+          })
+          .catch(() => { /* silent fail */ })
+          .finally(() => {
+            if (!cancelled) setTakeawaysLoading(false);
+          });
       })
       .catch(() => {
         if (cancelled) return;
@@ -180,6 +201,51 @@ export default function CorrelationPairList({ isSignedIn }) {
       <p style={{ fontSize: 12, color: '#8b949e', margin: '0 0 20px', lineHeight: 1.5 }}>
         {L.intro} {correlationData.trading_days_used ?? '—'} {L.daysWord}.
       </p>
+
+      {/* Takeaways block — slides in when ready */}
+      {(takeawaysLoading || takeaways) && (
+        <div style={{
+          background:   'rgba(88, 166, 255, 0.04)',
+          border:       '1px solid rgba(88, 166, 255, 0.15)',
+          borderRadius: 6,
+          padding:      '14px 16px',
+          marginBottom: 24,
+        }}>
+          <p style={{
+            fontSize:      11,
+            color:         'var(--text-secondary)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            fontWeight:    600,
+            margin:        '0 0 12px',
+          }}>
+            💡 Key takeaways
+          </p>
+          {takeawaysLoading && !takeaways ? (
+            <p style={{
+              fontSize:  12,
+              color:     'var(--text-muted)',
+              margin:    0,
+              animation: 'pulse 1.5s ease-in-out infinite',
+            }}>
+              Generating insights...
+            </p>
+          ) : (
+            <ul style={{ margin: 0, paddingLeft: 16 }}>
+              {takeaways.map((t, i) => (
+                <li key={i} style={{
+                  fontSize:     13,
+                  color:        '#c9d1d9',
+                  lineHeight:   1.6,
+                  marginBottom: i === takeaways.length - 1 ? 0 : 8,
+                }}>
+                  {t}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 24 }}>
         {/* Strongest pairs */}
