@@ -5,6 +5,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import DashboardSummary from '@/components/DashboardSummary';
 import StockIntelSummary from '@/components/StockIntelSummary';
 import PortfolioAISummary from '@/components/PortfolioAISummary';
+import CorrelationPairList from '@/components/CorrelationPairList';
 import DemoPrompt from '@/components/DemoPrompt';
 import DashboardTour from '@/components/DashboardTour';
 import { saveUserHoldings, getCacheOwner } from '@/lib/holdingsStorage';
@@ -363,6 +364,8 @@ export default function DashboardPage() {
           cash:        cashUSD,
         }}
       />
+
+      <CorrelationPairList isSignedIn={!!isSignedIn} />
 
       {/* Daily Snapshot */}
       {(() => {
