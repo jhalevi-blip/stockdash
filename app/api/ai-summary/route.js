@@ -337,6 +337,7 @@ User's browser locale: ${userLang || 'en'}`;
     }
 
     const result = toolUse.input;
+    const _debugRawInput = JSON.parse(JSON.stringify(result)); // TEMP debug
 
     // ── Defend against missing suggested_action ───────────────────────────────
     if (!result.suggested_action) {
@@ -373,7 +374,7 @@ User's browser locale: ${userLang || 'en'}`;
       }
     }
 
-    return Response.json(result, { status: 200 });
+    return Response.json({ ...result, _debug_raw_input: _debugRawInput }, { status: 200 }); // TEMP debug
   }
 
   // Legacy path: news sentiment analysis
