@@ -44,8 +44,8 @@ const generatePortfolioSummaryTool = {
         description: "ISO language code used for the text content (e.g., 'en', 'nl', 'de', 'fr').",
       },
       portfolio_shape: {
-        type: ['object', 'null'],
-        description: 'Structured analysis of how the portfolio clusters across investing lenses. Null ONLY if the portfolio has fewer than 3 positions — always attempt this for 3+ position portfolios.',
+        type: 'object',
+        description: 'REQUIRED. Structured analysis of how the portfolio clusters across investing lenses. This field must always be present and populated — never omit it.',
         properties: {
           headline: {
             type: 'string',
@@ -167,7 +167,7 @@ The 10 lenses:
   - "What you're really long: rate-sensitive growth — 7 of 10 positions, 71% of equity."
   - "What you're really long: AMD as a single concentrated AI compute bet (38% of equity), with AMZN as a separate AI infrastructure position (22%)."
 - blind_spots should name what the portfolio CONSPICUOUSLY lacks — defensives, dividend payers, international exposure, fixed-income proxies, energy. Only surface 1-2 if they're meaningful absences. Skip if the portfolio is genuinely broad.
-- If the portfolio has fewer than 3 positions, set portfolio_shape to null entirely.
+- portfolio_shape is always required — the route guarantees this call is only made for portfolios with 3+ positions. Never omit or null this field.
 - All free-text fields (headline, label, explanation, note, blind_spots items) translate to the user's locale. The lens and confidence enum values stay in English.
 - Numerical accuracy rule applies: every equity weight you cite must be derivable from the marketValue fields provided. Cash is excluded from equity weights and carries no thesis exposure.
 
