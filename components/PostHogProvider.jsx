@@ -1,6 +1,19 @@
 'use client';
-import { useEffect } from 'react';
-import { gatePostHogOnConsent } from '@/lib/posthog';
+import { useEffect, Suspense } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { gatePostHogOnConsent, track } from '@/lib/posthog';
+
+function PageviewTracker() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (!pathname) return;
+    track('$pageview');
+  }, [pathname, searchParams]);
+
+  return null;
+}
 
 export default function PostHogProvider() {
   useEffect(() => {
@@ -8,5 +21,10 @@ export default function PostHogProvider() {
     if (process.env.NEXT_PUBLIC_POSTHOG_ENABLED !== 'true') return;
     gatePostHogOnConsent();
   }, []);
-  return null;
+
+  return (
+    <Suspense fallback={null}>
+      <PageviewTracker />
+    </Suspense>
+  );
 }
