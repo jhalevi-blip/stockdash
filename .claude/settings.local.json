@@ -32,7 +32,19 @@
       "Bash(ls:*)",
       "WebFetch(domain:stockdashes.com)",
       "Skill(claude-api)",
-      "Bash(printf \\\\n@keyframes spin { to { transform: rotate\\(360deg\\); } }\\\\n:*)"
+      "Bash(printf \\\\n@keyframes spin { to { transform: rotate\\(360deg\\); } }\\\\n:*)",
+      "Bash(grep -v \"^commit\\\\|^Author\\\\|^Date\\\\|^$\\\\|^    \")",
+      "Bash(gh run:*)",
+      "Bash(vercel --version)",
+      "Bash(vercel ls:*)",
+      "Bash(vercel inspect:*)",
+      "Bash(grep -E \"route\\\\.\\(js|ts\\)$\")",
+      "Bash(gh pr:*)",
+      "Bash(where gh:*)",
+      "Bash(winget list:*)",
+      "Bash(grep -E '\\\\.\\(jsx?|tsx?|css|md|json\\)$')",
+      "Bash(echo \"exit:$?\")",
+      "Bash(grep -r \"className.*:\" /c/Users/jhale/stockdash/components/*.jsx)"
     ]
   }
 }
