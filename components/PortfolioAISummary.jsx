@@ -22,6 +22,11 @@ const LABELS = {
     shapeDataVerified: 'Data-verified: positions in this cluster are correlated (avg r > 0.5)',
     shapePatternBased: 'Pattern-based: thesis inferred from market knowledge, not correlation data',
     analyzing:       'Claude is analyzing your portfolio...',
+    stepReading:      'Reading holdings',
+    stepCorrelations: 'Computing correlations',
+    stepGenerating:   'Generating analysis',
+    stepClusters:     'Identifying clusters',
+    stepFinalizing:   'Finalizing',
     regenerate:      'Regenerate',
     generateButton:  'Generate',
     usedToday:           '{count}/{limit} used today',
@@ -99,6 +104,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
   const [uiLang,      setUiLang]      = useState(initialSummary?.language ?? 'en');
   const [isMobile,      setIsMobile]      = useState(false);
   const [shapeExpanded, setShapeExpanded] = useState(false);
+  const [stepIndex,     setStepIndex]     = useState(0);
 
   useEffect(() => {
     if (!initialSummary) {
@@ -112,6 +118,26 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, [initialSummary, isSignedIn]);
+
+  useEffect(() => {
+    if (!loading) {
+      setStepIndex(0);
+      return;
+    }
+    // Stage transitions calibrated to ~21s total Anthropic generation time
+    // index 0: Reading holdings (0-2s)
+    // index 1: Computing correlations (2-5s)
+    // index 2: Generating analysis (5-15s)
+    // index 3: Identifying clusters (15-19s)
+    // index 4: Finalizing (19s+, hold here until fetch resolves)
+    const transitions = [
+      setTimeout(() => setStepIndex(1), 2000),
+      setTimeout(() => setStepIndex(2), 5000),
+      setTimeout(() => setStepIndex(3), 15000),
+      setTimeout(() => setStepIndex(4), 19000),
+    ];
+    return () => transitions.forEach(clearTimeout);
+  }, [loading]);
 
   const limitReached            = usageCount >= LIMIT;
   const L                       = getLabels(uiLang);
@@ -327,9 +353,21 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
               {i < 4 && <div style={{ borderTop: '1px solid #21262d' }} />}
             </div>
           ))}
-          <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', margin: '16px 0 0' }}>
-            {L.analyzing}
-          </p>
+          {(() => {
+            const stages = [L.stepReading, L.stepCorrelations, L.stepGenerating, L.stepClusters, L.stepFinalizing];
+            const currentStage = stages[stepIndex] || L.stepFinalizing;
+            return (
+              <p style={{
+                textAlign: 'center',
+                fontSize: 11,
+                color: 'var(--text-muted)',
+                margin: '16px 0 0',
+                animation: 'pulse 1.5s ease-in-out infinite',
+              }}>
+                {currentStage}…
+              </p>
+            );
+          })()}
         </div>
       )}
 
