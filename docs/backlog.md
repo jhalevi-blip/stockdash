@@ -14,9 +14,6 @@ _Last updated: 2026-05-01_
 
 ## Now (this week)
 
-- [ ] **Move stepper label above the skeleton** — Current placement is below 5 skeleton rows, often below the fold. Move the dynamic stage label to render above the rating skeleton at the top of the loading block, so it's the first thing the user sees during generation. ~20 min, pure repositioning in PortfolioAISummary.jsx, no logic changes.
-- [ ] **Correlation Analysis dashboard section** — sorted pair list (top correlated, bottom correlated). New section below Portfolio Intelligence card. No heatmap.
-- [ ] **Delete `/correlation-debug`** — cleanup, throwaway from yesterday.
 - [ ] **Audit pass** — production smoke test, FMP/Anthropic usage check, Search Console indexing, PostHog D1/D7, backlog hygiene, code health, dev environment.
 - [ ] **SEO post: "How Much of Your Portfolio Should Be in One Stock?"** — concentration deep-dive; pairs with Post #2 on correlation; ~2000 words; ship by 2026-05-05.
 
@@ -63,6 +60,10 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 
 ## Recently Shipped (last 14 days)
 
+- 2026-05-01 — `chore`: deleted /correlation-debug throwaway page (267 lines removed). Correlation feature is fully shipped end-to-end; debug page no longer needed.
+- 2026-05-01 — `feat(correlation)`: AI-generated takeaways block added above pair lists in Correlation Analysis section. New /api/ai-summary branch type: 'correlation-takeaways' uses Claude Haiku 4.5 (~3-4s latency, ~20× cheaper than Opus) with a dedicated tool definition. Output: 2-3 plain-English takeaway sentences with specific tickers and r-values. Component slides the block in above pair lists when ready; silently no-ops on failure. First production run produced sharp investor-grade analysis: identified PHM/LEN as a "single bet on housing sentiment," surfaced AMD's real correlation cluster (with SOFI, not AMZN), and questioned whether OXY's diversification is "strategic or by accident."
+- 2026-05-01 — `feat(dashboard)`: Correlation Analysis section added below Portfolio Intelligence card. Two-column layout (top 5 most-correlated pairs / bottom 5 least-correlated pairs) with confidence labels (very high / moderate / low / none / inverse). Anonymous users see a signup-gate teaser. Component fetches /api/correlation independently on mount (cached for signed-in users with computed correlations).
+- 2026-05-01 — `fix(ui)`: moved 5-stage loading stepper label above the rating skeleton in PortfolioAISummary card so it's visible during the 21s generation wait (previously below the fold for many viewports).
 - 2026-05-01 — `fix(ai-summary)`: removed nullable type on portfolio_shape schema (type: ['object','null'] → type: 'object'). Yesterday's required[] fix was partial — Anthropic doesn't strictly enforce required[], and the model was using the null union as an escape hatch to omit portfolio_shape entirely. Combined with non-nullable type, the field is now reliably present in production responses. Lesson: when you want a tool-use field to always be present, the schema needs both required[] AND a non-nullable type. Either alone is insufficient.
 - 2026-05-01 — `feat(ui)`: 5-stage loading stepper added to PortfolioAISummary card during AI generation — calibrated text label progresses through "Reading holdings → Computing correlations → Generating analysis → Identifying clusters → Finalizing" on a 21s timer that resets when fetch resolves. ⚠️ Visibility issue: label sits below 5 skeleton rows in the loading block — likely below the fold for many users. Follow-up needed to reposition above the skeleton (added to Now).
 - 2026-04-30 — Cache-Control audit complete: 3 authed routes already protected, headers normalized to `private, no-store`. No vulnerabilities found.
