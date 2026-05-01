@@ -14,7 +14,7 @@ _Last updated: 2026-05-01_
 
 ## Now (this week)
 
-- [ ] **Loading stepper UI for portfolio-summary** — Replace the static spinner during AI generation with a 5-stage stepper that progresses on a calibrated timer (~21s total): "Reading holdings" (0-2s) → "Computing correlations" (2-5s) → "Generating analysis" (5-15s) → "Identifying clusters" (15-19s) → "Finalizing" (19-21s). Pure client-side change in PortfolioAISummary.jsx during the existing await fetch() period. No backend changes. Estimate: 45 minutes.
+- [ ] **Move stepper label above the skeleton** — Current placement is below 5 skeleton rows, often below the fold. Move the dynamic stage label to render above the rating skeleton at the top of the loading block, so it's the first thing the user sees during generation. ~20 min, pure repositioning in PortfolioAISummary.jsx, no logic changes.
 - [ ] **Correlation Analysis dashboard section** — sorted pair list (top correlated, bottom correlated). New section below Portfolio Intelligence card. No heatmap.
 - [ ] **Delete `/correlation-debug`** — cleanup, throwaway from yesterday.
 - [ ] **Audit pass** — production smoke test, FMP/Anthropic usage check, Search Console indexing, PostHog D1/D7, backlog hygiene, code health, dev environment.
@@ -63,6 +63,8 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 
 ## Recently Shipped (last 14 days)
 
+- 2026-05-01 — `fix(ai-summary)`: removed nullable type on portfolio_shape schema (type: ['object','null'] → type: 'object'). Yesterday's required[] fix was partial — Anthropic doesn't strictly enforce required[], and the model was using the null union as an escape hatch to omit portfolio_shape entirely. Combined with non-nullable type, the field is now reliably present in production responses. Lesson: when you want a tool-use field to always be present, the schema needs both required[] AND a non-nullable type. Either alone is insufficient.
+- 2026-05-01 — `feat(ui)`: 5-stage loading stepper added to PortfolioAISummary card during AI generation — calibrated text label progresses through "Reading holdings → Computing correlations → Generating analysis → Identifying clusters → Finalizing" on a 21s timer that resets when fetch resolves. ⚠️ Visibility issue: label sits below 5 skeleton rows in the loading block — likely below the fold for many users. Follow-up needed to reposition above the skeleton (added to Now).
 - 2026-04-30 — Cache-Control audit complete: 3 authed routes already protected, headers normalized to `private, no-store`. No vulnerabilities found.
 - 2026-04-30 — `feat(correlation)`: summarizeCorrelationMatrix helper added to lib/correlation.js for compact LLM prompt input
 - 2026-04-30 — `feat(ai-summary)`: portfolio_shape field shipped — 10-lens analysis (sector, theme, macro, geographic, size_style, commodity_input, supply_chain, event_policy, liquidity_fund_flow, factor_style) with confidence flags, honorable mentions, blind spots. Post-generation enforcement of 10% weight floor and suggested_action fallback. portfolio_shape is required[] to ensure consistent generation.
