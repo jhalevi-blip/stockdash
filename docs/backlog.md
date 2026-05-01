@@ -14,7 +14,7 @@ _Last updated: 2026-05-01_
 
 ## Now (this week)
 
-- [ ] **Stream portfolio-summary response** — diagnostic confirmed 21s latency is entirely Anthropic generation time (Vercel ~150ms). Switch /api/ai-summary to Anthropic streaming API and forward SSE to the client. PortfolioAISummary component renders fields progressively as they arrive (rating first, then overview/sections, then portfolio_shape primary clusters). Goal: time-to-first-content drops from ~21s to ~2-3s; total completion time stays the same. Staged work: (1) route handler streaming, (2) component consumes stream, (3) progressive render order. Estimate: 2-3 hours focused work.
+- [ ] **Loading stepper UI for portfolio-summary** — Replace the static spinner during AI generation with a 5-stage stepper that progresses on a calibrated timer (~21s total): "Reading holdings" (0-2s) → "Computing correlations" (2-5s) → "Generating analysis" (5-15s) → "Identifying clusters" (15-19s) → "Finalizing" (19-21s). Pure client-side change in PortfolioAISummary.jsx during the existing await fetch() period. No backend changes. Estimate: 45 minutes.
 - [ ] **Correlation Analysis dashboard section** — sorted pair list (top correlated, bottom correlated). New section below Portfolio Intelligence card. No heatmap.
 - [ ] **Delete `/correlation-debug`** — cleanup, throwaway from yesterday.
 - [ ] **Audit pass** — production smoke test, FMP/Anthropic usage check, Search Console indexing, PostHog D1/D7, backlog hygiene, code health, dev environment.
@@ -57,6 +57,7 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 - **Data gaps for Aggressive / Thesis-driven analysis** — Segment revenue, forward guidance changes, analyst estimate revisions, sector rotation indicators, competitor wins/losses, management commentary tone, options market positioning. Don't source speculatively — wait for Build 2 Phase 2 user feedback to tell us which matters most.
 - **Shared Nav component refactor** — Currently 3 independent nav implementations: landing (`landing-page.jsx`), blog (`app/blog/layout.jsx`), app (`components/NavBar.jsx`). Revisit when nav needs a feature addition that would require updating all three anyway.
 - **Consolidate `isMobile` in `StockIntelAISummary`** — Component has its own inline `useState`/`useEffect` for mobile detection. Consolidate to use the shared `lib/useIsMobile` hook. No user-facing impact.
+- **Streaming with partial-JSON parsing** — Switch /api/ai-summary to Anthropic streaming API (with edge runtime + SSE forwarding) and parse partial tool input on the client to render fields as they arrive. Time-to-first-content drops from ~21s to ~5-7s. Trade-off: brittleness — partial JSON parsing has edge cases around chunk boundaries, escaped quotes, nested structures, and depends on Anthropic's chunking behavior. Estimate: 4-6 hours initial + ongoing maintenance. Revisit if/when user feedback indicates raw latency matters more than perception of progress (and after correlation pair list, audit pass, and at least 2 more SEO posts have shipped).
 
 ---
 
