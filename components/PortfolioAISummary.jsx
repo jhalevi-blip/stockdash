@@ -333,6 +333,21 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
       {/* ── Loading: skeleton matching real layout ── */}
       {loading && (
         <div>
+          {(() => {
+            const stages = [L.stepReading, L.stepCorrelations, L.stepGenerating, L.stepClusters, L.stepFinalizing];
+            const currentStage = stages[stepIndex] || L.stepFinalizing;
+            return (
+              <p style={{
+                textAlign: 'center',
+                fontSize: 11,
+                color: 'var(--text-muted)',
+                margin: '16px 0',
+                animation: 'pulse 1.5s ease-in-out infinite',
+              }}>
+                {currentStage}…
+              </p>
+            );
+          })()}
           {/* Rating skeleton */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '20px 0 24px' }}>
             <Skeleton style={{ width: 200, height: 52, borderRadius: 6 }} />
@@ -353,21 +368,6 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
               {i < 4 && <div style={{ borderTop: '1px solid #21262d' }} />}
             </div>
           ))}
-          {(() => {
-            const stages = [L.stepReading, L.stepCorrelations, L.stepGenerating, L.stepClusters, L.stepFinalizing];
-            const currentStage = stages[stepIndex] || L.stepFinalizing;
-            return (
-              <p style={{
-                textAlign: 'center',
-                fontSize: 11,
-                color: 'var(--text-muted)',
-                margin: '16px 0 0',
-                animation: 'pulse 1.5s ease-in-out infinite',
-              }}>
-                {currentStage}…
-              </p>
-            );
-          })()}
         </div>
       )}
 
