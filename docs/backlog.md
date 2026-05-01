@@ -1,6 +1,6 @@
 # StockDashes Roadmap
 
-_Last updated: 2026-04-30_
+_Last updated: 2026-05-01_
 
 ## Conventions
 
@@ -14,6 +14,7 @@ _Last updated: 2026-04-30_
 
 ## Now (this week)
 
+- [ ] **Stream portfolio-summary response** — diagnostic confirmed 21s latency is entirely Anthropic generation time (Vercel ~150ms). Switch /api/ai-summary to Anthropic streaming API and forward SSE to the client. PortfolioAISummary component renders fields progressively as they arrive (rating first, then overview/sections, then portfolio_shape primary clusters). Goal: time-to-first-content drops from ~21s to ~2-3s; total completion time stays the same. Staged work: (1) route handler streaming, (2) component consumes stream, (3) progressive render order. Estimate: 2-3 hours focused work.
 - [ ] **Correlation Analysis dashboard section** — sorted pair list (top correlated, bottom correlated). New section below Portfolio Intelligence card. No heatmap.
 - [ ] **Delete `/correlation-debug`** — cleanup, throwaway from yesterday.
 - [ ] **Audit pass** — production smoke test, FMP/Anthropic usage check, Search Console indexing, PostHog D1/D7, backlog hygiene, code health, dev environment.
