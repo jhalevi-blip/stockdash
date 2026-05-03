@@ -4,7 +4,7 @@ import { computeSampleStats, SAMPLE_AI_SUMMARY, SAMPLE_STOCK_INTEL } from '@/lib
 import PortfolioAISummary from '@/components/PortfolioAISummary';
 import DTSummaryStrip from './DTSummaryStrip';
 import DTHoldingsTable from './DTHoldingsTable';
-import DTStockIntelStatic from './DTStockIntelStatic';
+import DTStockIntel from './DTStockIntel';
 import DTMidCards from './DTMidCards';
 import DTStickyCTA from './DTStickyCTA';
 // NOTE: DTInlineCTA is no longer imported — replaced by DTStickyCTA at the app-shell bottom.
@@ -94,10 +94,10 @@ export default function DTerminalHero() {
             onSelect={setSelectedTicker}
           />
 
-          {/* Intel moves BELOW the table — Step 6 will polish into proper drawer */}
-          <DTStockIntelStatic
+          <DTStockIntel
             intel={SAMPLE_STOCK_INTEL}
             selectedTicker={selectedTicker}
+            row={sampleStats.rows.find(r => r.ticker === selectedTicker)}
           />
 
           <PortfolioAISummary initialSummary={SAMPLE_AI_SUMMARY} />
