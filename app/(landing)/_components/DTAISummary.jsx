@@ -1,4 +1,4 @@
-export default function DTAISummary({ summary, onLockedAction = () => {} }) {
+export default function DTAISummary({ summary }) {
   if (!summary) return null;
 
   const POS = '#4ade80';
@@ -92,36 +92,6 @@ export default function DTAISummary({ summary, onLockedAction = () => {} }) {
         ))}
       </div>
 
-      {/* Section 4 — Inline CTA */}
-      <div style={{
-        marginTop: 14,
-        padding: '14px 16px',
-        background: 'linear-gradient(135deg, rgba(59,130,246,0.10), rgba(34,211,238,0.06))',
-        border: '1px solid rgba(59,130,246,0.28)',
-        borderRadius: 6,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14,
-      }}>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#e6edf3', letterSpacing: '-0.01em' }}>
-            Get a rating like this on your own portfolio.
-          </div>
-          <div style={{ fontSize: 11, color: '#8b949e', marginTop: 3 }}>
-            Free · No credit card · Your data stays on your device
-          </div>
-        </div>
-        <button
-          onClick={onLockedAction}
-          style={{
-            background: '#3b82f6', border: '1px solid #3b82f6', borderRadius: 6,
-            color: '#ffffff', fontSize: 12, fontWeight: 700,
-            padding: '8px 16px', cursor: 'pointer',
-            fontFamily: 'inherit', whiteSpace: 'nowrap',
-            boxShadow: '0 0 24px rgba(59,130,246,0.35)',
-          }}
-        >
-          Try with your portfolio →
-        </button>
-      </div>
 
     </div>
   );

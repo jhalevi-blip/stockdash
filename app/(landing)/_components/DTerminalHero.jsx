@@ -7,7 +7,6 @@ import DTHoldingsTable from './DTHoldingsTable';
 import DTStockIntel from './DTStockIntel';
 import DTMidCards from './DTMidCards';
 import DTStickyCTA from './DTStickyCTA';
-// NOTE: DTInlineCTA is no longer imported — replaced by DTStickyCTA at the app-shell bottom.
 
 export default function DTerminalHero() {
   const [selectedTicker, setSelectedTicker] = useState('NVDA');  // NVDA per brief

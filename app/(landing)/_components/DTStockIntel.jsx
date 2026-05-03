@@ -1,3 +1,6 @@
+'use client';
+import { SignUpButton } from '@clerk/nextjs';
+
 const cardStyle = {
   padding: '8px 10px',
   background: 'rgba(255,255,255,0.02)',
@@ -14,7 +17,7 @@ const labelStyle = {
   marginBottom: 3,
 };
 
-export default function DTStockIntel({ intel, selectedTicker, row, onLockedAction = () => {} }) {
+export default function DTStockIntel({ intel, selectedTicker, row }) {
   const entry = intel[selectedTicker];
   if (!entry || !row) return null;
 
@@ -61,26 +64,24 @@ export default function DTStockIntel({ intel, selectedTicker, row, onLockedActio
 
         {/* Right: locked action buttons */}
         <div style={{ display: 'flex', gap: 6 }}>
-          <button
-            onClick={onLockedAction}
-            style={{
+          <SignUpButton mode="modal">
+            <button style={{
               padding: '4px 10px', borderRadius: 5,
               fontSize: 10, fontWeight: 600, cursor: 'pointer',
               background: 'transparent', border: '1px solid #30363d', color: '#8b949e',
-            }}
-          >
-            🔒 Save chart
-          </button>
-          <button
-            onClick={onLockedAction}
-            style={{
+            }}>
+              🔒 Save chart
+            </button>
+          </SignUpButton>
+          <SignUpButton mode="modal">
+            <button style={{
               padding: '4px 10px', borderRadius: 5,
               fontSize: 10, fontWeight: 600, cursor: 'pointer',
               background: '#3b82f6', border: '1px solid #3b82f6', color: '#ffffff',
-            }}
-          >
-            Stock detail →
-          </button>
+            }}>
+              Stock detail →
+            </button>
+          </SignUpButton>
         </div>
       </div>
 
@@ -151,16 +152,15 @@ export default function DTStockIntel({ intel, selectedTicker, row, onLockedActio
         <span>
           Insider trades · Analyst spread · Earnings beat history · Peer comps · Institutional ownership · Short interest · 5-year financials — all on the full page.
         </span>
-        <button
-          onClick={onLockedAction}
-          style={{
+        <SignUpButton mode="modal">
+          <button style={{
             background: 'transparent', border: 'none',
             color: '#3b82f6', fontSize: 11, fontWeight: 600,
             cursor: 'pointer', flexShrink: 0, marginLeft: 16,
-          }}
-        >
-          Open full page →
-        </button>
+          }}>
+            Open full page →
+          </button>
+        </SignUpButton>
       </div>
 
     </div>
