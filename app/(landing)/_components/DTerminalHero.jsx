@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { computeSampleStats, SAMPLE_AI_SUMMARY, SAMPLE_STOCK_INTEL } from '@/lib/dTerminalSampleData';
 import PortfolioAISummary from '@/components/PortfolioAISummary';
-import DTSummaryBar from './DTSummaryBar';
+import DTSummaryStrip from './DTSummaryStrip';
 import DTHoldingsTable from './DTHoldingsTable';
 import DTStockIntelStatic from './DTStockIntelStatic';
 import DTStickyCTA from './DTStickyCTA';
@@ -83,7 +83,7 @@ export default function DTerminalHero() {
           flexDirection: 'column',
           gap: 14,
         }}>
-          <DTSummaryBar stats={sampleStats} />
+          <DTSummaryStrip stats={sampleStats} />
 
           <DTHoldingsTable
             holdings={sampleStats.rows}
