@@ -190,12 +190,28 @@ export default async function BlogPost({ params }) {
     url,
   };
 
+  const faqJsonLd = frontmatter.faq?.length ? {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: frontmatter.faq.map(item => ({
+      '@type': 'Question',
+      name: item.question,
+      acceptedAnswer: { '@type': 'Answer', text: item.answer },
+    })),
+  } : null;
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      {faqJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        />
+      )}
       <article style={{ maxWidth: 700, margin: '0 auto' }}>
         <BlogSummaryBox summary={frontmatter.summary ?? null} />
         <div style={{ marginBottom: 40, paddingBottom: 24, borderBottom: '1px solid #21262d' }}>
