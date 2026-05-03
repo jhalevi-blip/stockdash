@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { computeSampleStats, SAMPLE_AI_SUMMARY, SAMPLE_STOCK_INTEL } from '@/lib/dTerminalSampleData';
-import PortfolioAISummary from '@/components/PortfolioAISummary';
+import DTAISummary from './DTAISummary';
 import DTSummaryStrip from './DTSummaryStrip';
 import DTHoldingsTable from './DTHoldingsTable';
 import DTStockIntel from './DTStockIntel';
@@ -100,7 +100,7 @@ export default function DTerminalHero() {
             row={sampleStats.rows.find(r => r.ticker === selectedTicker)}
           />
 
-          <PortfolioAISummary initialSummary={SAMPLE_AI_SUMMARY} />
+          <DTAISummary summary={SAMPLE_AI_SUMMARY} />
         </div>
 
         {/* STICKY BOTTOM CTA — sits inside the app shell at the bottom */}
