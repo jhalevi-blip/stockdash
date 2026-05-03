@@ -365,8 +365,6 @@ export default function DashboardPage() {
         }}
       />
 
-      <CorrelationPairList isSignedIn={!!isSignedIn} />
-
       {/* Daily Snapshot */}
       {(() => {
         const dailyRows = rows.filter(r => r.chgPct != null && r.price != null);
@@ -538,6 +536,8 @@ export default function DashboardPage() {
         </div>
         <div className="note">Click a row to view chart and stock intel.</div>
       </section>
+
+      <CorrelationPairList isSignedIn={!!isSignedIn} />
 
       {/* Tabbed detail panel — shown when a holding row is clicked */}
       {selected && (() => {
