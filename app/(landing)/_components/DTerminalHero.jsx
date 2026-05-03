@@ -14,12 +14,13 @@ export default function DTerminalHero() {
 
   return (
     <section data-theme="dark" style={{
-      background: '#07090d',
+      background: '#0d1117',
       minHeight: 800,
       padding: '0',
     }}>
       {/* HERO COPY BLOCK */}
-      <header style={{
+      {/* <div> not <header> — globals.css has a global header rule that turns <header> into display:flex */}
+      <div style={{
         padding: '38px 32px 22px',
         textAlign: 'center',
         maxWidth: 820,
@@ -63,7 +64,7 @@ export default function DTerminalHero() {
         </p>
 
         {/* TICKER CHIPS — deferred to Step 9 polish pass per Phase 3 plan */}
-      </header>
+      </div>
 
       {/* APP SHELL */}
       <div style={{
