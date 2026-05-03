@@ -31,6 +31,23 @@
   --text-sell:        #f87171;
 }
 
+[data-theme="dark"] {
+  /* === D-Terminal tokens === */
+  --bg-page-deep:        #0a0e14;
+  --accent-cta:          #3b82f6;
+  --accent-cyan:         #22d3ee;
+  --positive-bright:     #22c55e;
+  --positive-soft:       #4ade80;
+  --negative-soft:       #f87171;
+  --rating-good:         #3fb950;
+  --rating-mid:          #d29922;
+  --rating-bad:          #f85149;
+  --shadow-card:         0 1px 4px rgba(0,0,0,0.2);
+  --shadow-cta-blue:     0 0 28px rgba(59,130,246,0.3);
+  --radius:              6px;
+  --radius-md:           8px;
+}
+
 [data-theme="light"] {
   --bg-primary:       #ffffff;
   --bg-card:          #f8f9fa;
