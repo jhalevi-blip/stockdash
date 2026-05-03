@@ -5,6 +5,7 @@ import PortfolioAISummary from '@/components/PortfolioAISummary';
 import DTSummaryStrip from './DTSummaryStrip';
 import DTHoldingsTable from './DTHoldingsTable';
 import DTStockIntelStatic from './DTStockIntelStatic';
+import DTMidCards from './DTMidCards';
 import DTStickyCTA from './DTStickyCTA';
 // NOTE: DTInlineCTA is no longer imported — replaced by DTStickyCTA at the app-shell bottom.
 
@@ -84,6 +85,8 @@ export default function DTerminalHero() {
           gap: 14,
         }}>
           <DTSummaryStrip stats={sampleStats} />
+
+          <DTMidCards stats={sampleStats} />
 
           <DTHoldingsTable
             holdings={sampleStats.rows}
