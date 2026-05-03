@@ -1,5 +1,5 @@
 ---
-title: "Understanding Your Saxo Portfolio Report: What Each Number Actually Means"
+title: 'Understanding Your Saxo Portfolio Report: What Each Number Actually Means'
 slug: understanding-your-saxo-portfolio-report
 date: '2026-05-03'
 description: >-
@@ -35,19 +35,19 @@ faq:
       base currency.
   - question: What is the difference between unrealised and realised P/L in Saxo?
     answer: >-
-      Unrealised P/L is the paper gain or loss on positions you still hold —
-      it changes every time the price moves and has no tax consequence until you
+      Unrealised P/L is the paper gain or loss on positions you still hold — it
+      changes every time the price moves and has no tax consequence until you
       sell. Realised P/L is locked in the moment you close a position and is
       what typically feeds into taxable income calculations. The Saxo Portfolio
       Report shows both figures, and the total P/L is the sum of the two.
   - question: Why does my Saxo portfolio return look different from the index return?
     answer: >-
       Several factors create the gap: your portfolio holds different stocks in
-      different weights; cash drag reduces returns when you hold uninvested cash;
-      FX moves affect the translated return; fees and transaction costs reduce
-      net performance; and timing of purchases means you bought at different
-      prices than the index rebalance dates assume. TWR eliminates cash-flow
-      timing as a variable, but the other factors remain.
+      different weights; cash drag reduces returns when you hold uninvested
+      cash; FX moves affect the translated return; fees and transaction costs
+      reduce net performance; and timing of purchases means you bought at
+      different prices than the index rebalance dates assume. TWR eliminates
+      cash-flow timing as a variable, but the other factors remain.
   - question: What is cost basis and how does Saxo set it?
     answer: >-
       Cost basis is the total amount you paid for a position, including
@@ -56,6 +56,31 @@ faq:
       (€220 total). This average resets each time you add to the position.
       Knowing your cost basis is essential for calculating true P/L and for tax
       reporting.
+summary:
+  tldr: >-
+    A walkthrough of the Saxo Bank Portfolio Report explaining what each column
+    actually measures. P/L (MtM) is just current market value minus cost basis,
+    split into unrealised (open positions) and realised (closed) — and viewing
+    them separately matters because a big realised loss can hide behind a big
+    unrealised gain. Time-Weighted Return strips out the timing of your deposits
+    and withdrawals, so it's the right number to compare against an index like
+    MSCI World. FX P/L isolates currency effects, which can quietly turn a 10%
+    USD stock gain into less than 1% in EUR. Saxo uses average-cost accounting,
+    recalculating cost per share every time you add to a position.
+  key_takeaways:
+    - >-
+      Compare your TWR (not your raw Return %) against an index ETF like MSCI
+      World over the same period to judge whether your stock selection actually
+      added value.
+    - >-
+      If FX P/L is a large negative while underlying P/L is positive, currency
+      is silently eroding your returns — check whether that currency exposure is
+      intentional.
+    - >-
+      Track realised P/L year-to-date throughout the year for tax purposes, and
+      remember that adding to a position recalculates your average cost but
+      partial sales do not.
+  read_time_minutes: 8
 ---
 
 If you've ever exported the Portfolio Report from Saxo Bank and stared at a column labelled "P/L (MtM)" wondering what the parentheses mean, you're not alone. Saxo's reports are comprehensive, but the terminology assumes a level of financial literacy that most retail investors are still building. This guide walks through every major number in plain English — with worked examples — so you can read the report confidently.
