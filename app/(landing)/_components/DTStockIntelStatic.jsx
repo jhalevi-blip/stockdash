@@ -1,3 +1,4 @@
+// TODO Phase 3 — this component is being replaced. Patches below are crash-prevention only.
 function ratingColor(r) {
   if (r >= 7.0) return 'var(--rating-good)';
   if (r >= 5.0) return 'var(--rating-mid)';
@@ -41,17 +42,17 @@ export default function DTStockIntelStatic({ intel, selectedTicker }) {
 
       {/* Summary */}
       <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, margin: '0 0 14px' }}>
-        {entry.summary}
+        {entry.thesis}
       </p>
 
       {/* Stats grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {[
-          { label: 'P/E Ratio',     value: entry.peRatio },
-          { label: 'Market Cap',    value: `$${entry.marketCap}` },
-          { label: 'Short Float',   value: `${entry.shortFloat}%` },
-          { label: 'Next Earnings', value: entry.nextEarnings },
-          { label: 'Div Yield',     value: entry.divYield != null ? `${entry.divYield}%` : '—' },
+          { label: 'P/E Ratio',     value: entry.pe },
+          { label: 'Market Cap',    value: `$${entry.mcap}` },
+          { label: 'Short Float',   value: entry.shortFloat },
+          { label: 'Next Earnings', value: entry.earnDate },
+          { label: 'Div Yield',     value: entry.dy },
         ].map(({ label, value }) => (
           <div key={label}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{label}</div>

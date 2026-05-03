@@ -1,8 +1,9 @@
+// TODO Phase 3 — this component is being replaced. Patches below are crash-prevention only.
 export default function DTSummaryBar({ stats }) {
   const cells = [
-    { label: 'Total Value',   value: `$${stats.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}` },
-    { label: 'Day P&L',       value: `${stats.dayPnl >= 0 ? '+' : ''}$${stats.dayPnl.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, sub: `${stats.dayPnlPct >= 0 ? '+' : ''}${stats.dayPnlPct}%`, pos: stats.dayPnl >= 0 },
-    { label: 'Total Return',  value: `${stats.totalReturn >= 0 ? '+' : ''}$${stats.totalReturn.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, sub: `${stats.totalReturnPct >= 0 ? '+' : ''}${stats.totalReturnPct}%`, pos: stats.totalReturn >= 0 },
+    { label: 'Total Value',   value: `$${stats.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}` },
+    { label: 'Day P&L',       value: `${stats.dayPL >= 0 ? '+' : ''}$${stats.dayPL.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, sub: `${stats.dayPnlPct >= 0 ? '+' : ''}${stats.dayPnlPct}%`, pos: stats.dayPL >= 0 },
+    { label: 'Total Return',  value: `${stats.totalPL >= 0 ? '+' : ''}$${stats.totalPL.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, sub: `${stats.totalReturnPct >= 0 ? '+' : ''}${stats.totalReturnPct}%`, pos: stats.totalPL >= 0 },
     { label: 'Holdings',      value: stats.holdingsCount },
     { label: 'Claude Rating', value: `${stats.claudeRating} / 10`, sub: stats.claudeRatingLabel },
     { label: 'As Of',         value: stats.asOf },

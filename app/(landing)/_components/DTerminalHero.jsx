@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { SAMPLE_STATS, SAMPLE_HOLDINGS, SAMPLE_AI_SUMMARY, SAMPLE_STOCK_INTEL } from '@/lib/dTerminalSampleData';
+import { computeSampleStats, SAMPLE_AI_SUMMARY, SAMPLE_STOCK_INTEL } from '@/lib/dTerminalSampleData';
 import PortfolioAISummary from '@/components/PortfolioAISummary';
 import DTSummaryBar from './DTSummaryBar';
 import DTHoldingsTable from './DTHoldingsTable';
@@ -9,16 +9,17 @@ import DTInlineCTA from './DTInlineCTA';
 
 export default function DTerminalHero() {
   const [selectedTicker, setSelectedTicker] = useState('AAPL');
+  const sampleStats = computeSampleStats();
 
   return (
     <section data-theme="dark" style={{ background: 'var(--bg-page-deep)', padding: '32px 24px' }}>
       <h1>D-Terminal Hero (scaffold)</h1>
 
-      <DTSummaryBar stats={SAMPLE_STATS} />
+      <DTSummaryBar stats={sampleStats} />
 
       <div style={{ display: 'flex', gap: 24, marginTop: 24 }}>
         <DTHoldingsTable
-          holdings={SAMPLE_HOLDINGS}
+          holdings={sampleStats.rows}
           selectedTicker={selectedTicker}
           onSelect={setSelectedTicker}
         />
