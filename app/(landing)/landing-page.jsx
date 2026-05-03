@@ -1,42 +1,22 @@
 "use client";
-import { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
+import { useEffect } from "react";
 import Logo from "@/components/Logo";
 import { SignInButton } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { startDemo } from "@/lib/startDemo";
-import PortfolioAISummary from "@/components/PortfolioAISummary";
-import { heroSummary } from "@/lib/demoAISummary";
 import { track } from "@/lib/posthog";
 import { getAttribution } from "@/lib/attribution";
-import { useSearchParams } from "next/navigation";
 import DTerminalHero from "./_components/DTerminalHero";
 import DTCapabilityStrip from "./_components/DTCapabilityStrip";
 import DTTrustStrip from "./_components/DTTrustStrip";
 
-// ── Shared style constants ────────────────────────────────────────────────────
-const sectionWrap = { maxWidth: 1100, margin: "0 auto", padding: "0 24px" };
-
 export default function LandingPage() {
-  // Fix 5: IntersectionObserver for StockIntelPreview — mounts only when near viewport
-  const searchParams = useSearchParams();
-  const hero = searchParams.get("hero");
-
   useEffect(() => {
     track('landing_view', { attribution: getAttribution() });
   }, []);
 
   return (
     <div style={{ minHeight: "100vh", background: "#0d1117", color: "#e6edf3", fontFamily: "'DM Sans', sans-serif" }}>
-      <style>{`
-        @media (max-width: 639px) {
-          .hero-cols   { flex-direction: column !important; }
-          .hero-ctas   { flex-direction: column !important; }
-          .hero-ctas a, .hero-ctas button { width: 100% !important; box-sizing: border-box !important; justify-content: center !important; }
-          .section-row { flex-direction: column !important; }
-        }
-      `}</style>
-
       {/* ── NAVBAR ── */}
       <nav style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -61,98 +41,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ── HERO ── */}
-      {hero === "dterminal" ? (
-        <DTerminalHero />
-      ) : (
-        <section style={{ ...sectionWrap, paddingTop: 56, paddingBottom: 64 }}>
-          <div className="hero-cols" style={{ display: "flex", gap: 48, alignItems: "flex-start" }}>
-
-            {/* Left column — ~60% */}
-            <div style={{ flex: "0 0 50%", minWidth: 0 }}>
-              <h1 style={{
-                fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 800, lineHeight: 1.1,
-                letterSpacing: "-0.02em", margin: "0 0 16px", color: "#e6edf3",
-              }}>
-                Portfolio analysis by Claude Opus 4.7
-              </h1>
-              <p style={{
-                fontSize: 17, color: "rgba(230,237,243,0.6)", lineHeight: 1.65,
-                margin: "0 0 28px", maxWidth: 480,
-              }}>
-                Instant insights on every stock and your entire portfolio. Built on Anthropic's flagship AI model. No signup required to try it.
-              </p>
-
-              <div className="hero-ctas" style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-                <button
-                  onClick={() => startDemo("/dashboard")}
-                  style={{
-                    padding: "13px 28px", borderRadius: 10, border: "none", cursor: "pointer",
-                    background: "#3b82f6", color: "#fff", fontWeight: 700, fontSize: 15,
-                    fontFamily: "inherit", boxShadow: "0 0 28px rgba(59,130,246,0.3)",
-                  }}
-                >
-                  Try the demo →
-                </button>
-                <a href="/sign-up" style={{
-                  padding: "13px 24px", borderRadius: 10,
-                  border: "1px solid #30363d", background: "none",
-                  color: "#e6edf3", fontWeight: 600, fontSize: 15,
-                  textDecoration: "none", display: "inline-flex", alignItems: "center",
-                }}>
-                  Sign up free
-                </a>
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <span style={{
-                  fontSize: 10, fontWeight: 600, letterSpacing: "0.08em",
-                  color: "rgba(230,237,243,0.45)",
-                  background: "rgba(88,166,255,0.08)", border: "1px solid rgba(88,166,255,0.2)",
-                  borderRadius: 100, padding: "3px 12px", textTransform: "uppercase",
-                }}>
-                  Powered by Claude Opus 4.7
-                </span>
-              </div>
-
-              <p style={{ color: "rgba(230,237,243,0.25)", fontSize: 12, margin: 0 }}>
-                No account needed · Loads in seconds · Your data stays on your device
-              </p>
-
-              <div style={{ marginTop: 32, paddingTop: 32, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                <div style={{
-                  fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
-                  color: "rgba(230,237,243,0.3)", textTransform: "uppercase", marginBottom: 10,
-                }}>
-                  What Claude looks for:
-                </div>
-                <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-                  {[
-                    "Which position dominates your risk exposure",
-                    "Hidden correlation across positions that move as one",
-                    "Whether your winners are carrying underperformers",
-                    "Sector concentration with no defensive offset",
-                    "One concrete action to reduce your biggest vulnerability",
-                  ].map((item) => (
-                    <li key={item} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                      <span style={{ color: "#22d3ee", fontSize: 12, flexShrink: 0, marginTop: 1 }}>•</span>
-                      <span style={{ fontSize: 13, color: "rgba(230,237,243,0.45)", lineHeight: 1.5 }}>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-
-            {/* Right column — ~40% */}
-            <div style={{ flex: "1 1 0", minWidth: 0 }}>
-              <PortfolioAISummary initialSummary={heroSummary} />
-              <p style={{ fontSize: 11, color: "rgba(230,237,243,0.2)", textAlign: "center", marginTop: 6, marginBottom: 0 }}>
-                Sample portfolio · Live analysis with your real holdings after sign-up
-              </p>
-            </div>
-
-          </div>
-        </section>
-      )}
+      <DTerminalHero />
 
       <DTCapabilityStrip />
       <DTTrustStrip />
