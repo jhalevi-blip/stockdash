@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import Sparkline from './Sparkline';
+import Sparkline from '@/app/(v2)/_components/Sparkline';
 import { HOLDINGS, TICKER_SPARKS } from '../_lib/mockData';
-import { fmtCurrency, fmtPct, colorForChange } from '../_lib/format';
+import { fmtCurrency, fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
 
 // Inline cell styles override bare `td { ... }` in globals.css.
 const cellRight = (padY) => ({

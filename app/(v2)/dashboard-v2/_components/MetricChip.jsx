@@ -1,6 +1,6 @@
 'use client';
 
-import { fmtPct, colorForChange } from '../_lib/format';
+import { fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
 
 export default function MetricChip({ label, value, change, onClick }) {
   return (

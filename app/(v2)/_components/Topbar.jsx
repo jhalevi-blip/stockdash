@@ -1,7 +1,9 @@
 'use client';
 
 import Dot from './Dot';
-import { PORTFOLIO } from '../_lib/mockData';
+// PORTFOLIO.asOf is a display-only timestamp. Replace with prop
+// or date utility when real data lands in Phase H.
+import { PORTFOLIO } from '@/app/(v2)/dashboard-v2/_lib/mockData';
 
 // Uses <div> instead of <header> to avoid colliding with the bare
 // `header { ... }` rule in app/globals.css.

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Card from './_components/Card';
+import Card from '@/app/(v2)/_components/Card';
 import HeroValue from './_components/HeroValue';
 import MetricChip from './_components/MetricChip';
 import MacroStrip from './_components/MacroStrip';
@@ -10,7 +10,7 @@ import AllocationDonut from './_components/AllocationDonut';
 import MoversList from './_components/MoversList';
 import PortfolioAISummary from '@/components/PortfolioAISummary';
 import { PORTFOLIO, HOLDINGS, AI_SUMMARY } from './_lib/mockData';
-import { fmtCurrency } from './_lib/format';
+import { fmtCurrency } from '@/app/(v2)/_lib/format';
 
 // PortfolioAISummary is reused as-is from the live dashboard. It
 // renders its own card chrome (bg-card, border, border-radius 8) so we

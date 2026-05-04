@@ -1,8 +1,8 @@
 'use client';
 
-import Sparkline from './Sparkline';
+import Sparkline from '@/app/(v2)/_components/Sparkline';
 import { PORTFOLIO, PORTFOLIO_SPARK } from '../_lib/mockData';
-import { fmtCurrency, fmtPct, fmtSigned } from '../_lib/format';
+import { fmtCurrency, fmtPct, fmtSigned } from '@/app/(v2)/_lib/format';
 
 const RANGES = ['1D', '1W', '1M', '3M', '1Y', 'ALL'];
 
