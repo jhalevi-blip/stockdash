@@ -9,6 +9,10 @@ import HoldingsTable from './_components/HoldingsTable';
 import AllocationDonut from './_components/AllocationDonut';
 import MoversList from './_components/MoversList';
 import PortfolioAISummary from '@/components/PortfolioAISummary';
+import EarningsList from './_components/EarningsList';
+import NewsFeed from './_components/NewsFeed';
+import InsiderActivity from './_components/InsiderActivity';
+import QuickJumpTiles from './_components/QuickJumpTiles';
 import { PORTFOLIO, HOLDINGS, AI_SUMMARY } from './_lib/mockData';
 import { fmtCurrency } from '@/app/(v2)/_lib/format';
 
@@ -94,8 +98,33 @@ export default function DashboardV2Page() {
         isSignedIn={false}
       />
 
-      {/* Phase D ends here. /correlations route, suggested actions,
-          earnings, news, and quick-jump tiles land in D.5, E. */}
+      {/* 6. Earnings · News · Insider — 3-column feed row */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+        gap: 14,
+      }}>
+        <Card title="Upcoming Earnings" eyebrow="Calendar">
+          <EarningsList />
+        </Card>
+        <Card title="Portfolio News" eyebrow="Headlines">
+          <NewsFeed />
+        </Card>
+        <Card title="Insider Activity" eyebrow="Form 4">
+          <InsiderActivity />
+        </Card>
+      </div>
+
+      {/* 7. Quick-jump tiles */}
+      <div>
+        <div style={{
+          fontSize: 10, fontWeight: 600, letterSpacing: '.08em',
+          textTransform: 'uppercase', color: 'var(--text-muted)',
+          marginBottom: 8,
+        }}>Explore</div>
+        <QuickJumpTiles />
+      </div>
+
       <div style={{
         marginTop: 8,
         padding: '14px 0 24px',
