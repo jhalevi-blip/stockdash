@@ -80,3 +80,45 @@ export const ALLOCATION = [
   { sector: 'Consumer',       pct: 10.0, color: '#3fb950' },
   { sector: 'Cash',           pct: 7.4,  color: '#6e7681' },
 ];
+
+export const AI_SUMMARY = {
+  rating: 7.2,
+  rating_summary: "Concentrated tech exposure with strong winners but no defensive offset. Risk is heavily skewed to a single semiconductor cycle.",
+  overview: "11 positions, +134% above cost basis. ASML, NVDA, and ETOR together represent ~42% of market value — and the three semis (ASML, NVDA, AMD) make up ~39% of the book.",
+  whats_working: "ASML (+189%) and NVDA (+241%) are dominant winners riding semi capex and AI infra spend. AAOI and CELH also outperformed on optical-networking and beverage tailwinds.",
+  whats_dragging: "NKE at -11.6% is the only red position. SOFI lagged the broader market with only +5.7% over the holding period despite its fintech weighting.",
+  biggest_risk: "Hidden correlation. ASML, NVDA, and AMD all depend on the same semiconductor cycle. A single industry downturn would hit ~39% of the book at once. PHM adds rate-cycle exposure on top.",
+  suggested_action: "Trim ASML by 25–30% to reduce single-name concentration and rotate proceeds into a non-correlated defensive — utilities or consumer staples — to offset the implicit semi beta.",
+  language: 'en',
+  portfolio_shape: {
+    headline: "Three semis carry the book; the rest is fintech with a defensive gap",
+    primary_clusters: [
+      {
+        label: "Semiconductor capex + AI infrastructure",
+        confidence: "data_verified",
+        concentration_pct: 38.6,
+        positions: ["ASML", "NVDA", "AMD"],
+        explanation: "Three positions tied to the same end-market: chip equipment, GPU silicon, and CPU/accelerator silicon. They will rise together on AI capex tailwinds and fall together on a semi cycle correction. Treat as one bet, not three."
+      },
+      {
+        label: "Consumer fintech",
+        confidence: "data_verified",
+        concentration_pct: 18.0,
+        positions: ["ETOR", "SOFI"],
+        explanation: "Both depend on retail trading volume and consumer credit appetite. Rate-cut cycle helps both; recession hurts both."
+      }
+    ],
+    honorable_mentions: [
+      {
+        label: "Tech mega-cap satellites",
+        positions: ["AMZN", "AAOI"],
+        note: "Adjacent to the semi thesis but with their own demand drivers (cloud, optical networking)."
+      }
+    ],
+    blind_spots: [
+      "No defensive sleeve — utilities, consumer staples, or healthcare are absent.",
+      "No international diversification beyond ASML (Netherlands).",
+      "No fixed income or cash-equivalent allocation beyond the small idle cash position."
+    ]
+  }
+};
