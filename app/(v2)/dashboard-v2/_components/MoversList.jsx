@@ -1,8 +1,8 @@
 'use client';
 
-import Sparkline from './Sparkline';
+import Sparkline from '@/app/(v2)/_components/Sparkline';
 import { TOP_MOVERS_UP, TOP_MOVERS_DOWN, TICKER_SPARKS } from '../_lib/mockData';
-import { fmtCurrency, fmtPct, colorForChange } from '../_lib/format';
+import { fmtCurrency, fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
 
 export default function MoversList({ kind = 'up', onTickerClick }) {
   const list = kind === 'up' ? TOP_MOVERS_UP : TOP_MOVERS_DOWN;

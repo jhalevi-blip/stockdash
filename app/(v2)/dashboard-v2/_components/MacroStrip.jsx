@@ -1,7 +1,7 @@
 'use client';
 
 import { MACRO } from '../_lib/mockData';
-import { fmtPct, colorForChange } from '../_lib/format';
+import { fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
 
 export default function MacroStrip({ onIndexClick }) {
   return (
