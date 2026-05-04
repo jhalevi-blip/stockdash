@@ -5,6 +5,9 @@ import Card from './_components/Card';
 import HeroValue from './_components/HeroValue';
 import MetricChip from './_components/MetricChip';
 import MacroStrip from './_components/MacroStrip';
+import HoldingsTable from './_components/HoldingsTable';
+import AllocationDonut from './_components/AllocationDonut';
+import MoversList from './_components/MoversList';
 import { PORTFOLIO } from './_lib/mockData';
 import { fmtCurrency } from './_lib/format';
 
@@ -41,8 +44,45 @@ export default function DashboardV2Page() {
       {/* 3. Macro strip */}
       <MacroStrip />
 
-      {/* Phase B.2b ends here. Holdings + side rail, AI summary, suggested
-          actions, earnings, news, and quick-jump tiles land in C, D, E. */}
+      {/* 4. Holdings + side rail (Allocation + Top movers stacked) */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 2.2fr) minmax(0, 1fr)',
+        gap: 14,
+      }}>
+        <Card title="Holdings" eyebrow="Live">
+          <HoldingsTable />
+        </Card>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+          <Card title="Allocation by sector" eyebrow="Composition">
+            <AllocationDonut size={140} strokeWidth={20} />
+          </Card>
+          <Card title="Top movers today" eyebrow="Intraday">
+            <div style={{
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: '.08em',
+              textTransform: 'uppercase',
+              color: 'var(--positive-soft)',
+              marginBottom: 4,
+            }}>↑ Gainers</div>
+            <MoversList kind="up" />
+            <div style={{
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: '.08em',
+              textTransform: 'uppercase',
+              color: 'var(--negative-soft)',
+              marginTop: 8,
+              marginBottom: 4,
+            }}>↓ Decliners</div>
+            <MoversList kind="down" />
+          </Card>
+        </div>
+      </div>
+
+      {/* Phase C ends here. AI summary, suggested actions, earnings,
+          news, correlations route, and quick-jump tiles land in D, D.5, E. */}
       <div style={{
         marginTop: 8,
         padding: '14px 0 24px',
