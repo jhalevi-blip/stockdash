@@ -8,6 +8,13 @@ import { Analytics } from '@vercel/analytics/react';
 
 export const metadata = { title: 'StockDashes' };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#0d1117',
+};
+
 export default function RootLayout({ children }) {
   return (
     <ClerkProvider appearance={{
