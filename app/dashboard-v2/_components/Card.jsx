@@ -18,6 +18,7 @@ export default function Card({
       boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
       display: 'flex',
       flexDirection: 'column',
+      margin: 0,
       cursor: onClick ? 'pointer' : 'default',
       fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
       ...style,
