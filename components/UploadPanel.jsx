@@ -29,6 +29,7 @@ export default function UploadPanel({ onClose, onImport }) {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
   const [mapping, setMapping] = useState({ ticker: -1, shares: -1, cost: -1, date: -1 });
+  const [importMode, setImportMode] = useState('replace');
   const inputRef = useRef(null);
 
   function handleFile(file) {
@@ -329,19 +330,104 @@ export default function UploadPanel({ onClose, onImport }) {
 
                 <div style={{
                   marginTop: 14,
+                  padding: 12,
+                  background: 'var(--bg-primary, #0d1117)',
+                  border: '1px solid var(--border-color, #2a3142)',
+                  borderRadius: 6,
+                  fontSize: 13,
+                }}>
+                  <div style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: '.08em',
+                    textTransform: 'uppercase',
+                    color: 'var(--text-muted, #6e7681)',
+                    marginBottom: 8,
+                  }}>How to import</div>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 8,
+                    cursor: 'pointer',
+                    marginBottom: 6,
+                    color: 'var(--text-primary, #e6edf3)',
+                  }}>
+                    <input
+                      type="radio"
+                      name="importMode"
+                      value="replace"
+                      checked={importMode === 'replace'}
+                      onChange={() => setImportMode('replace')}
+                      style={{ marginTop: 3, cursor: 'pointer' }}
+                    />
+                    <span>
+                      <strong>Replace</strong> all current holdings with the uploaded file
+                    </span>
+                  </label>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 8,
+                    cursor: 'pointer',
+                    color: 'var(--text-primary, #e6edf3)',
+                  }}>
+                    <input
+                      type="radio"
+                      name="importMode"
+                      value="append"
+                      checked={importMode === 'append'}
+                      onChange={() => setImportMode('append')}
+                      style={{ marginTop: 3, cursor: 'pointer' }}
+                    />
+                    <span>
+                      <strong>Append</strong> uploaded rows on top of existing holdings
+                    </span>
+                  </label>
+                </div>
+
+                <div style={{
+                  marginTop: 14,
                   display: 'flex',
                   justifyContent: 'flex-end',
                   gap: 10,
                 }}>
                   <button
                     onClick={() => {
-                      // Stage D will wire this. For now: log and no-op.
                       if (mapping.ticker < 0 || mapping.shares < 0 || mapping.cost < 0) {
                         alert('Please map Ticker, Shares, and Avg Cost columns.');
                         return;
                       }
-                      console.log('Stage C ready. Mapping:', mapping, 'Rows to import:', rows.length);
-                      alert('Stage D will wire the actual import. Mapping looks valid.');
+                      // Transform mapped rows into {t, s, c, d} shape. Skip invalid silently.
+                      const parsed = rows.map(r => {
+                        const tRaw = r[mapping.ticker];
+                        const sRaw = r[mapping.shares];
+                        const cRaw = r[mapping.cost];
+                        const dRaw = mapping.date >= 0 ? r[mapping.date] : '';
+
+                        const t = String(tRaw ?? '').trim().toUpperCase();
+                        // Strip thousands separators and convert European decimal commas
+                        const sNum = parseFloat(String(sRaw ?? '').replace(/[^\d.,-]/g, '').replace(',', '.'));
+                        const cNum = parseFloat(String(cRaw ?? '').replace(/[^\d.,-]/g, '').replace(',', '.'));
+                        let d = '';
+                        if (dRaw) {
+                          const parsedDate = new Date(dRaw);
+                          if (!isNaN(parsedDate.getTime())) {
+                            d = parsedDate.toISOString().slice(0, 10);
+                          }
+                        }
+                        return { t, s: sNum, c: cNum, d };
+                      }).filter(row =>
+                        row.t.length > 0 &&
+                        row.t.length <= 10 &&
+                        !isNaN(row.s) && row.s > 0 &&
+                        !isNaN(row.c) && row.c >= 0
+                      );
+
+                      if (parsed.length === 0) {
+                        alert('No valid rows found. Check that the columns you mapped contain ticker symbols, numeric shares, and numeric prices.');
+                        return;
+                      }
+                      onImport(parsed, importMode);
                     }}
                     style={{
                       background: 'var(--accent-cyan, #58a6ff)',

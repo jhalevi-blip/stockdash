@@ -264,8 +264,19 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
           {uploadOpen && (
             <UploadPanel
               onClose={() => setUploadOpen(false)}
-              onImport={(importedRows, importedCash) => {
-                // Stage A: no-op. Stage D will wire this.
+              onImport={(importedRows, mode) => {
+                if (!Array.isArray(importedRows) || importedRows.length === 0) {
+                  setUploadOpen(false);
+                  return;
+                }
+                setRows(prev => {
+                  if (mode === 'append') {
+                    // Imported rows on top, then existing rows below.
+                    return [...importedRows, ...prev.filter(r => r.t || r.s || r.c)];
+                  }
+                  // Default: replace.
+                  return importedRows;
+                });
                 setUploadOpen(false);
               }}
             />
