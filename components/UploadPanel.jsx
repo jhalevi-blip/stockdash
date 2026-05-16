@@ -3,13 +3,32 @@
 import { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 
-// Phase G.1 Stage B — file picker + SheetJS parse + raw preview.
-// Column mapping logic comes in Stage C.
+// Fuzzy match column headers to detect ticker/shares/cost/date columns.
+// Returns indexes into the headers array. -1 if no match.
+function autoDetect(headers) {
+  const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const find = (patterns) => {
+    for (let i = 0; i < headers.length; i++) {
+      const h = norm(headers[i]);
+      if (patterns.some(p => h.includes(p))) return i;
+    }
+    return -1;
+  };
+  return {
+    ticker: find(['ticker', 'symbol', 'instrument', 'isin', 'security', 'naam']),
+    shares: find(['shares', 'quantity', 'qty', 'aantal', 'positie', 'units']),
+    cost:   find(['avgcost', 'costbasis', 'price', 'koers', 'gemkoers', 'avgprice', 'unitprice']),
+    date:   find(['datebought', 'purchasedate', 'transactiedatum', 'datum', 'date', 'tradedate']),
+  };
+}
+
+// Phase G.1 Stage C — file picker + SheetJS parse + raw preview + column mapping.
 export default function UploadPanel({ onClose, onImport }) {
   const [fileName, setFileName] = useState('');
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
+  const [mapping, setMapping] = useState({ ticker: -1, shares: -1, cost: -1, date: -1 });
   const inputRef = useRef(null);
 
   function handleFile(file) {
@@ -40,6 +59,7 @@ export default function UploadPanel({ onClose, onImport }) {
         );
         setHeaders(hdrs);
         setRows(dataRows);
+        setMapping(autoDetect(hdrs));
       } catch (err) {
         console.error('Parse error:', err);
         setError('Could not parse this file. Make sure it is a valid CSV or Excel file.');
@@ -67,6 +87,7 @@ export default function UploadPanel({ onClose, onImport }) {
     setHeaders([]);
     setRows([]);
     setError('');
+    setMapping({ ticker: -1, shares: -1, cost: -1, date: -1 });
     if (inputRef.current) inputRef.current.value = '';
   }
 
@@ -255,17 +276,85 @@ export default function UploadPanel({ onClose, onImport }) {
                   </tbody>
                 </table>
               </div>
-              <div style={{
-                marginTop: 12,
-                padding: '10px 14px',
-                background: 'rgba(88, 166, 255, 0.08)',
-                border: '1px solid rgba(88, 166, 255, 0.2)',
-                borderRadius: 6,
-                fontSize: 12,
-                color: 'var(--text-secondary, #8b949e)',
-              }}>
-                Column mapping (which column is ticker, shares, cost…)
-                coming in Stage C.
+              <div style={{ marginTop: 16 }}>
+                <div style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: '.08em',
+                  textTransform: 'uppercase',
+                  color: 'var(--text-muted, #6e7681)',
+                  marginBottom: 10,
+                }}>Map columns</div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: 10,
+                }}>
+                  {[
+                    { key: 'ticker', label: 'Ticker', required: true },
+                    { key: 'shares', label: 'Shares', required: true },
+                    { key: 'cost',   label: 'Avg Cost (per share)', required: true },
+                    { key: 'date',   label: 'Date Bought', required: false },
+                  ].map(({ key, label, required }) => (
+                    <div key={key}>
+                      <label style={{
+                        display: 'block',
+                        fontSize: 11,
+                        color: 'var(--text-secondary, #8b949e)',
+                        marginBottom: 6,
+                      }}>{label}{required && <span style={{ color: 'var(--negative, #f85149)' }}> *</span>}</label>
+                      <select
+                        value={mapping[key]}
+                        onChange={(e) => setMapping(m => ({ ...m, [key]: parseInt(e.target.value, 10) }))}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          background: 'var(--bg-primary, #0d1117)',
+                          border: '1px solid var(--border-color, #2a3142)',
+                          borderRadius: 6,
+                          color: 'var(--text-primary, #e6edf3)',
+                          fontSize: 13,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <option value={-1}>— Select column —</option>
+                        {headers.map((h, i) => (
+                          <option key={i} value={i}>{h || `Column ${i + 1}`}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{
+                  marginTop: 14,
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 10,
+                }}>
+                  <button
+                    onClick={() => {
+                      // Stage D will wire this. For now: log and no-op.
+                      if (mapping.ticker < 0 || mapping.shares < 0 || mapping.cost < 0) {
+                        alert('Please map Ticker, Shares, and Avg Cost columns.');
+                        return;
+                      }
+                      console.log('Stage C ready. Mapping:', mapping, 'Rows to import:', rows.length);
+                      alert('Stage D will wire the actual import. Mapping looks valid.');
+                    }}
+                    style={{
+                      background: 'var(--accent-cyan, #58a6ff)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: '10px 18px',
+                      fontSize: 13,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >Confirm import →</button>
+                </div>
               </div>
             </div>
           )}
