@@ -2,6 +2,7 @@
 import { useState, useRef } from 'react';
 import { track } from '@/lib/posthog';
 import { getAttribution } from '@/lib/attribution';
+import UploadPanel from './UploadPanel';
 
 // ── TickerInput ────────────────────────────────────────────────────────────────
 function TickerInput({ value, onChange, onSelect, inputStyle }) {
@@ -115,6 +116,7 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
   const [error,        setError]        = useState('');
   const [cashAmount,   setCashAmount]   = useState(cash?.amount   ?? 0);
   const [cashCurrency, setCashCurrency] = useState(cash?.currency ?? 'USD');
+  const [uploadOpen,   setUploadOpen]   = useState(false);
   const sharesRefs = useRef([]); // desktop: auto-focus after autocomplete selection
 
   const handleSave = async () => {
@@ -201,15 +203,32 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
                 Add your holdings — ticker, number of shares, average cost in USD, and optional purchase date
               </div>
             </div>
-            <button
-              onClick={onClose}
-              style={{
-                background: 'none', border: '1px solid var(--border-color)', borderRadius: 6,
-                color: 'var(--text-secondary)', fontSize: 16, cursor: 'pointer',
-                lineHeight: 1, marginLeft: 16, flexShrink: 0,
-                width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >✕</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                onClick={() => setUploadOpen(o => !o)}
+                style={{
+                  background: uploadOpen ? 'var(--accent-cyan, #58a6ff)' : 'transparent',
+                  color: uploadOpen ? '#fff' : 'var(--text-secondary, #8b949e)',
+                  border: '1px solid var(--border-color, #2a3142)',
+                  borderRadius: 6,
+                  padding: '8px 14px',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >📤 Upload CSV/Excel</button>
+              <button
+                onClick={onClose}
+                aria-label="Close"
+                style={{
+                  background: 'none', border: '1px solid var(--border-color)', borderRadius: 6,
+                  color: 'var(--text-secondary)', fontSize: 16, cursor: 'pointer',
+                  lineHeight: 1, flexShrink: 0,
+                  width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >✕</button>
+            </div>
           </div>
 
           {/* Cash Position */}
@@ -241,6 +260,37 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
               </span>
             </div>
           </div>
+
+          {uploadOpen && (
+            <UploadPanel
+              onClose={() => setUploadOpen(false)}
+              onImport={(importedRows, mode, skipped) => {
+                if (!Array.isArray(importedRows) || importedRows.length === 0) {
+                  setUploadOpen(false);
+                  return;
+                }
+                setRows(prev => {
+                  if (mode === 'append') {
+                    return [...importedRows, ...prev.filter(r => r.t || r.s || r.c)];
+                  }
+                  return importedRows;
+                });
+                setUploadOpen(false);
+                const totalSkipped = skipped
+                  ? (skipped.missingTicker ?? 0) + (skipped.tickerTooLong ?? 0) + (skipped.invalidShares ?? 0) + (skipped.invalidCost ?? 0)
+                  : 0;
+                if (totalSkipped > 0) {
+                  const reasons = [
+                    skipped.missingTicker  && `${skipped.missingTicker} missing ticker`,
+                    skipped.tickerTooLong  && `${skipped.tickerTooLong} ticker too long`,
+                    skipped.invalidShares  && `${skipped.invalidShares} invalid shares`,
+                    skipped.invalidCost    && `${skipped.invalidCost} invalid cost`,
+                  ].filter(Boolean).join(', ');
+                  setError(`Imported ${importedRows.length} row${importedRows.length !== 1 ? 's' : ''}. Skipped ${totalSkipped}: ${reasons}.`);
+                }
+              }}
+            />
+          )}
 
           {/* Column headers — desktop only */}
           <div className="pm-col-headers" style={{ display: 'grid', gridTemplateColumns: COLS, gap: 12, paddingBottom: 10, borderBottom: '1px solid var(--border-color)' }}>
