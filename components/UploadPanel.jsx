@@ -1,10 +1,77 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import * as XLSX from 'xlsx';
 
-// Phase G.1 Stage A — shell component, no parsing logic yet.
-// Receives onClose to collapse, onImport(rows, cash) to apply parsed data.
+// Phase G.1 Stage B — file picker + SheetJS parse + raw preview.
+// Column mapping logic comes in Stage C.
 export default function UploadPanel({ onClose, onImport }) {
+  const [fileName, setFileName] = useState('');
+  const [headers, setHeaders] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [error, setError] = useState('');
+  const inputRef = useRef(null);
+
+  function handleFile(file) {
+    setError('');
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+        if (!json.length) {
+          setError('File appears to be empty.');
+          return;
+        }
+        // Find header row — first row with non-empty cells
+        let headerIdx = 0;
+        for (let i = 0; i < Math.min(json.length, 20); i++) {
+          if (json[i].some(c => String(c).trim() !== '')) {
+            headerIdx = i;
+            break;
+          }
+        }
+        const hdrs = json[headerIdx].map(h => String(h ?? '').trim());
+        const dataRows = json.slice(headerIdx + 1).filter(
+          r => r.some(c => String(c).trim() !== '')
+        );
+        setHeaders(hdrs);
+        setRows(dataRows);
+      } catch (err) {
+        console.error('Parse error:', err);
+        setError('Could not parse this file. Make sure it is a valid CSV or Excel file.');
+        setHeaders([]);
+        setRows([]);
+      }
+    };
+    reader.onerror = () => setError('Failed to read file.');
+    reader.readAsArrayBuffer(file);
+  }
+
+  function onPick(e) {
+    const f = e.target.files?.[0];
+    if (f) handleFile(f);
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    const f = e.dataTransfer.files?.[0];
+    if (f) handleFile(f);
+  }
+
+  function reset() {
+    setFileName('');
+    setHeaders([]);
+    setRows([]);
+    setError('');
+    if (inputRef.current) inputRef.current.value = '';
+  }
+
+  const previewRows = rows.slice(0, 5);
+
   return (
     <div style={{
       margin: '20px 36px',
@@ -58,16 +125,152 @@ export default function UploadPanel({ onClose, onImport }) {
           }}
         >Cancel</button>
       </div>
-      <div style={{
-        padding: 32,
-        border: '2px dashed var(--border-color, #2a3142)',
-        borderRadius: 6,
-        textAlign: 'center',
-        color: 'var(--text-muted, #6e7681)',
-        fontSize: 13,
-      }}>
-        File picker coming in Stage B
-      </div>
+
+      {!fileName && (
+        <div
+          onClick={() => inputRef.current?.click()}
+          onDrop={onDrop}
+          onDragOver={(e) => e.preventDefault()}
+          style={{
+            padding: 32,
+            border: '2px dashed var(--border-color, #2a3142)',
+            borderRadius: 6,
+            textAlign: 'center',
+            color: 'var(--text-secondary, #8b949e)',
+            fontSize: 13,
+            cursor: 'pointer',
+          }}
+        >
+          <div style={{ fontSize: 24, marginBottom: 8 }}>📁</div>
+          <div style={{ fontWeight: 500, marginBottom: 4 }}>
+            Click to choose a file or drop it here
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted, #6e7681)' }}>
+            CSV, XLSX, XLS — most broker exports work
+          </div>
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={onPick}
+            style={{ display: 'none' }}
+          />
+        </div>
+      )}
+
+      {fileName && (
+        <div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 14px',
+            background: 'var(--bg-primary, #0d1117)',
+            border: '1px solid var(--border-color, #2a3142)',
+            borderRadius: 6,
+            marginBottom: 14,
+          }}>
+            <div style={{ fontSize: 13, color: 'var(--text-primary, #e6edf3)' }}>
+              📄 {fileName} {rows.length > 0 && (
+                <span style={{ color: 'var(--text-muted, #6e7681)' }}>
+                  · {rows.length} row{rows.length !== 1 ? 's' : ''} · {headers.length} column{headers.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={reset}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--border-color, #2a3142)',
+                color: 'var(--text-secondary, #8b949e)',
+                borderRadius: 4,
+                padding: '4px 10px',
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >Choose different file</button>
+          </div>
+
+          {error && (
+            <div style={{
+              padding: '10px 14px',
+              background: 'rgba(248, 81, 73, 0.1)',
+              border: '1px solid var(--negative, #f85149)',
+              borderRadius: 6,
+              color: 'var(--negative, #f85149)',
+              fontSize: 13,
+              marginBottom: 14,
+            }}>{error}</div>
+          )}
+
+          {previewRows.length > 0 && (
+            <div>
+              <div style={{
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '.08em',
+                textTransform: 'uppercase',
+                color: 'var(--text-muted, #6e7681)',
+                marginBottom: 8,
+              }}>Preview (first 5 rows)</div>
+              <div style={{
+                overflowX: 'auto',
+                border: '1px solid var(--border-color, #2a3142)',
+                borderRadius: 6,
+                WebkitOverflowScrolling: 'touch',
+              }}>
+                <table style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  fontSize: 12,
+                  color: 'var(--text-primary, #e6edf3)',
+                }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-primary, #0d1117)' }}>
+                      {headers.map((h, i) => (
+                        <th key={i} style={{
+                          padding: '8px 12px',
+                          textAlign: 'left',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: 'var(--text-secondary, #8b949e)',
+                          borderBottom: '1px solid var(--border-color, #2a3142)',
+                          whiteSpace: 'nowrap',
+                        }}>{h || `Column ${i + 1}`}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewRows.map((r, ri) => (
+                      <tr key={ri}>
+                        {headers.map((_, ci) => (
+                          <td key={ci} style={{
+                            padding: '8px 12px',
+                            borderBottom: ri < previewRows.length - 1 ? '1px solid var(--border-color, #2a3142)' : 'none',
+                            whiteSpace: 'nowrap',
+                          }}>{String(r[ci] ?? '')}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{
+                marginTop: 12,
+                padding: '10px 14px',
+                background: 'rgba(88, 166, 255, 0.08)',
+                border: '1px solid rgba(88, 166, 255, 0.2)',
+                borderRadius: 6,
+                fontSize: 12,
+                color: 'var(--text-secondary, #8b949e)',
+              }}>
+                Column mapping (which column is ticker, shares, cost…)
+                coming in Stage C.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
