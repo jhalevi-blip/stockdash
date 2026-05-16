@@ -264,20 +264,30 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
           {uploadOpen && (
             <UploadPanel
               onClose={() => setUploadOpen(false)}
-              onImport={(importedRows, mode) => {
+              onImport={(importedRows, mode, skipped) => {
                 if (!Array.isArray(importedRows) || importedRows.length === 0) {
                   setUploadOpen(false);
                   return;
                 }
                 setRows(prev => {
                   if (mode === 'append') {
-                    // Imported rows on top, then existing rows below.
                     return [...importedRows, ...prev.filter(r => r.t || r.s || r.c)];
                   }
-                  // Default: replace.
                   return importedRows;
                 });
                 setUploadOpen(false);
+                const totalSkipped = skipped
+                  ? (skipped.missingTicker ?? 0) + (skipped.tickerTooLong ?? 0) + (skipped.invalidShares ?? 0) + (skipped.invalidCost ?? 0)
+                  : 0;
+                if (totalSkipped > 0) {
+                  const reasons = [
+                    skipped.missingTicker  && `${skipped.missingTicker} missing ticker`,
+                    skipped.tickerTooLong  && `${skipped.tickerTooLong} ticker too long`,
+                    skipped.invalidShares  && `${skipped.invalidShares} invalid shares`,
+                    skipped.invalidCost    && `${skipped.invalidCost} invalid cost`,
+                  ].filter(Boolean).join(', ');
+                  setError(`Imported ${importedRows.length} row${importedRows.length !== 1 ? 's' : ''}. Skipped ${totalSkipped}: ${reasons}.`);
+                }
               }}
             />
           )}

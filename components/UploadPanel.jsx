@@ -397,37 +397,40 @@ export default function UploadPanel({ onClose, onImport }) {
                         alert('Please map Ticker, Shares, and Avg Cost columns.');
                         return;
                       }
-                      // Transform mapped rows into {t, s, c, d} shape. Skip invalid silently.
-                      const parsed = rows.map(r => {
+                      const skipped = { missingTicker: 0, tickerTooLong: 0, invalidShares: 0, invalidCost: 0 };
+                      const valid = rows.map(r => {
                         const tRaw = r[mapping.ticker];
                         const sRaw = r[mapping.shares];
                         const cRaw = r[mapping.cost];
                         const dRaw = mapping.date >= 0 ? r[mapping.date] : '';
 
                         const t = String(tRaw ?? '').trim().toUpperCase();
-                        // Strip thousands separators and convert European decimal commas
                         const sNum = parseFloat(String(sRaw ?? '').replace(/[^\d.,-]/g, '').replace(',', '.'));
                         const cNum = parseFloat(String(cRaw ?? '').replace(/[^\d.,-]/g, '').replace(',', '.'));
                         let d = '';
                         if (dRaw) {
                           const parsedDate = new Date(dRaw);
-                          if (!isNaN(parsedDate.getTime())) {
-                            d = parsedDate.toISOString().slice(0, 10);
-                          }
+                          if (!isNaN(parsedDate.getTime())) d = parsedDate.toISOString().slice(0, 10);
                         }
-                        return { t, s: sNum, c: cNum, d };
-                      }).filter(row =>
-                        row.t.length > 0 &&
-                        row.t.length <= 10 &&
-                        !isNaN(row.s) && row.s > 0 &&
-                        !isNaN(row.c) && row.c >= 0
-                      );
 
-                      if (parsed.length === 0) {
-                        alert('No valid rows found. Check that the columns you mapped contain ticker symbols, numeric shares, and numeric prices.');
+                        if (!t) { skipped.missingTicker++; return null; }
+                        if (t.length > 10) { skipped.tickerTooLong++; return null; }
+                        if (isNaN(sNum) || sNum <= 0) { skipped.invalidShares++; return null; }
+                        if (isNaN(cNum) || cNum < 0) { skipped.invalidCost++; return null; }
+                        return { t, s: sNum, c: cNum, d };
+                      }).filter(Boolean);
+
+                      if (valid.length === 0) {
+                        const reasons = [
+                          skipped.missingTicker  && `${skipped.missingTicker} missing ticker`,
+                          skipped.tickerTooLong  && `${skipped.tickerTooLong} ticker too long`,
+                          skipped.invalidShares  && `${skipped.invalidShares} invalid shares`,
+                          skipped.invalidCost    && `${skipped.invalidCost} invalid cost`,
+                        ].filter(Boolean).join(', ');
+                        alert(`No valid rows found. Reasons: ${reasons || 'unknown'}.\nCheck that the columns you mapped contain ticker symbols, numeric shares, and numeric prices.`);
                         return;
                       }
-                      onImport(parsed, importMode);
+                      onImport(valid, importMode, skipped);
                     }}
                     style={{
                       background: 'var(--accent-cyan, #58a6ff)',
