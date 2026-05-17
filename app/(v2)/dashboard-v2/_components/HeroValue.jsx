@@ -6,7 +6,7 @@ import { fmtCurrency, fmtPct, fmtSigned } from '@/app/(v2)/_lib/format';
 
 const RANGES = ['1D', '1W', '1M', '3M', '1Y', 'ALL'];
 
-export default function HeroValue({ range = '1M', onRange, sparkData }) {
+export default function HeroValue({ range = '1M', onRange, sparkData, data = PORTFOLIO }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
@@ -21,7 +21,7 @@ export default function HeroValue({ range = '1M', onRange, sparkData }) {
           fontSize: 11,
           color: 'var(--text-muted)',
           fontVariantNumeric: 'tabular-nums',
-        }}>{PORTFOLIO.asOf}</span>
+        }}>{data.asOf}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
         <span style={{
@@ -30,14 +30,14 @@ export default function HeroValue({ range = '1M', onRange, sparkData }) {
           letterSpacing: '-.02em',
           color: 'var(--text-primary)',
           fontVariantNumeric: 'tabular-nums',
-        }}>{fmtCurrency(PORTFOLIO.totalValue)}</span>
+        }}>{fmtCurrency(data.totalValue)}</span>
         <span style={{
           fontSize: 14,
           fontWeight: 600,
           color: 'var(--positive-bright)',
           fontVariantNumeric: 'tabular-nums',
         }}>
-          {fmtSigned(PORTFOLIO.dayChange)} ({fmtPct(PORTFOLIO.dayChangePct)}){' '}
+          {fmtSigned(data.dayChange)} ({fmtPct(data.dayChangePct)}){' '}
           <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>today</span>
         </span>
       </div>
@@ -50,17 +50,17 @@ export default function HeroValue({ range = '1M', onRange, sparkData }) {
         fontVariantNumeric: 'tabular-nums',
         flexWrap: 'wrap',
       }}>
-        <span>Cost {fmtCurrency(PORTFOLIO.totalCost, 0)}</span>
+        <span>Cost {fmtCurrency(data.totalCost, 0)}</span>
         <span>·</span>
         <span>
           Unrealized{' '}
           <span style={{ color: 'var(--positive-soft)' }}>
-            {fmtSigned(PORTFOLIO.unrealized, 0)}
+            {fmtSigned(data.unrealized, 0)}
           </span>{' '}
-          ({fmtPct(PORTFOLIO.unrealizedPct, 1)})
+          ({fmtPct(data.unrealizedPct, 1)})
         </span>
         <span>·</span>
-        <span>Cash {fmtCurrency(PORTFOLIO.cash, 0)}</span>
+        <span>Cash {fmtCurrency(data.cash, 0)}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
         <Sparkline data={sparkData ?? PORTFOLIO_SPARK} width={700} height={120} strokeWidth={2} />

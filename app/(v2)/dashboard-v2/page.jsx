@@ -30,6 +30,7 @@ export default function DashboardV2Page() {
   const [holdings, setHoldings] = useState([]);
   const [prices,   setPrices]   = useState({});
   const [history,  setHistory]  = useState(null); // [{ date, value }] — full 1-year daily series
+  const [cash,     setCash]     = useState(0);    // cash balance in USD from /api/portfolio
   const { user, isLoaded, isSignedIn } = useUser();
 
   useEffect(() => {
@@ -58,6 +59,7 @@ export default function DashboardV2Page() {
             try {
               const data = await fetch('/api/portfolio').then(r => r.json());
               if (data.signedIn && data.holdings?.length) h = data.holdings;
+              setCash(data.cash?.amount ?? 0);
             } catch {}
           }
         } else {
@@ -164,7 +166,28 @@ export default function DashboardV2Page() {
     ? [...new Set(enrichedRows.map(r => r.ticker))].join(',')
     : HOLDINGS.map(h => h.ticker).join(',');
 
-  // Synthesize portfolioStats shape from the mock PORTFOLIO constant.
+  // Compute real portfolio stats from enrichedRows + live prices.
+  // Returns null when no real holdings are loaded (anonymous / demo).
+  const realPortfolioStats = (() => {
+    if (enrichedRows.length === 0) return null;
+    const totalValue    = enrichedRows.reduce((s, r) => s + r.mktValue, 0);
+    const totalCost     = enrichedRows.reduce((s, r) => s + r.shares * r.costBasis, 0);
+    const unrealized    = totalValue - totalCost;
+    const unrealizedPct = totalCost > 0 ? (unrealized / totalCost) * 100 : 0;
+    const dayChange     = enrichedRows.reduce((s, r) => s + r.mktValue * (r.change / 100), 0);
+    const prevValue     = totalValue - dayChange;
+    const dayChangePct  = prevValue > 0 ? (dayChange / prevValue) * 100 : 0;
+    return {
+      totalValue, totalCost, unrealized, unrealizedPct, dayChange, dayChangePct,
+      cash, positions: enrichedRows.length,
+      asOf: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }),
+    };
+  })();
+
+  // hero: real stats when signed in with holdings, mock otherwise
+  const hero = realPortfolioStats ?? PORTFOLIO;
+
+  // portfolioStats shape for PortfolioAISummary
   const portfolioStats = {
     totalValue: PORTFOLIO.totalValue,
     totalPnl: PORTFOLIO.unrealized,
@@ -182,7 +205,7 @@ export default function DashboardV2Page() {
     }}>
       {/* 1. Hero strip */}
       <Card padding="18px 20px">
-        <HeroValue range={range} onRange={setRange} sparkData={sparkData} />
+        <HeroValue range={range} onRange={setRange} sparkData={sparkData} data={hero} />
       </Card>
 
       {/* 2. KPI chips */}
@@ -191,10 +214,10 @@ export default function DashboardV2Page() {
         gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
         gap: 10,
       }}>
-        <MetricChip label="Today's P&L"  value={fmtCurrency(PORTFOLIO.dayChange, 0)}  change={PORTFOLIO.dayChangePct} />
-        <MetricChip label="Unrealized"   value={fmtCurrency(PORTFOLIO.unrealized, 0)} change={PORTFOLIO.unrealizedPct} />
-        <MetricChip label="Positions"    value={String(PORTFOLIO.positions)} />
-        <MetricChip label="Cash"         value={fmtCurrency(PORTFOLIO.cash, 0)} />
+        <MetricChip label="Today's P&L"  value={fmtCurrency(hero.dayChange, 0)}  change={hero.dayChangePct} />
+        <MetricChip label="Unrealized"   value={fmtCurrency(hero.unrealized, 0)} change={hero.unrealizedPct} />
+        <MetricChip label="Positions"    value={String(hero.positions)} />
+        <MetricChip label="Cash"         value={fmtCurrency(hero.cash, 0)} />
       </div>
 
       {/* 3. Macro strip */}
