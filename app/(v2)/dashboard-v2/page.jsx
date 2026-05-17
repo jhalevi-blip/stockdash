@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useUser } from '@clerk/nextjs';
 import Card from '@/app/(v2)/_components/Card';
 import HeroValue from './_components/HeroValue';
@@ -14,7 +14,7 @@ import EarningsList from './_components/EarningsList';
 import NewsFeed from './_components/NewsFeed';
 import InsiderActivity from './_components/InsiderActivity';
 import QuickJumpTiles from './_components/QuickJumpTiles';
-import { PORTFOLIO, HOLDINGS, AI_SUMMARY } from './_lib/mockData';
+import { PORTFOLIO, HOLDINGS, AI_SUMMARY, PORTFOLIO_SPARK } from './_lib/mockData';
 import { fmtCurrency } from '@/app/(v2)/_lib/format';
 import { loadUserHoldings, getCacheOwner } from '@/lib/holdingsStorage';
 
@@ -29,6 +29,7 @@ export default function DashboardV2Page() {
   // Real holdings state — loaded from localStorage/API + enriched with live prices
   const [holdings, setHoldings] = useState([]);
   const [prices,   setPrices]   = useState({});
+  const [history,  setHistory]  = useState(null); // [{ date, value }] — full 1-year daily series
   const { user, isLoaded, isSignedIn } = useUser();
 
   useEffect(() => {
@@ -79,6 +80,62 @@ export default function DashboardV2Page() {
     })();
   }, [isLoaded, isSignedIn, user?.id]);
 
+  // Fetch 1-year daily prices for all held tickers and compute portfolio value per day.
+  // Runs after holdings are known. Skips if holdings is empty (mock/demo case).
+  useEffect(() => {
+    if (!holdings.length) return;
+
+    const tickers = [...new Set(holdings.map(h => h.t))];
+
+    (async () => {
+      try {
+        const res  = await fetch(`/api/historical-prices?tickers=${tickers.join(',')}`);
+        const json = await res.json();
+        if (!Array.isArray(json.data) || !json.data.length) { setHistory(null); return; }
+
+        // Build { [ticker]: { [date]: close } } for O(1) lookup
+        const tickerDateClose = {};
+        for (const { ticker, prices: p } of json.data) {
+          tickerDateClose[ticker] = {};
+          for (const { date, close } of p) tickerDateClose[ticker][date] = close;
+        }
+
+        // Union of all trading dates across all tickers, sorted ascending
+        const dateSet = new Set();
+        for (const { prices: p } of json.data) {
+          for (const { date } of p) dateSet.add(date);
+        }
+        const dates = [...dateSet].sort();
+
+        // Sum portfolio value per day; carry forward last known close for gaps
+        const lastClose = {};
+        const hist = dates.map(date => {
+          let value = 0;
+          for (const h of holdings) {
+            const close = tickerDateClose[h.t]?.[date];
+            if (close != null) lastClose[h.t] = close;
+            value += h.s * (lastClose[h.t] ?? 0);
+          }
+          return { date, value };
+        });
+
+        setHistory(hist);
+      } catch {
+        setHistory(null);
+      }
+    })();
+  }, [holdings]);
+
+  // Slice the full history array by the selected range → flat number[] for Sparkline.
+  // Falls back to mock PORTFOLIO_SPARK when history hasn't loaded yet.
+  const sparkData = useMemo(() => {
+    if (!history || !history.length) return PORTFOLIO_SPARK;
+    const sliceCount = { '1W': 7, '1M': 22, '3M': 66, '1Y': Infinity, 'ALL': Infinity };
+    const n = sliceCount[range] ?? 22; // '1D' guard: treat unknown range as 1M
+    const sliced = n === Infinity ? history : history.slice(-n);
+    return sliced.map(d => d.value);
+  }, [history, range]);
+
   // Compute enriched rows in the shape HoldingsTable expects.
   // Weight requires a two-pass: compute totalMktValue first, then assign weights.
   const enrichedRows = (() => {
@@ -119,7 +176,7 @@ export default function DashboardV2Page() {
     }}>
       {/* 1. Hero strip */}
       <Card padding="18px 20px">
-        <HeroValue range={range} onRange={setRange} />
+        <HeroValue range={range} onRange={setRange} sparkData={sparkData} />
       </Card>
 
       {/* 2. KPI chips */}

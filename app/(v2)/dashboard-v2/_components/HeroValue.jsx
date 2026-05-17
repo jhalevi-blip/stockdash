@@ -6,7 +6,7 @@ import { fmtCurrency, fmtPct, fmtSigned } from '@/app/(v2)/_lib/format';
 
 const RANGES = ['1D', '1W', '1M', '3M', '1Y', 'ALL'];
 
-export default function HeroValue({ range = '1M', onRange }) {
+export default function HeroValue({ range = '1M', onRange, sparkData }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
@@ -63,20 +63,28 @@ export default function HeroValue({ range = '1M', onRange }) {
         <span>Cash {fmtCurrency(PORTFOLIO.cash, 0)}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-        <Sparkline data={PORTFOLIO_SPARK} width={300} height={48} strokeWidth={1.8} />
+        <Sparkline data={sparkData ?? PORTFOLIO_SPARK} width={700} height={120} strokeWidth={2} />
         <div style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
-          {RANGES.map(r => (
-            <button key={r} onClick={() => onRange?.(r)} style={{
-              background: r === range ? 'var(--bg-hover)' : 'transparent',
-              border: '1px solid ' + (r === range ? 'var(--accent)' : 'var(--border-color)'),
-              color: r === range ? 'var(--text-primary)' : 'var(--text-secondary)',
-              fontSize: 11,
-              padding: '3px 8px',
-              borderRadius: 4,
-              cursor: 'pointer',
-              fontWeight: 500,
-            }}>{r}</button>
-          ))}
+          {RANGES.map(r => {
+            const disabled = r === '1D';
+            return (
+              <button
+                key={r}
+                onClick={disabled ? undefined : () => onRange?.(r)}
+                style={{
+                  background:  !disabled && r === range ? 'var(--bg-hover)' : 'transparent',
+                  border:      '1px solid ' + (!disabled && r === range ? 'var(--accent)' : 'var(--border-color)'),
+                  color:       disabled ? 'var(--text-muted)' : r === range ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  fontSize:    11,
+                  padding:     '3px 8px',
+                  borderRadius: 4,
+                  cursor:      disabled ? 'not-allowed' : 'pointer',
+                  fontWeight:  500,
+                  opacity:     disabled ? 0.5 : 1,
+                }}
+              >{r}</button>
+            );
+          })}
         </div>
       </div>
     </div>
