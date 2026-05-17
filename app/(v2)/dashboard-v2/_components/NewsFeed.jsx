@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { HOLDINGS } from '../_lib/mockData';
 
 function timeAgo(unixSeconds) {
   const now = Date.now() / 1000;
@@ -13,13 +12,13 @@ function timeAgo(unixSeconds) {
   return new Date(unixSeconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function NewsFeed() {
+export default function NewsFeed({ tickers }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const tickers = HOLDINGS.map(h => h.ticker).join(',');
+    if (!tickers) return;
     fetch(`/api/news?tickers=${tickers}`)
       .then(r => r.json())
       .then(arr => {
@@ -30,7 +29,7 @@ export default function NewsFeed() {
         setError('Could not load news');
         setLoading(false);
       });
-  }, []);
+  }, [tickers]);
 
   if (loading) {
     return (

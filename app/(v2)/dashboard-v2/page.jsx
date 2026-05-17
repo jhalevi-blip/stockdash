@@ -158,6 +158,12 @@ export default function DashboardV2Page() {
     }));
   })();
 
+  // Comma-separated ticker string for feed components (news, earnings, insider).
+  // null when no real holdings are loaded — feeds will skip their fetch and show loading state.
+  const tickerList = enrichedRows.length > 0
+    ? [...new Set(enrichedRows.map(r => r.ticker))].join(',')
+    : HOLDINGS.map(h => h.ticker).join(',');
+
   // Synthesize portfolioStats shape from the mock PORTFOLIO constant.
   const portfolioStats = {
     totalValue: PORTFOLIO.totalValue,
@@ -240,13 +246,13 @@ export default function DashboardV2Page() {
         gap: 14,
       }}>
         <Card title="Upcoming Earnings" eyebrow="Calendar">
-          <EarningsList />
+          <EarningsList tickers={tickerList} />
         </Card>
         <Card title="Portfolio News" eyebrow="Headlines">
-          <NewsFeed />
+          <NewsFeed tickers={tickerList} />
         </Card>
         <Card title="Insider Activity" eyebrow="Form 4">
-          <InsiderActivity />
+          <InsiderActivity tickers={tickerList} />
         </Card>
       </div>
 

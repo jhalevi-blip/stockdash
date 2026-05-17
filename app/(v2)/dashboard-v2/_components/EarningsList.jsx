@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { HOLDINGS } from '../_lib/mockData';
 
 function daysUntil(dateStr) {
   const d = new Date(dateStr + 'T00:00:00Z');
@@ -14,13 +13,13 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function EarningsList() {
+export default function EarningsList({ tickers }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const tickers = HOLDINGS.map(h => h.ticker).join(',');
+    if (!tickers) return;
     fetch(`/api/earnings?tickers=${tickers}`)
       .then(r => r.json())
       .then(arr => {
@@ -31,7 +30,7 @@ export default function EarningsList() {
         setError('Could not load earnings');
         setLoading(false);
       });
-  }, []);
+  }, [tickers]);
 
   if (loading) {
     return (

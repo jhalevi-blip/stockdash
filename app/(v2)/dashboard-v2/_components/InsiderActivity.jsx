@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { HOLDINGS } from '../_lib/mockData';
 
 const CODE_LABELS = {
   P: 'Buy',  S: 'Sale', A: 'Award', M: 'Exer.', X: 'Exer.',
@@ -13,13 +12,13 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function InsiderActivity() {
+export default function InsiderActivity({ tickers }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const tickers = HOLDINGS.map(h => h.ticker).join(',');
+    if (!tickers) return;
     fetch(`/api/insider?tickers=${tickers}`)
       .then(r => r.json())
       .then(arr => {
@@ -30,7 +29,7 @@ export default function InsiderActivity() {
         setError('Could not load insider activity');
         setLoading(false);
       });
-  }, []);
+  }, [tickers]);
 
   if (loading) {
     return (
