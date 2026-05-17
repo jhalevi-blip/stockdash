@@ -35,6 +35,10 @@ function transformMacro(json) {
   if (treasury?.year10 != null) {
     items.push({ label: '10Y Yield', value: `${treasury.year10.toFixed(2)}%`, change: 0, changeAbs: '' });
   }
+  if (json.fearGreed?.score != null) {
+    const fg = json.fearGreed;
+    items.push({ label: 'Fear & Greed', value: String(fg.score), change: 0, changeAbs: fg.rating ?? '' });
+  }
 
   return items;
 }

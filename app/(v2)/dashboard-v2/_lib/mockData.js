@@ -26,7 +26,7 @@ export const MACRO = [
   { label: 'Dow',       value: '42,310.55', change: +0.31, changeAbs: '+131.04' },
   { label: 'VIX',       value: '14.82',     change: -2.15, changeAbs: '-0.33' },
   { label: '10Y Yield', value: '4.21%',     change: -0.04, changeAbs: '-4 bp' },
-  { label: 'Bitcoin',   value: '$72,140',   change: +2.68, changeAbs: '+$1,884' },
+  { label: 'Fear & Greed', value: '63',     change: 0,     changeAbs: 'Greed' },
 ];
 
 export const HOLDINGS = [
