@@ -188,12 +188,14 @@ export default function HoldingsTable({
                   textAlign: 'center',
                   padding: `${padY - 4}px 10px`,
                 }}>
-                  <Sparkline
-                    data={TICKER_SPARKS[r.ticker] || []}
-                    width={70}
-                    height={22}
-                    strokeWidth={1.3}
-                  />
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <Sparkline
+                      data={TICKER_SPARKS[r.ticker] || []}
+                      width={70}
+                      height={22}
+                      strokeWidth={1.3}
+                    />
+                  </div>
                 </td>
               </tr>
             ))}
