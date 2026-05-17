@@ -247,7 +247,17 @@ export default function DashboardV2Page() {
   // hero: real stats when signed in with holdings, mock otherwise
   const hero = realPortfolioStats ?? PORTFOLIO;
 
-  // portfolioStats shape for PortfolioAISummary
+  // Map enrichedRows to the shape PortfolioAISummary expects (matches /dashboard row keys).
+  const aiRows = enrichedRows.map(r => ({
+    t:       r.ticker,
+    s:       r.shares,
+    costVal: r.shares * r.costBasis,
+    price:   r.price,
+    pnlPct:  r.plPct,
+    mktVal:  r.mktValue,
+  }));
+
+  // portfolioStats shape for PortfolioAISummary (anonymous/mock fallback)
   const portfolioStats = {
     totalValue: PORTFOLIO.totalValue,
     totalPnl: PORTFOLIO.unrealized,
@@ -314,12 +324,17 @@ export default function DashboardV2Page() {
         </div>
       </div>
 
-      {/* 5. AI Summary — reuses existing PortfolioAISummary with mock data */}
+      {/* 5. AI Summary — real generation for signed-in users; static mock teaser for anonymous */}
       <PortfolioAISummary
-        holdings={HOLDINGS}
-        portfolioStats={portfolioStats}
-        initialSummary={AI_SUMMARY}
-        isSignedIn={false}
+        holdings={isSignedIn ? aiRows : HOLDINGS}
+        portfolioStats={isSignedIn ? {
+          totalValue:  hero.totalValue,
+          totalPnl:    hero.unrealized,
+          totalPnlPct: hero.unrealizedPct,
+          cash:        hero.cash,
+        } : portfolioStats}
+        initialSummary={isSignedIn ? undefined : AI_SUMMARY}
+        isSignedIn={!!isSignedIn}
       />
 
       {/* 6. Earnings · News · Insider — 3-column feed row */}
