@@ -4,6 +4,29 @@ import { useState, useEffect } from 'react';
 const STORAGE_KEY_ANON = 'portfolio_ai_usage_anon';
 const STORAGE_KEY_USER = 'portfolio_ai_usage_user';
 
+const SUMMARY_KEY_USER = 'portfolio_ai_summary_user';
+const SUMMARY_KEY_ANON = 'portfolio_ai_summary_anon';
+
+function readSummaryCache(isSignedIn) {
+  try {
+    const key = isSignedIn ? SUMMARY_KEY_USER : SUMMARY_KEY_ANON;
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.rating !== 'number') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeSummaryCache(isSignedIn, summary) {
+  try {
+    const key = isSignedIn ? SUMMARY_KEY_USER : SUMMARY_KEY_ANON;
+    localStorage.setItem(key, JSON.stringify(summary));
+  } catch {}
+}
+
 // ── Label translations (EN + NL; others fall back to EN) ─────────────────────
 const LABELS = {
   en: {
@@ -95,7 +118,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
   const STORAGE_KEY = isSignedIn ? STORAGE_KEY_USER : STORAGE_KEY_ANON;
   const LIMIT       = isSignedIn ? 5 : 2;
 
-  const [summary,     setSummary]     = useState(initialSummary ?? null);   // structured object | null
+  const [summary,     setSummary]     = useState(() => initialSummary ?? null);   // structured object | null
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState(null);   // { type, message } | null
   const [generatedAt, setGeneratedAt] = useState(null);
@@ -118,6 +141,14 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, [initialSummary, isSignedIn]);
+
+  // Load cached summary from localStorage on mount.
+  // Runs once after hydration; initialSummary (mock teaser) takes precedence.
+  useEffect(() => {
+    if (initialSummary) return;
+    const cached = readSummaryCache(isSignedIn);
+    if (cached) setSummary(cached);
+  }, []);
 
   useEffect(() => {
     if (!loading) {
@@ -204,6 +235,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
         }
       } else {
         setSummary(json);
+        writeSummaryCache(isSignedIn, json);
         if (json.language) setUiLang(json.language);
         setGeneratedAt(new Date());
         const newCount = usageCount + 1;
