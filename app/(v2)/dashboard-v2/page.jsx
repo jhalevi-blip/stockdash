@@ -14,9 +14,26 @@ import EarningsList from './_components/EarningsList';
 import NewsFeed from './_components/NewsFeed';
 import InsiderActivity from './_components/InsiderActivity';
 import QuickJumpTiles from './_components/QuickJumpTiles';
-import { PORTFOLIO, HOLDINGS, AI_SUMMARY, PORTFOLIO_SPARK } from './_lib/mockData';
+import { PORTFOLIO, HOLDINGS, AI_SUMMARY, PORTFOLIO_SPARK, ALLOCATION } from './_lib/mockData';
 import { fmtCurrency } from '@/app/(v2)/_lib/format';
 import { loadUserHoldings, getCacheOwner } from '@/lib/holdingsStorage';
+
+const SECTOR_COLORS = {
+  'Technology':             '#58a6ff',
+  'Semiconductors':         '#3b82f6',
+  'Financial Services':     '#22d3ee',
+  'Healthcare':             '#3fb950',
+  'Energy':                 '#d97706',
+  'Consumer Cyclical':      '#f0b429',
+  'Consumer Defensive':     '#a3e635',
+  'Industrials':            '#c084fc',
+  'Real Estate':            '#fb923c',
+  'Utilities':              '#94a3b8',
+  'Communication Services': '#e879f9',
+  'Basic Materials':        '#fbbf24',
+  'Other':                  '#6e7681',
+};
+const FALLBACK_PALETTE = ['#58a6ff', '#22d3ee', '#3fb950', '#d97706', '#f0b429', '#c084fc', '#fb923c'];
 
 // PortfolioAISummary is reused as-is from the live dashboard. It
 // renders its own card chrome (bg-card, border, border-radius 8) so we
@@ -24,7 +41,8 @@ import { loadUserHoldings, getCacheOwner } from '@/lib/holdingsStorage';
 // initialSummary locks the component into display-only mode: no API
 // calls, no buttons, no localStorage reads. See Phase D investigation.
 export default function DashboardV2Page() {
-  const [range, setRange] = useState('1M');
+  const [range,   setRange]  = useState('1M');
+  const [sectors, setSectors] = useState({});
 
   // Real holdings state — loaded from localStorage/API + enriched with live prices
   const [holdings, setHoldings] = useState([]);
@@ -130,6 +148,17 @@ export default function DashboardV2Page() {
     })();
   }, [holdings]);
 
+  // Fetch sector classification for each held ticker from /api/sectors.
+  // Runs after holdings are known; 24h CDN cache on the route.
+  useEffect(() => {
+    if (!holdings.length) return;
+    const tickers = [...new Set(holdings.map(h => h.t))].join(',');
+    fetch(`/api/sectors?tickers=${tickers}`)
+      .then(r => r.json())
+      .then(map => { if (map && !map.error) setSectors(map); })
+      .catch(() => {});
+  }, [holdings]);
+
   // Slice the full history array by the selected range → flat number[] for Sparkline.
   // Falls back to mock PORTFOLIO_SPARK when history hasn't loaded yet.
   const sparkData = useMemo(() => {
@@ -176,6 +205,26 @@ export default function DashboardV2Page() {
   const tickerList = enrichedRows.length > 0
     ? [...new Set(enrichedRows.map(r => r.ticker))].join(',')
     : HOLDINGS.map(h => h.ticker).join(',');
+
+  // Compute sector allocation from enrichedRows + fetched sectors map.
+  // Returns null when sectors haven't loaded yet — AllocationDonut falls back to ALLOCATION mock.
+  const realAllocation = (() => {
+    if (enrichedRows.length === 0 || Object.keys(sectors).length === 0) return null;
+    const totalMktValue = enrichedRows.reduce((s, r) => s + r.mktValue, 0);
+    if (totalMktValue <= 0) return null;
+    const bySector = {};
+    for (const r of enrichedRows) {
+      const sector = sectors[r.ticker] ?? 'Other';
+      bySector[sector] = (bySector[sector] ?? 0) + r.mktValue;
+    }
+    const entries = Object.entries(bySector)
+      .map(([sector, val]) => ({ sector, pct: (val / totalMktValue) * 100 }))
+      .sort((a, b) => b.pct - a.pct);
+    return entries.map((e, i) => ({
+      ...e,
+      color: SECTOR_COLORS[e.sector] ?? FALLBACK_PALETTE[i % FALLBACK_PALETTE.length],
+    }));
+  })();
 
   // Compute real portfolio stats from enrichedRows + live prices.
   // Returns null when no real holdings are loaded (anonymous / demo).
@@ -246,7 +295,7 @@ export default function DashboardV2Page() {
         </Card>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
           <Card title="Allocation by sector" eyebrow="Composition">
-            <AllocationDonut size={140} strokeWidth={20} />
+            <AllocationDonut size={140} strokeWidth={20} data={realAllocation ?? ALLOCATION} />
           </Card>
           <Card title="Top movers today" eyebrow="Intraday">
             <div style={{
