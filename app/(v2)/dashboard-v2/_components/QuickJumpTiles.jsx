@@ -5,11 +5,10 @@ import { useState } from 'react';
 import { ROUTES } from '@/app/(v2)/_lib/routes';
 
 const TILES = [
-  { id: 'insider',      label: 'Insider',      emoji: '🔎', desc: 'Officer & exec trades',       href: ROUTES.insider },
-  { id: 'ownership',    label: 'Ownership',    emoji: '🏛',  desc: 'Institutional holders',       href: ROUTES.ownership },
-  { id: 'peers',        label: 'Peers',        emoji: '📋', desc: 'Industry comparison',          href: ROUTES.peers },
-  { id: 'research',     label: 'Research',     emoji: '📑', desc: 'SEC filings & docs',           href: ROUTES.research },
-  { id: 'correlations', label: 'Correlations', emoji: '🔗', desc: 'How positions move together',  href: ROUTES.correlations },
+  { id: 'earnings', label: 'Next Earnings',     emoji: '📅', desc: 'See upcoming earnings dates for your holdings', href: ROUTES.earnings },
+  { id: 'analyst',  label: 'Analyst Targets',   emoji: '🎯', desc: 'Price targets and consensus ratings',          href: ROUTES.analyst },
+  { id: 'insider',  label: 'Insider Activity',  emoji: '🔎', desc: 'Recent insider buying and selling',            href: ROUTES.insider },
+  { id: 'shorts',   label: 'Most Shorted',      emoji: '📉', desc: 'Stocks with the highest short interest',      href: ROUTES.shorts },
 ];
 
 export default function QuickJumpTiles() {
@@ -18,7 +17,7 @@ export default function QuickJumpTiles() {
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+      gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
       gap: 10,
     }}>
       {TILES.map(tile => (
