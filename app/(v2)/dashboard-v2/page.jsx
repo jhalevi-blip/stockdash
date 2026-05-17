@@ -324,18 +324,35 @@ export default function DashboardV2Page() {
         </div>
       </div>
 
-      {/* 5. AI Summary — real generation for signed-in users; static mock teaser for anonymous */}
-      <PortfolioAISummary
-        holdings={isSignedIn ? aiRows : HOLDINGS}
-        portfolioStats={isSignedIn ? {
-          totalValue:  hero.totalValue,
-          totalPnl:    hero.unrealized,
-          totalPnlPct: hero.unrealizedPct,
-          cash:        hero.cash,
-        } : portfolioStats}
-        initialSummary={isSignedIn ? undefined : AI_SUMMARY}
-        isSignedIn={!!isSignedIn}
-      />
+      {/* 5. AI Summary — defer until Clerk resolves to prevent mock initialSummary being
+            captured into useState before isSignedIn is known (race condition on refresh) */}
+      {!isLoaded ? (
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 8,
+          minHeight: 200,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--text-muted)',
+          fontSize: 12,
+        }}>
+          Loading…
+        </div>
+      ) : (
+        <PortfolioAISummary
+          holdings={isSignedIn ? aiRows : HOLDINGS}
+          portfolioStats={isSignedIn ? {
+            totalValue:  hero.totalValue,
+            totalPnl:    hero.unrealized,
+            totalPnlPct: hero.unrealizedPct,
+            cash:        hero.cash,
+          } : portfolioStats}
+          initialSummary={isSignedIn ? undefined : AI_SUMMARY}
+          isSignedIn={!!isSignedIn}
+        />
+      )}
 
       {/* 6. Earnings · News · Insider — 3-column feed row */}
       <div style={{
