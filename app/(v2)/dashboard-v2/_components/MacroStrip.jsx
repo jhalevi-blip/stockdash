@@ -37,7 +37,7 @@ function transformMacro(json) {
   }
   if (json.fearGreed?.score != null) {
     const fg = json.fearGreed;
-    items.push({ label: 'Fear & Greed', value: String(fg.score), change: 0, changeAbs: fg.rating ?? '' });
+    items.push({ label: 'Fear & Greed', value: String(Math.round(fg.score)), change: 0, changeAbs: fg.rating ?? '' });
   }
 
   return items;
