@@ -296,7 +296,7 @@ export default function DashboardV2Page() {
       {/* 4. Holdings + side rail */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(0, 2.2fr) minmax(0, 1fr)',
+        gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 1fr)',
         gap: 14,
       }}>
         <Card title="Holdings" eyebrow="Live">
@@ -305,7 +305,7 @@ export default function DashboardV2Page() {
         </Card>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
           <Card title="Allocation by sector" eyebrow="Composition">
-            <AllocationDonut size={140} strokeWidth={20} data={realAllocation ?? ALLOCATION} />
+            <AllocationDonut size={120} strokeWidth={20} data={realAllocation ?? ALLOCATION} />
           </Card>
           <Card title="Top movers today" eyebrow="Intraday">
             <div style={{
