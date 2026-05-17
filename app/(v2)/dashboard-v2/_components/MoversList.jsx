@@ -4,8 +4,8 @@ import Sparkline from '@/app/(v2)/_components/Sparkline';
 import { TOP_MOVERS_UP, TOP_MOVERS_DOWN, TICKER_SPARKS } from '../_lib/mockData';
 import { fmtCurrency, fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
 
-export default function MoversList({ kind = 'up', onTickerClick }) {
-  const list = kind === 'up' ? TOP_MOVERS_UP : TOP_MOVERS_DOWN;
+export default function MoversList({ kind = 'up', onTickerClick, movers }) {
+  const list = movers ?? (kind === 'up' ? TOP_MOVERS_UP : TOP_MOVERS_DOWN);
   return (
     <div style={{
       display: 'flex',

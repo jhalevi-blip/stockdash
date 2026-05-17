@@ -160,6 +160,15 @@ export default function DashboardV2Page() {
     }));
   })();
 
+  // Derive top movers from enrichedRows sorted by day change %.
+  // null when no real holdings — MoversList falls back to mock.
+  const realMovers = enrichedRows.length > 0
+    ? {
+        up:   [...enrichedRows].sort((a, b) => b.change - a.change).slice(0, 4).map(r => ({ ticker: r.ticker, change: r.change, last: r.price })),
+        down: [...enrichedRows].sort((a, b) => a.change - b.change).slice(0, 4).map(r => ({ ticker: r.ticker, change: r.change, last: r.price })),
+      }
+    : null;
+
   // Comma-separated ticker string for feed components (news, earnings, insider).
   // null when no real holdings are loaded — feeds will skip their fetch and show loading state.
   const tickerList = enrichedRows.length > 0
@@ -243,13 +252,13 @@ export default function DashboardV2Page() {
               textTransform: 'uppercase', color: 'var(--positive-soft)',
               marginBottom: 4,
             }}>↑ Gainers</div>
-            <MoversList kind="up" />
+            <MoversList kind="up"   movers={realMovers?.up} />
             <div style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '.08em',
               textTransform: 'uppercase', color: 'var(--negative-soft)',
               marginTop: 8, marginBottom: 4,
             }}>↓ Decliners</div>
-            <MoversList kind="down" />
+            <MoversList kind="down" movers={realMovers?.down} />
           </Card>
         </div>
       </div>
