@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useUser } from '@clerk/nextjs';
 import Card from '@/app/(v2)/_components/Card';
 import HeroValue from './_components/HeroValue';
 import MetricChip from './_components/MetricChip';
@@ -15,6 +16,7 @@ import InsiderActivity from './_components/InsiderActivity';
 import QuickJumpTiles from './_components/QuickJumpTiles';
 import { PORTFOLIO, HOLDINGS, AI_SUMMARY } from './_lib/mockData';
 import { fmtCurrency } from '@/app/(v2)/_lib/format';
+import { loadUserHoldings, getCacheOwner } from '@/lib/holdingsStorage';
 
 // PortfolioAISummary is reused as-is from the live dashboard. It
 // renders its own card chrome (bg-card, border, border-radius 8) so we
@@ -23,6 +25,81 @@ import { fmtCurrency } from '@/app/(v2)/_lib/format';
 // calls, no buttons, no localStorage reads. See Phase D investigation.
 export default function DashboardV2Page() {
   const [range, setRange] = useState('1M');
+
+  // Real holdings state — loaded from localStorage/API + enriched with live prices
+  const [holdings, setHoldings] = useState([]);
+  const [prices,   setPrices]   = useState({});
+  const { user, isLoaded, isSignedIn } = useUser();
+
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const userId = user?.id ?? null;
+
+    function getLocalShared() {
+      try {
+        const s = localStorage.getItem('stockdash_holdings');
+        return s ? JSON.parse(s) : [];
+      } catch { return []; }
+    }
+
+    (async () => {
+      try {
+        let h = [];
+
+        if (isSignedIn && userId) {
+          // Signed-in: prefer user-scoped local cache, fall back to server
+          const localAtLoad  = loadUserHoldings(userId) ?? [];
+          const localIsValid = localAtLoad.length > 0 && getCacheOwner() === userId;
+          if (localIsValid) {
+            h = localAtLoad;
+          } else {
+            try {
+              const data = await fetch('/api/portfolio').then(r => r.json());
+              if (data.signedIn && data.holdings?.length) h = data.holdings;
+            } catch {}
+          }
+        } else {
+          // Anonymous: check shared localStorage cache (set by manual entry or demo)
+          const local = getLocalShared();
+          if (local.length) h = local;
+        }
+
+        setHoldings(h);
+        if (!h.length) return;
+
+        const tickers = h.map(x => x.t).join(',');
+        const priceArr = await fetch(`/api/prices?tickers=${tickers}`)
+          .then(r => r.json())
+          .catch(() => []);
+        const priceMap = {};
+        if (Array.isArray(priceArr)) priceArr.forEach(p => { priceMap[p.ticker] = p; });
+        setPrices(priceMap);
+      } catch {}
+    })();
+  }, [isLoaded, isSignedIn, user?.id]);
+
+  // Compute enriched rows in the shape HoldingsTable expects.
+  // Weight requires a two-pass: compute totalMktValue first, then assign weights.
+  const enrichedRows = (() => {
+    if (!holdings.length) return [];
+    const rows = holdings.map(h => {
+      const q         = prices[h.t] ?? {};
+      const price     = q.price  ?? 0;
+      const change    = q.chgPct ?? 0;
+      const shares    = h.s;
+      const costBasis = h.c;
+      const mktValue  = shares * price;
+      const plDollar  = mktValue - shares * costBasis;
+      const plPct     = costBasis > 0 ? (plDollar / (shares * costBasis)) * 100 : 0;
+      return { ticker: h.t, name: '', shares, price, change, costBasis, mktValue, plDollar, plPct, weight: 0, sector: '' };
+    });
+    const totalMktValue = rows.reduce((s, r) => s + r.mktValue, 0);
+    return rows.map(r => ({
+      ...r,
+      weight: totalMktValue > 0 ? (r.mktValue / totalMktValue) * 100 : 0,
+    }));
+  })();
 
   // Synthesize portfolioStats shape from the mock PORTFOLIO constant.
   const portfolioStats = {
@@ -67,7 +144,8 @@ export default function DashboardV2Page() {
         gap: 14,
       }}>
         <Card title="Holdings" eyebrow="Live">
-          <HoldingsTable />
+          {/* Use real enriched rows when available; fall back to mock for demo/anonymous visitors */}
+          <HoldingsTable rows={enrichedRows.length > 0 ? enrichedRows : HOLDINGS} />
         </Card>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
           <Card title="Allocation by sector" eyebrow="Composition">
