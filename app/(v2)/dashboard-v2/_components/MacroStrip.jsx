@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { MACRO } from '../_lib/mockData';
 import { fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
+import Sparkline from '@/app/(v2)/_components/Sparkline';
 
 function transformMacro(json) {
   const { indices, treasury } = json;
@@ -18,22 +19,22 @@ function transformMacro(json) {
 
   if (indices?.SPY) {
     const d = indices.SPY;
-    items.push({ label: 'S&P 500',   value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change) });
+    items.push({ label: 'S&P 500',   value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change), sparkKey: 'SPY' });
   }
   if (indices?.DIA) {
     const d = indices.DIA;
-    items.push({ label: 'Dow',       value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change) });
+    items.push({ label: 'Dow',       value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change), sparkKey: 'DJI' });
   }
   if (indices?.VIX) {
     const d = indices.VIX;
-    items.push({ label: 'VIX',       value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change) });
+    items.push({ label: 'VIX',       value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change), sparkKey: 'VIX' });
   }
   if (json.commodities?.oil?.price != null) {
     const d = json.commodities.oil;
-    items.push({ label: 'WTI', value: fmt(d.price), change: d.changesPercentage, changeAbs: fmtAbs(d.change) });
+    items.push({ label: 'WTI', value: fmt(d.price), change: d.changesPercentage, changeAbs: fmtAbs(d.change), sparkKey: 'OIL' });
   }
   if (treasury?.year10 != null) {
-    items.push({ label: '10Y Yield', value: `${treasury.year10.toFixed(2)}%`, change: 0, changeAbs: '' });
+    items.push({ label: '10Y Yield', value: `${treasury.year10.toFixed(2)}%`, change: 0, changeAbs: '', sparkKey: 'TNX' });
   }
   if (json.fearGreed?.score != null) {
     const fg = json.fearGreed;
@@ -49,7 +50,8 @@ function transformMacro(json) {
 }
 
 export default function MacroStrip({ onIndexClick }) {
-  const [data, setData] = useState(null);
+  const [data,   setData]   = useState(null);
+  const [sparks, setSparks] = useState(null);
 
   useEffect(() => {
     fetch('/api/macro')
@@ -59,6 +61,13 @@ export default function MacroStrip({ onIndexClick }) {
         const items = transformMacro(json);
         if (items.length) setData(items);
       })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/macro-sparks')
+      .then(r => r.json())
+      .then(json => setSparks(json))
       .catch(() => {});
   }, []);
 
@@ -104,6 +113,10 @@ export default function MacroStrip({ onIndexClick }) {
             color: 'var(--text-primary)',
             fontVariantNumeric: 'tabular-nums',
           }}>{m.value}</span>
+          {m.sparkKey && sparks?.[m.sparkKey]?.length > 0
+            ? <Sparkline data={sparks[m.sparkKey]} width={80} height={16} strokeWidth={1} />
+            : <div style={{ height: 16 }} />
+          }
           <span style={{
             fontSize: 11,
             fontWeight: 600,
