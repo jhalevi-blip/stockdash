@@ -11,7 +11,7 @@ function daysUntil(dateStr) {
 
 function formatDate(dateStr) {
   const d = new Date(dateStr + 'T00:00:00Z');
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export default function EarningsList() {

@@ -145,7 +145,7 @@ export default function InstitutionalPage() {
                     <td className="left" style={{ fontWeight: 700, color: '#e6edf3' }}>{r.ticker}</td>
                     <td className="left" style={{ fontSize: 12, color: '#8b949e' }}>{r.name}</td>
                     <td style={{ color, fontWeight: 600 }}>
-                      {r.netShares === 0 ? '—' : (buying ? '+' : '') + r.netShares.toLocaleString()}
+                      {r.netShares === 0 ? '—' : (buying ? '+' : '') + r.netShares.toLocaleString('en-US')}
                     </td>
                     <td style={{ color, fontWeight: 600 }}>
                       {r.netValue === 0 ? '—' : (buying ? '+' : '') + fmt(Math.abs(r.netValue))}
@@ -188,7 +188,7 @@ export default function InstitutionalPage() {
                     <td style={{ fontWeight: 600, color: r.institutionsPctHeld > 0.7 ? '#3fb950' : '#e6edf3' }}>
                       {pct(r.institutionsPctHeld)}
                     </td>
-                    <td className="neutral">{r.institutionsCount?.toLocaleString() ?? '—'}</td>
+                    <td className="neutral">{r.institutionsCount?.toLocaleString('en-US') ?? '—'}</td>
                     <td className="neutral">{pct(r.insidersPctHeld)}</td>
                     <td style={{ fontSize: 12, color: '#8b949e' }}>{r.top5?.[0]?.name ?? '—'}</td>
                     <td style={{ color: '#484f58', fontSize: 11 }}>
@@ -201,7 +201,7 @@ export default function InstitutionalPage() {
                         {i + 1}. {h.name}
                       </td>
                       <td style={{ fontSize: 12, color: '#79c0ff' }}>{pct(h.pctHeld)}</td>
-                      <td style={{ fontSize: 12, color: '#8b949e' }}>{h.shares?.toLocaleString() ?? '—'} shares</td>
+                      <td style={{ fontSize: 12, color: '#8b949e' }}>{h.shares?.toLocaleString('en-US') ?? '—'} shares</td>
                       <td style={{ fontSize: 12, color: '#8b949e' }}>{fmtK(h.value)}</td>
                       <td colSpan={2} />
                     </tr>
@@ -263,7 +263,7 @@ export default function InstitutionalPage() {
                         <tr key={i}>
                           <td className="left" style={{ color: '#484f58', fontSize: 12 }}>{i + 1}</td>
                           <td className="left" style={{ color: '#c9d1d9', fontSize: 13 }}>{h.name}</td>
-                          <td className="neutral">{h.shares?.toLocaleString() ?? '—'}</td>
+                          <td className="neutral">{h.shares?.toLocaleString('en-US') ?? '—'}</td>
                           <td style={{ fontWeight: 600, color: '#e6edf3' }}>{fmt(h.value)}</td>
                           <td>{pct(h.pctPortfolio)}</td>
                         </tr>

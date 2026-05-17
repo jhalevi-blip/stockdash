@@ -10,7 +10,7 @@ const CODE_LABELS = {
 
 function formatDate(dateStr) {
   const d = new Date(dateStr + 'T00:00:00Z');
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export default function InsiderActivity() {
@@ -97,10 +97,10 @@ export default function InsiderActivity() {
               {t.name}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              {Math.abs(t.change).toLocaleString()} sh
+              {Math.abs(t.change).toLocaleString('en-US')} sh
               {value != null && (
                 <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>
-                  · ${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  · ${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                 </span>
               )}
             </div>

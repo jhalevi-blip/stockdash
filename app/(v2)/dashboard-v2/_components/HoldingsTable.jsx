@@ -165,7 +165,7 @@ export default function HoldingsTable({
                     }}>{r.name}</span>
                   </div>
                 </td>
-                <td style={cellRight(padY)}>{r.shares.toLocaleString()}</td>
+                <td style={cellRight(padY)}>{r.shares.toLocaleString('en-US')}</td>
                 <td style={cellRight(padY)}>{fmtCurrency(r.price)}</td>
                 <td style={{ ...cellRight(padY), color: colorForChange(r.change) }}>
                   {fmtPct(r.change)}

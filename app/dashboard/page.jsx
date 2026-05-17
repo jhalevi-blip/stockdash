@@ -21,7 +21,7 @@ const fmtB = (n) => {
   if (abs >= 1e12) return (n < 0 ? '−' : '') + '$' + (abs / 1e12).toFixed(2) + 'T';
   if (abs >= 1e9)  return (n < 0 ? '−' : '') + '$' + (abs / 1e9).toFixed(1) + 'B';
   if (abs >= 1e6)  return (n < 0 ? '−' : '') + '$' + (abs / 1e6).toFixed(0) + 'M';
-  return '$' + n.toLocaleString();
+  return '$' + n.toLocaleString('en-US');
 };
 
 function getLocalHoldings() {

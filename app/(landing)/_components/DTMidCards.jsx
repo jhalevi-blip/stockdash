@@ -13,7 +13,7 @@ export default function DTMidCards({ stats }) {
   const fmtPct = (n) => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 
   const cards = [
-    { label: "TODAY'S P&L", value: fmtUSD(stats.dayPL, 2), sub: `${fmtPct(dayPct)} on $${Math.round(stats.total).toLocaleString()}`, color: stats.dayPL >= 0 ? POS : NEG },
+    { label: "TODAY'S P&L", value: fmtUSD(stats.dayPL, 2), sub: `${fmtPct(dayPct)} on $${Math.round(stats.total).toLocaleString('en-US')}`, color: stats.dayPL >= 0 ? POS : NEG },
     { label: 'BEST TODAY',  value: best.ticker,  sub: `${fmtPct(best.change)} · ${fmtUSD(best.price)}`,   color: best.change  >= 0 ? POS : NEG },
     { label: 'WORST TODAY', value: worst.ticker, sub: `${fmtPct(worst.change)} · ${fmtUSD(worst.price)}`, color: worst.change >= 0 ? POS : NEG },
     { label: 'VS S&P 500',  value: fmtPct(relative), sub: relative >= 0 ? 'Outperforming today' : 'Underperforming today', color: relative >= 0 ? POS : NEG },

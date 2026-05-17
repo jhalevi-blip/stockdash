@@ -191,7 +191,7 @@ export default function DashboardSummary({ holdings, rows, earnings, news, onMac
               {recentInsider.name}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              {recentInsider.change != null && `${Math.abs(recentInsider.change).toLocaleString()} shares`}
+              {recentInsider.change != null && `${Math.abs(recentInsider.change).toLocaleString('en-US')} shares`}
               {recentInsider.transactionDate && ` · ${new Date(recentInsider.transactionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
             </div>
           </>

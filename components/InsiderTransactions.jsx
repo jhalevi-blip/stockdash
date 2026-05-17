@@ -114,10 +114,10 @@ export default function InsiderTransactions({ tickers }) {
                   </span>
                 </td>
                 <td className={isBuy ? 'pos' : isSell ? 'neg' : 'neutral'}>
-                  {t.change > 0 ? '+' : ''}{t.change?.toLocaleString()}
+                  {t.change > 0 ? '+' : ''}{t.change?.toLocaleString('en-US')}
                 </td>
                 <td>{t.transactionPrice ? '$' + t.transactionPrice.toFixed(2) : '—'}</td>
-                <td>{value ? '$' + value.toLocaleString(undefined, {maximumFractionDigits:0}) : '—'}</td>
+                <td>{value ? '$' + value.toLocaleString('en-US', {maximumFractionDigits:0}) : '—'}</td>
                 <td className="neutral" style={{fontSize:11}}>{t.transactionDate}</td>
               </tr>
             );

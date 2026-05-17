@@ -18,7 +18,7 @@ const fmtB = (n) => {
   if (abs >= 1e12) return (n < 0 ? '−' : '') + '$' + (abs / 1e12).toFixed(2) + 'T';
   if (abs >= 1e9)  return (n < 0 ? '−' : '') + '$' + (abs / 1e9).toFixed(1) + 'B';
   if (abs >= 1e6)  return (n < 0 ? '−' : '') + '$' + (abs / 1e6).toFixed(0) + 'M';
-  return '$' + n.toLocaleString();
+  return '$' + n.toLocaleString('en-US');
 };
 
 const CODE_LABEL = {
@@ -296,7 +296,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker, isSi
                   if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
                   if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
                   if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-                  return n.toLocaleString();
+                  return n.toLocaleString('en-US');
                 })()} />
                 <KV label="Short Ratio (DTC)" value={siD.shortRatio != null ? fmt(siD.shortRatio) : '—'} />
                 <KV
@@ -330,7 +330,7 @@ export default function StockIntelSummary({ holdings, rows, selectedTicker, isSi
                         {ins.name?.split(' ').slice(-1)[0] ?? ins.name}
                       </span>
                       <span style={{ color: 'var(--text-secondary)', flexShrink: 0 }}>
-                        {ins.change != null ? Math.abs(ins.change).toLocaleString() : ''}
+                        {ins.change != null ? Math.abs(ins.change).toLocaleString('en-US') : ''}
                       </span>
                       <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
                         {ins.transactionDate ? ins.transactionDate.slice(5) : ''}
