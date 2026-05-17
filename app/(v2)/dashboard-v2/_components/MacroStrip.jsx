@@ -20,10 +20,6 @@ function transformMacro(json) {
     const d = indices.SPY;
     items.push({ label: 'S&P 500',   value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change) });
   }
-  if (indices?.QQQ) {
-    const d = indices.QQQ;
-    items.push({ label: 'Nasdaq',    value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change) });
-  }
   if (indices?.DIA) {
     const d = indices.DIA;
     items.push({ label: 'Dow',       value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change) });
@@ -31,6 +27,10 @@ function transformMacro(json) {
   if (indices?.VIX) {
     const d = indices.VIX;
     items.push({ label: 'VIX',       value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change) });
+  }
+  if (json.commodities?.oil?.price != null) {
+    const d = json.commodities.oil;
+    items.push({ label: 'WTI', value: fmt(d.price), change: d.changesPercentage, changeAbs: fmtAbs(d.change) });
   }
   if (treasury?.year10 != null) {
     items.push({ label: '10Y Yield', value: `${treasury.year10.toFixed(2)}%`, change: 0, changeAbs: '' });

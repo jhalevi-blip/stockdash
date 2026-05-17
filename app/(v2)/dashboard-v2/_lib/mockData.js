@@ -22,7 +22,7 @@ export const PORTFOLIO_SPARK = [
 
 export const MACRO = [
   { label: 'S&P 500',   value: '5,824.16',  change: +0.82, changeAbs: '+47.21' },
-  { label: 'Nasdaq',    value: '18,512.74', change: +1.14, changeAbs: '+208.93' },
+  { label: 'WTI',       value: '$78.42',    change: -0.85, changeAbs: '-$0.67' },
   { label: 'Dow',       value: '42,310.55', change: +0.31, changeAbs: '+131.04' },
   { label: 'VIX',       value: '14.82',     change: -2.15, changeAbs: '-0.33' },
   { label: '10Y Yield', value: '4.21%',     change: -0.04, changeAbs: '-4 bp' },
