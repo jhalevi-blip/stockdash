@@ -47,6 +47,9 @@ export default function DashboardV2Page() {
 
     (async () => {
       try {
+        const cashAmt = parseFloat(localStorage.getItem('stockdash_cash_amount') || '0') || 0;
+        setCash(cashAmt);
+
         let h = [];
 
         if (isSignedIn && userId) {
@@ -59,7 +62,6 @@ export default function DashboardV2Page() {
             try {
               const data = await fetch('/api/portfolio').then(r => r.json());
               if (data.signedIn && data.holdings?.length) h = data.holdings;
-              setCash(data.cash?.amount ?? 0);
             } catch {}
           }
         } else {
