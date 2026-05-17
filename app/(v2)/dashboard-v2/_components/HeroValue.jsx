@@ -34,7 +34,7 @@ export default function HeroValue({ range = '1M', onRange, sparkData, data = POR
         <span style={{
           fontSize: 14,
           fontWeight: 600,
-          color: data.dayChange >= 0 ? 'var(--positive-bright)' : 'var(--negative-soft)',
+          color: data.dayChange >= 0 ? 'var(--positive)' : 'var(--negative)',
           fontVariantNumeric: 'tabular-nums',
         }}>
           {fmtSigned(data.dayChange)} ({fmtPct(data.dayChangePct)}){' '}
@@ -54,7 +54,7 @@ export default function HeroValue({ range = '1M', onRange, sparkData, data = POR
         <span>·</span>
         <span>
           Unrealized{' '}
-          <span style={{ color: data.unrealized >= 0 ? 'var(--positive-soft)' : 'var(--negative-soft)' }}>
+          <span style={{ color: data.unrealized >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
             {fmtSigned(data.unrealized, 0)}
           </span>{' '}
           ({fmtPct(data.unrealizedPct, 1)})

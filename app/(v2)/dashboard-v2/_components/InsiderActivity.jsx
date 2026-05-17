@@ -62,8 +62,8 @@ export default function InsiderActivity({ tickers }) {
         const isSale = t.change < 0;
         const label = CODE_LABELS[t.transactionCode] || 'Trade';
         const value = t.transactionPrice ? Math.abs(t.change) * t.transactionPrice : null;
-        const accentColor = isBuy ? 'var(--positive-soft, #56d364)'
-                          : isSale ? 'var(--negative-soft, #f85149)'
+        const accentColor = isBuy ? 'var(--positive)'
+                          : isSale ? 'var(--negative)'
                           : 'var(--text-muted)';
         return (
           <div key={i} style={{

@@ -13,6 +13,6 @@ export const fmtSigned = (n, d = 2) =>
   (n >= 0 ? '+' : '') + Number(n).toFixed(d);
 
 export const colorForChange = (n) =>
-  n > 0 ? 'var(--positive-soft)'
-  : n < 0 ? 'var(--negative-soft)'
+  n > 0 ? 'var(--positive)'
+  : n < 0 ? 'var(--negative)'
   : 'var(--text-muted)';

@@ -310,13 +310,13 @@ export default function DashboardV2Page() {
           <Card title="Top movers today" eyebrow="Intraday">
             <div style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '.08em',
-              textTransform: 'uppercase', color: 'var(--positive-soft)',
+              textTransform: 'uppercase', color: 'var(--positive)',
               marginBottom: 4,
             }}>↑ Gainers</div>
             <MoversList kind="up"   movers={realMovers?.up} />
             <div style={{
               fontSize: 10, fontWeight: 600, letterSpacing: '.08em',
-              textTransform: 'uppercase', color: 'var(--negative-soft)',
+              textTransform: 'uppercase', color: 'var(--negative)',
               marginTop: 8, marginBottom: 4,
             }}>↓ Decliners</div>
             <MoversList kind="down" movers={realMovers?.down} />

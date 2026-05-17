@@ -39,9 +39,9 @@ function transformMacro(json) {
   if (json.fearGreed?.score != null) {
     const fg = json.fearGreed;
     const fgColor = /extreme greed/i.test(fg.rating) || /\bgreed\b/i.test(fg.rating)
-      ? 'var(--positive-soft)'
+      ? 'var(--positive)'
       : /extreme fear/i.test(fg.rating) || /\bfear\b/i.test(fg.rating)
-      ? 'var(--negative-soft)'
+      ? 'var(--negative)'
       : 'var(--text-muted)';
     items.push({ label: 'Fear & Greed', value: String(Math.round(fg.score)), change: 0, changeAbs: fg.rating ?? '', color: fgColor });
   }

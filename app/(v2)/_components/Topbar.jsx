@@ -46,7 +46,7 @@ export default function Topbar({ onCommand }) {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Dot color="var(--positive-bright)" /> Market open
+          <Dot color="var(--positive)" /> Market open
         </span>
         <span style={{ color: 'var(--text-muted)' }}>·</span>
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>{PORTFOLIO.asOf}</span>

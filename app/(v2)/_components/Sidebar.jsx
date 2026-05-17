@@ -61,7 +61,7 @@ export default function Sidebar() {
         gap: 6,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Dot color="var(--positive-bright)" />
+          <Dot color="var(--positive)" />
           <span>Live · 4:00 PM ET</span>
         </div>
         <div style={{ color: 'var(--text-faint, rgba(230,237,243,0.45))' }}>

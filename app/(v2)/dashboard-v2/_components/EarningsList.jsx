@@ -62,7 +62,7 @@ export default function EarningsList({ tickers }) {
         const days = daysUntil(e.date);
         const urgent = days <= 7;
         const soon = days > 7 && days <= 14;
-        const accentColor = urgent ? 'var(--negative-soft, #f85149)'
+        const accentColor = urgent ? 'var(--negative)'
                           : soon   ? '#f0b429'
                           : 'var(--accent, #58a6ff)';
         return (
