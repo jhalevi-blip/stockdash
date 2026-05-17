@@ -311,12 +311,25 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
               {!limitReached && (
                 <button
                   onClick={regenerate}
+                  onMouseEnter={(e) => { e.currentTarget.style.boxShadow = 'var(--shadow-cta-blue)'; e.currentTarget.style.background = 'var(--bg-accent-subtle)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.background = 'transparent'; }}
                   style={{
-                    background: 'transparent', border: 'none',
-                    color: 'var(--text-muted)', fontSize: 11,
-                    cursor: 'pointer', padding: '4px 8px', fontFamily: 'inherit',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: 'transparent',
+                    border: '1px solid var(--accent)',
+                    color: 'var(--accent)',
+                    borderRadius: 6,
+                    padding: '6px 14px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    transition: 'box-shadow 150ms ease, background 150ms ease',
                   }}
                 >
+                  <span style={{ fontSize: 14 }}>✦</span>
                   {L.regenerate}
                 </button>
               )}
