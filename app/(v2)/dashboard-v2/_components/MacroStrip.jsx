@@ -1,9 +1,60 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { MACRO } from '../_lib/mockData';
 import { fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
 
+function transformMacro(json) {
+  const { indices, treasury } = json;
+  const items = [];
+
+  const fmt = (n, dec = 2) =>
+    n == null ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+
+  const fmtAbs = (n, dec = 2) => {
+    if (n == null) return '';
+    return (n >= 0 ? '+' : '') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  };
+
+  if (indices?.SPY) {
+    const d = indices.SPY;
+    items.push({ label: 'S&P 500',   value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change) });
+  }
+  if (indices?.QQQ) {
+    const d = indices.QQQ;
+    items.push({ label: 'Nasdaq',    value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change) });
+  }
+  if (indices?.DIA) {
+    const d = indices.DIA;
+    items.push({ label: 'Dow',       value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change) });
+  }
+  if (indices?.VIX) {
+    const d = indices.VIX;
+    items.push({ label: 'VIX',       value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change) });
+  }
+  if (treasury?.year10 != null) {
+    items.push({ label: '10Y Yield', value: `${treasury.year10.toFixed(2)}%`, change: 0, changeAbs: '' });
+  }
+
+  return items;
+}
+
 export default function MacroStrip({ onIndexClick }) {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/macro')
+      .then(r => r.json())
+      .then(json => {
+        if (json.error) return;
+        const items = transformMacro(json);
+        if (items.length) setData(items);
+      })
+      .catch(() => {});
+  }, []);
+
+  const list = data ?? MACRO;
+
   return (
     <div style={{
       display: 'grid',
@@ -15,7 +66,7 @@ export default function MacroStrip({ onIndexClick }) {
       overflow: 'hidden',
       fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
     }}>
-      {MACRO.map(m => (
+      {list.map(m => (
         <button key={m.label} onClick={() => onIndexClick?.(m.label)} style={{
           display: 'flex',
           flexDirection: 'column',
