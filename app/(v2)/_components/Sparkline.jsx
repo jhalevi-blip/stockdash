@@ -29,7 +29,13 @@ export default function Sparkline({
   const areaPath = `${path} L ${width},${height} L 0,${height} Z`;
   const gradId = `spark-grad-${uid}`;
   return (
-    <svg width={responsive ? '100%' : width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }}>
+    <svg
+      width={responsive ? '100%' : width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio={responsive ? 'none' : undefined}
+      style={{ display: 'block' }}
+    >
       {responsive && (
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
