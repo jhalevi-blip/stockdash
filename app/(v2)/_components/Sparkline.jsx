@@ -7,6 +7,7 @@ export default function Sparkline({
   stroke,
   fill,
   strokeWidth = 1.5,
+  responsive = false,
 }) {
   if (!data || data.length === 0) return null;
   const min = Math.min(...data);
@@ -24,7 +25,7 @@ export default function Sparkline({
   const f = fill || (dir > 0 ? 'rgba(22,163,74,.10)' : 'rgba(220,38,38,.10)');
   const areaPath = `${path} L ${width},${height} L 0,${height} Z`;
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }}>
+    <svg width={responsive ? '100%' : width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }}>
       <path d={areaPath} fill={f} stroke="none" />
       <path d={path} fill="none" stroke={c} strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
     </svg>

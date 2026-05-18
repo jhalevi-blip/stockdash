@@ -9,7 +9,7 @@ const RANGES = ['1D', '1W', '1M', '3M', '1Y', 'ALL'];
 export default function HeroValue({ range = '1M', onRange, sparkData, data = PORTFOLIO }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <span style={{
           fontSize: 10,
           fontWeight: 600,
@@ -22,6 +22,28 @@ export default function HeroValue({ range = '1M', onRange, sparkData, data = POR
           color: 'var(--text-muted)',
           fontVariantNumeric: 'tabular-nums',
         }}>{data.asOf}</span>
+        <div style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
+          {RANGES.map(r => {
+            const disabled = r === '1D';
+            return (
+              <button
+                key={r}
+                onClick={disabled ? undefined : () => onRange?.(r)}
+                style={{
+                  background:  !disabled && r === range ? 'var(--bg-hover)' : 'transparent',
+                  border:      '1px solid ' + (!disabled && r === range ? 'var(--accent)' : 'var(--border-color)'),
+                  color:       disabled ? 'var(--text-muted)' : r === range ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  fontSize:    11,
+                  padding:     '3px 8px',
+                  borderRadius: 4,
+                  cursor:      disabled ? 'not-allowed' : 'pointer',
+                  fontWeight:  500,
+                  opacity:     disabled ? 0.5 : 1,
+                }}
+              >{r}</button>
+            );
+          })}
+        </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
         <span style={{
@@ -62,30 +84,8 @@ export default function HeroValue({ range = '1M', onRange, sparkData, data = POR
         <span>·</span>
         <span>Cash {fmtCurrency(data.cash, 0)}</span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-        <Sparkline data={sparkData ?? PORTFOLIO_SPARK} width={700} height={120} strokeWidth={2} />
-        <div style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
-          {RANGES.map(r => {
-            const disabled = r === '1D';
-            return (
-              <button
-                key={r}
-                onClick={disabled ? undefined : () => onRange?.(r)}
-                style={{
-                  background:  !disabled && r === range ? 'var(--bg-hover)' : 'transparent',
-                  border:      '1px solid ' + (!disabled && r === range ? 'var(--accent)' : 'var(--border-color)'),
-                  color:       disabled ? 'var(--text-muted)' : r === range ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  fontSize:    11,
-                  padding:     '3px 8px',
-                  borderRadius: 4,
-                  cursor:      disabled ? 'not-allowed' : 'pointer',
-                  fontWeight:  500,
-                  opacity:     disabled ? 0.5 : 1,
-                }}
-              >{r}</button>
-            );
-          })}
-        </div>
+      <div style={{ marginTop: 8 }}>
+        <Sparkline data={sparkData ?? PORTFOLIO_SPARK} width={700} height={200} strokeWidth={2} responsive />
       </div>
     </div>
   );
