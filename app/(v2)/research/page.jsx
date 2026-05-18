@@ -1125,6 +1125,340 @@ function DCFCalculator({ ticker, financials, metrics, quote, aiScenarios, resolv
 }
 
 // ─────────────────────────────────────────────────────────────
+// SUBSYSTEM 6 — ANALYST RATINGS CARD
+// ─────────────────────────────────────────────────────────────
+
+function AnalystRatingsCard({ ticker, data, currentPrice }) {
+  if (!data) {
+    return (
+      <Card title="Analyst Ratings" eyebrow={ticker}>
+        <PlaceholderBody label="Loading analyst data…" />
+      </Card>
+    );
+  }
+
+  const { consensus, priceTarget, recentChanges } = data;
+  const total = consensus
+    ? (consensus.strongBuy + consensus.buy + consensus.hold + consensus.sell + consensus.strongSell)
+    : 0;
+  const pct = total > 0 ? v => Math.round((v / total) * 100) : () => 0;
+
+  const ptLow  = priceTarget?.low;
+  const ptMean = priceTarget?.mean;
+  const ptHigh = priceTarget?.high;
+  const hasTarget = ptLow != null && ptHigh != null;
+  const ptRangeMin = hasTarget ? Math.min(ptLow, currentPrice ?? ptLow) * 0.9 : 0;
+  const ptRangeMax = hasTarget ? Math.max(ptHigh, currentPrice ?? ptHigh) * 1.1 : 1;
+  const ptSpan = ptRangeMax - ptRangeMin || 1;
+  const ptPos  = v => v != null ? Math.max(0, Math.min(100, ((v - ptRangeMin) / ptSpan) * 100)) : null;
+
+  function actionColor(action) {
+    if (!action) return 'var(--text-muted)';
+    const a = action.toLowerCase();
+    if (a === 'upgrade' || a === 'initiated' || a === 'buy') return 'var(--positive)';
+    if (a === 'downgrade' || a === 'sell') return 'var(--negative)';
+    return 'var(--text-secondary)';
+  }
+
+  return (
+    <Card title="Analyst Ratings" eyebrow={ticker}>
+      {/* Stacked recommendation bar */}
+      {consensus && total > 0 ? (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
+            <span>Bullish</span>
+            <span>{total} analysts · {consensus.period}</span>
+            <span>Bearish</span>
+          </div>
+          <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden' }}>
+            {[
+              { v: consensus.strongBuy,  bg: '#16a34a' },
+              { v: consensus.buy,        bg: '#4ade80' },
+              { v: consensus.hold,       bg: '#fbbf24' },
+              { v: consensus.sell,       bg: '#f87171' },
+              { v: consensus.strongSell, bg: '#dc2626' },
+            ].map((seg, i) => seg.v > 0 && (
+              <div key={i} style={{ flex: pct(seg.v), background: seg.bg, minWidth: 2 }} />
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 5, flexWrap: 'wrap', fontSize: 10 }}>
+            {[
+              { label: 'S.Buy', v: consensus.strongBuy,  color: '#16a34a' },
+              { label: 'Buy',   v: consensus.buy,        color: '#4ade80' },
+              { label: 'Hold',  v: consensus.hold,       color: '#fbbf24' },
+              { label: 'Sell',  v: consensus.sell,       color: '#f87171' },
+              { label: 'S.Sell',v: consensus.strongSell, color: '#dc2626' },
+            ].map(s => (
+              <span key={s.label} style={{ color: s.color, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                {s.v} {s.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>No consensus data</div>
+      )}
+
+      {/* Price target range bar */}
+      {hasTarget && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>
+            Price Target ({priceTarget.analysts} analysts)
+          </div>
+          <div style={{ position: 'relative', height: 6, background: 'var(--border-color)', borderRadius: 3, margin: '0 8px' }}>
+            <div style={{
+              position: 'absolute',
+              left: ptPos(ptLow) + '%',
+              width: (ptPos(ptHigh) - ptPos(ptLow)) + '%',
+              height: '100%',
+              background: 'var(--accent)',
+              opacity: 0.35,
+              borderRadius: 3,
+            }} />
+            {ptMean != null && (
+              <div style={{ position: 'absolute', left: ptPos(ptMean) + '%', top: -4, width: 2, height: 14, background: 'var(--accent)', transform: 'translateX(-50%)', borderRadius: 1 }} />
+            )}
+            {currentPrice != null && (
+              <div style={{ position: 'absolute', left: ptPos(currentPrice) + '%', top: -4, width: 2, height: 14, background: 'var(--text-primary)', transform: 'translateX(-50%)', borderRadius: 1 }} />
+            )}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11 }}>
+            <span style={{ color: 'var(--text-muted)' }}>Low {fmtDollars(ptLow)}</span>
+            <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Mean {fmtDollars(ptMean)}</span>
+            <span style={{ color: 'var(--text-muted)' }}>High {fmtDollars(ptHigh)}</span>
+          </div>
+          {currentPrice != null && ptMean != null && (
+            <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, marginTop: 3,
+              color: ptMean > currentPrice ? 'var(--positive)' : 'var(--negative)',
+            }}>
+              {ptMean > currentPrice ? '+' : ''}{(((ptMean - currentPrice) / currentPrice) * 100).toFixed(1)}% upside to mean target
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Recent rating actions */}
+      {recentChanges?.length > 0 && (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 5 }}>
+            Recent Actions
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {recentChanges.slice(0, 5).map((c, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+                <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', minWidth: 68 }}>{c.date}</span>
+                <span style={{ flex: 1, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{c.firm}</span>
+                <span style={{ color: actionColor(c.action), fontWeight: 700, textTransform: 'capitalize', whiteSpace: 'nowrap', fontSize: 10 }}>{c.action}</span>
+                {c.to && (
+                  <span style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap', fontSize: 10 }}>
+                    {c.from ? `${c.from} → ${c.to}` : c.to}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SUBSYSTEM 7 — FINANCIAL STATEMENTS CARD
+// ─────────────────────────────────────────────────────────────
+
+function FinancialStatementsCard({ ticker, financials }) {
+  if (!financials) {
+    return (
+      <Card title="Financial Statements" eyebrow={ticker}>
+        <PlaceholderBody label="Loading financials…" />
+      </Card>
+    );
+  }
+
+  const { revenue, grossProfit, netIncome, eps, operatingIncome } = financials;
+  const years = (revenue ?? []).slice(-5).map(r => r.year);
+
+  if (!years.length) {
+    return (
+      <Card title="Financial Statements" eyebrow={ticker}>
+        <PlaceholderBody label="No annual data available from EDGAR" />
+      </Card>
+    );
+  }
+
+  function getVal(arr, year) {
+    return arr?.find(r => r.year === year)?.value ?? null;
+  }
+
+  function pctOf(num, denom) {
+    if (num == null || denom == null || denom === 0) return null;
+    return (num / denom) * 100;
+  }
+
+  function fmtB(n) {
+    if (n == null) return '—';
+    const abs = Math.abs(n);
+    const sign = n < 0 ? '-' : '';
+    if (abs >= 1e9) return sign + '$' + (abs / 1e9).toFixed(1) + 'B';
+    if (abs >= 1e6) return sign + '$' + (abs / 1e6).toFixed(0) + 'M';
+    return sign + '$' + abs.toFixed(0);
+  }
+
+  function fmtMgn(n) { return n == null ? '—' : n.toFixed(1) + '%'; }
+  function fmtEpsV(n) { return n == null ? '—' : '$' + n.toFixed(2); }
+
+  function YoYBadge({ curr, prev, isPct }) {
+    if (curr == null || prev == null || (isPct ? false : prev === 0)) return null;
+    const delta = isPct ? (curr - prev) : ((curr - prev) / Math.abs(prev)) * 100;
+    return (
+      <span style={{ fontSize: 9, fontWeight: 700, marginLeft: 3, color: delta >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
+        {delta >= 0 ? '▲' : '▼'}{Math.abs(delta).toFixed(1)}%
+      </span>
+    );
+  }
+
+  const rows = [
+    { label: 'Revenue',      values: years.map(y => getVal(revenue, y)),                               fmt: fmtB    },
+    { label: 'Gross Profit', values: years.map(y => getVal(grossProfit, y)),                           fmt: fmtB    },
+    { label: 'Gross Margin', values: years.map(y => pctOf(getVal(grossProfit, y), getVal(revenue, y))),fmt: fmtMgn, isPct: true },
+    { label: 'Op Income',    values: years.map(y => getVal(operatingIncome, y)),                       fmt: fmtB    },
+    { label: 'Net Income',   values: years.map(y => getVal(netIncome, y)),                             fmt: fmtB    },
+    { label: 'Net Margin',   values: years.map(y => pctOf(getVal(netIncome, y), getVal(revenue, y))), fmt: fmtMgn, isPct: true },
+    { label: 'EPS (Diluted)',values: years.map(y => getVal(eps, y)),                                   fmt: fmtEpsV },
+  ];
+
+  return (
+    <Card title="Financial Statements" eyebrow={ticker}>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', fontSize: 9, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--text-muted)', padding: '5px 8px 5px 0', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-secondary)' }}>Metric</th>
+              {years.map(y => (
+                <th key={y} style={{ textAlign: 'right', fontSize: 9, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--text-muted)', padding: '5px 8px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-secondary)', whiteSpace: 'nowrap' }}>FY{y.slice(-2)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(row => (
+              <tr key={row.label} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                <td style={{ padding: '7px 8px 7px 0', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{row.label}</td>
+                {row.values.map((v, vi) => (
+                  <td key={vi} style={{ padding: '7px 8px', textAlign: 'right', color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                    {row.fmt(v)}
+                    {vi > 0 && <YoYBadge curr={v} prev={row.values[vi - 1]} isPct={!!row.isPct} />}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8 }}>
+        Source: SEC EDGAR annual filings (10-K)
+      </p>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SUBSYSTEM 8 — VALUATION METRICS CARD
+// ─────────────────────────────────────────────────────────────
+
+function ValuationMetricsCard({ ticker, metrics, valHistory }) {
+  const [peerMetrics, setPeerMetrics] = useState(null);
+
+  useEffect(() => {
+    if (!ticker) return;
+    setPeerMetrics(null);
+    fetch(`/api/peers?tickers=${ticker}`)
+      .then(r => r.json())
+      .then(data => setPeerMetrics(Array.isArray(data) ? data.filter(p => p.ticker !== ticker) : []))
+      .catch(() => setPeerMetrics([]));
+  }, [ticker]);
+
+  function peerMedian(field) {
+    if (!peerMetrics?.length) return null;
+    const vals = peerMetrics.map(p => p[field]).filter(v => v != null && isFinite(v) && v > 0).sort((a, b) => a - b);
+    if (!vals.length) return null;
+    const mid = Math.floor(vals.length / 2);
+    return vals.length % 2 === 0 ? (vals[mid - 1] + vals[mid]) / 2 : vals[mid];
+  }
+
+  function fmtMult(v) { return v != null && isFinite(v) && v > 0 ? v.toFixed(1) + 'x' : '—'; }
+  function fmtPctV(v) { return v != null && isFinite(v)          ? v.toFixed(1) + '%' : '—'; }
+
+  function VsPeersCell({ current, median, higher = 'bad' }) {
+    if (current == null || median == null || median === 0) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+    const delta = ((current - median) / median) * 100;
+    const isPositive = delta > 0;
+    // For margins/ROE, higher is good. For multiples, higher = premium = neutral-to-bad.
+    const color = higher === 'good'
+      ? (isPositive ? 'var(--positive)' : 'var(--negative)')
+      : (isPositive ? 'var(--warn)' : 'var(--positive)');
+    return (
+      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+        background: color + '22', color, whiteSpace: 'nowrap' }}>
+        {isPositive ? '+' : ''}{delta.toFixed(1)}%
+      </span>
+    );
+  }
+
+  const avg = valHistory?.averages ?? {};
+  const cur = metrics ?? {};
+  const loading = peerMetrics === null;
+
+  const ROWS = [
+    { label: 'P/E (TTM)',    cur: cur.peRatio,    avg: avg.pe,          peer: peerMedian('peRatio'),    fmt: fmtMult, higher: 'neutral' },
+    { label: 'Fwd P/E',     cur: cur.forwardPE,  avg: null,            peer: peerMedian('forwardPE'),  fmt: fmtMult, higher: 'neutral' },
+    { label: 'P/S',         cur: cur.psRatio,    avg: avg.ps,          peer: peerMedian('psRatio'),    fmt: fmtMult, higher: 'neutral' },
+    { label: 'P/B',         cur: cur.pbRatio,    avg: avg.pb,          peer: peerMedian('pbRatio'),    fmt: fmtMult, higher: 'neutral' },
+    { label: 'EV/EBITDA',   cur: cur.evEbitda,   avg: avg.evEbitda,    peer: peerMedian('evEbitda'),   fmt: fmtMult, higher: 'neutral' },
+    { label: 'Net Margin',  cur: cur.netMargin,  avg: avg.netMargin,   peer: peerMedian('netMargin'),  fmt: fmtPctV, higher: 'good'    },
+    { label: 'Gross Margin',cur: cur.grossMargin,avg: avg.grossMargin, peer: peerMedian('grossMargin'),fmt: fmtPctV, higher: 'good'    },
+    { label: 'ROE',         cur: cur.roe,        avg: avg.roe,         peer: peerMedian('roe'),        fmt: fmtPctV, higher: 'good'    },
+  ];
+
+  return (
+    <Card title="Valuation Metrics" eyebrow={ticker}>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr>
+              {['Metric', 'Current', '5yr Avg', 'Peer Med.', 'vs Peers'].map((h, i) => (
+                <th key={h} style={{ textAlign: i === 0 ? 'left' : 'right', fontSize: 9, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--text-muted)', padding: '5px 8px', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-secondary)', whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {ROWS.map(row => (
+              <tr key={row.label} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                <td style={{ padding: '7px 8px', fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{row.label}</td>
+                <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{row.fmt(row.cur)}</td>
+                <td style={{ padding: '7px 8px', textAlign: 'right', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                  {valHistory ? row.fmt(row.avg) : '—'}
+                </td>
+                <td style={{ padding: '7px 8px', textAlign: 'right', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                  {loading ? '…' : row.fmt(row.peer)}
+                </td>
+                <td style={{ padding: '7px 8px', textAlign: 'right' }}>
+                  {loading ? <span style={{ color: 'var(--text-muted)' }}>…</span>
+                    : <VsPeersCell current={row.cur} median={row.peer} higher={row.higher} />}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8 }}>
+        5yr avg: FMP ratios · Peer median: Finnhub sector peers
+      </p>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────
 
@@ -1144,6 +1478,8 @@ function ResearchPageInner() {
   const [savedCash,    setSavedCash]    = useState(null);
   const [overlayPeers, setOverlayPeers] = useState([]);
   const [thesis,       setThesis]       = useState(null); // lifted from ThesisHero for DCF wiring
+  const [analystRatings, setAnalystRatings] = useState(null);
+  const [valHistory,   setValHistory]   = useState(null);
 
   // DCF scenarios: use new three-scenario shape; promote legacy dcfInputs to consensus-only
   const aiScenarios = useMemo(() => {
@@ -1202,6 +1538,7 @@ function ResearchPageInner() {
     if (!ticker) return;
     setQuote(null); setMetrics(null); setProfile(null);
     setFinancials(null); setEarningsHistory([]);
+    setAnalystRatings(null); setValHistory(null);
     setOverlayPeers([]);
     // Load cached thesis for this ticker (syncs to DCFCalculator via aiInputs prop)
     try {
@@ -1215,12 +1552,16 @@ function ResearchPageInner() {
       fetch(`/api/sectors?tickers=${ticker}`).then(r => r.json()).catch(() => ({})),
       fetch(`/api/earnings-history?symbol=${ticker}`).then(r => r.json()).catch(() => []),
       fetch(`/api/financials?ticker=${ticker}`).then(r => r.json()).catch(() => null),
-    ]).then(([priceArr, valArr, sectorMap, earnsHist, fins]) => {
+      fetch(`/api/analyst-ratings?ticker=${ticker}`).then(r => r.json()).catch(() => null),
+      fetch(`/api/valuation-history?ticker=${ticker}`).then(r => r.json()).catch(() => null),
+    ]).then(([priceArr, valArr, sectorMap, earnsHist, fins, analystData, valHistData]) => {
       if (Array.isArray(priceArr) && priceArr[0]) setQuote(priceArr[0]);
       if (Array.isArray(valArr)   && valArr[0])   setMetrics(valArr[0]);
       if (sectorMap?.[ticker])                    setProfile(sectorMap[ticker]);
       if (Array.isArray(earnsHist))               setEarningsHistory(earnsHist);
       if (fins && !fins.error)                    setFinancials(fins);
+      if (analystData && !analystData.error)      setAnalystRatings(analystData);
+      if (valHistData && !valHistData.error)      setValHistory(valHistData);
     });
   }, [ticker]);
 
@@ -1399,20 +1740,14 @@ function ResearchPageInner() {
 
       {/* 3–4. Analyst Ratings | Earnings */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <Card title="Analyst Ratings" eyebrow="Coming in B3">
-          <PlaceholderBody label="Buy / Hold / Sell consensus + price target — loading in B3" />
-        </Card>
+        <AnalystRatingsCard ticker={ticker} data={analystRatings} currentPrice={quote?.price} />
         <EarningsCard ticker={ticker} />
       </div>
 
       {/* 5–6. Financial Statements | Valuation Metrics */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <Card title="Financial Statements" eyebrow="Coming in B3">
-          <PlaceholderBody label="Revenue, margins, EPS — loading in B3" />
-        </Card>
-        <Card title="Valuation Metrics" eyebrow="Coming in B3">
-          <PlaceholderBody label="P/E, P/S, EV/EBITDA table — loading in B3" />
-        </Card>
+        <FinancialStatementsCard ticker={ticker} financials={financials} />
+        <ValuationMetricsCard ticker={ticker} metrics={metrics} valHistory={valHistory} />
       </div>
 
       {/* DCF CALCULATOR (between Valuation Metrics and Insider) */}

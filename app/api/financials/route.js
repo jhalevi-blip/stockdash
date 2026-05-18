@@ -333,6 +333,7 @@ export async function GET(request) {
       equity:          extractAnnual(equityData),
       operatingCF:     extractAnnual(operatingCFData),
       capex:           extractAnnual(capexData),
+      operatingIncome: extractAnnual(operatingIncomeData),
     }, {
       headers: { 'Cache-Control': 's-maxage=21600, stale-while-revalidate=3600' },
     });
