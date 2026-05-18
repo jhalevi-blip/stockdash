@@ -157,6 +157,8 @@ Provide a 1–2 sentence rationale explaining the key picks (especially WACC and
 
 The slider ranges in the UI are: WACC 4–18, terminal growth 1–5, revenue CAGR 0–60, terminal op margin 5–80. All values MUST stay inside these bounds.
 
+When "Last Annual Revenue (best available)" is provided in the context, anchor revenueCagr to the actual YoY growth shown, fading it toward long-run sector norms over the projection window.
+
 ## Adaptive sections
 
 - Omit bull_case if there are no meaningful bullish signals (no analyst upside, no insider buys, no earnings beats).
@@ -173,7 +175,9 @@ function buildUserMessage(body) {
     ticker, price, userLang,
     analystD, valD, finD, earningsHist,
     insiders, siD, peersList, row,
-    holdings,   // optional: user's portfolio holdings for fitsPortfolio
+    holdings,           // optional: user's portfolio holdings for fitsPortfolio
+    lastAnnualRevenue,  // resolved revenue (waterfall: EDGAR annual → TTM)
+    priorAnnualRevenue, // prior-year revenue for YoY CAGR context
   } = body;
 
   const fmt2 = n => (n == null ? '—' : Number(n).toFixed(2));
@@ -217,6 +221,18 @@ function buildUserMessage(body) {
     const niLast  = finD.netIncome?.at(-1);
     if (revLast) lines.push(`Revenue (${revLast.year}): $${(revLast.value / 1e9).toFixed(2)}B`);
     if (niLast)  lines.push(`Net Income (${niLast.year}): $${(niLast.value / 1e9).toFixed(2)}B`);
+  }
+
+  // Resolved revenue — waterfall (EDGAR annual → TTM); more reliable for DCF anchoring
+  if (lastAnnualRevenue) {
+    const revStr = (lastAnnualRevenue / 1e9).toFixed(2);
+    if (priorAnnualRevenue) {
+      const yoy = ((lastAnnualRevenue / priorAnnualRevenue - 1) * 100).toFixed(0);
+      lines.push(`Last Annual Revenue (best available): $${revStr}B (YoY ${Number(yoy) >= 0 ? '+' : ''}${yoy}%)`);
+      lines.push(`Prior Annual Revenue: $${(priorAnnualRevenue / 1e9).toFixed(2)}B`);
+    } else {
+      lines.push(`Last Annual Revenue (best available): $${revStr}B`);
+    }
   }
 
   // Earnings history

@@ -283,10 +283,43 @@ export async function GET(request) {
       fetchConcept(cik, CONCEPTS.operatingIncome),
     ]);
 
-    // Revenue: try primary tag first, then fallbacks
+    // Revenue: try primary tag first, then fallbacks.
+    // Also supplements with fallback data when the primary tag is stale (newest entry
+    // older than currentYear-2). Some companies switch EDGAR concept tags mid-history
+    // (e.g. NVDA moved from RevenueFromContractWithCustomerExcludingAssessedTax to
+    // Revenues), leaving the primary array non-empty but truncated at an old year.
     let revenue = extractAnnual(revenueData);
-    if (revenue.length === 0) revenue = extractAnnual(revenueFb1Data);
-    if (revenue.length === 0) revenue = extractAnnual(revenueFb2Data);
+    if (revenue.length === 0) {
+      revenue = extractAnnual(revenueFb1Data);
+      if (revenue.length === 0) revenue = extractAnnual(revenueFb2Data);
+    } else {
+      const _cy = new Date().getFullYear();
+      const _ny = parseInt(revenue.at(-1)?.year ?? '0', 10);
+      if (_ny < _cy - 2) {
+        // Primary tag is stale — merge newer years from fb1
+        const _fb1 = extractAnnual(revenueFb1Data, 10);
+        if (_fb1.length > 0) {
+          const _py = new Set(revenue.map(r => r.year));
+          const _m  = [
+            ...revenue,
+            ..._fb1.filter(r => !_py.has(r.year)),
+          ].sort((a, b) => a.year.localeCompare(b.year));
+          revenue = _m.slice(-5);
+        }
+        // If still stale after fb1, try fb2
+        if (parseInt(revenue.at(-1)?.year ?? '0', 10) < _cy - 2) {
+          const _fb2 = extractAnnual(revenueFb2Data, 10);
+          if (_fb2.length > 0) {
+            const _ey = new Set(revenue.map(r => r.year));
+            const _m2 = [
+              ...revenue,
+              ..._fb2.filter(r => !_ey.has(r.year)),
+            ].sort((a, b) => a.year.localeCompare(b.year));
+            revenue = _m2.slice(-5);
+          }
+        }
+      }
+    }
 
     return Response.json({
       ticker,

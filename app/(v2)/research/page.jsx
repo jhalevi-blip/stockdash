@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import { Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import {
@@ -515,7 +515,7 @@ function BulletList({ items }) {
 }
 
 // thesis + setThesis are lifted to ResearchPageInner so DCFCalculator can read thesis.dcfInputs
-function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings, thesis, setThesis }) {
+function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings, thesis, setThesis, resolvedRevenue, priorAnnualRevenue }) {
   const usageKey   = `research_thesis_usage_${userId ?? 'anon'}`;
   const cacheKey   = `research_thesis_${ticker}`;
   const LIMIT      = isSignedIn ? THESIS_LIMIT_SIGNED : THESIS_LIMIT_ANON;
@@ -559,8 +559,8 @@ function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ticker,
-          price:        quote?.price,
-          userLang:     navigator.language || 'en',
+          price:               quote?.price,
+          userLang:            navigator.language || 'en',
           valD: {
             peRatio:     metrics?.peRatio,
             forwardPE:   metrics?.forwardPE,
@@ -568,7 +568,9 @@ function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings,
             grossMargin: metrics?.grossMargin,
             netMargin:   metrics?.netMargin,
           },
-          holdings: holdingsPayload.length ? holdingsPayload : undefined,
+          holdings:            holdingsPayload.length ? holdingsPayload : undefined,
+          lastAnnualRevenue:  resolvedRevenue?.value ?? undefined,
+          priorAnnualRevenue: priorAnnualRevenue ?? undefined,
         }),
       });
       const json = await res.json();
@@ -967,7 +969,7 @@ function clampTg(v)     { return Math.min(5,  Math.max(1,  Math.round(v * 4) / 4
 function clampCagr(v)   { return Math.min(60, Math.max(0,  Math.round(v)));          }  // step 1
 function clampMargin(v) { return Math.min(80, Math.max(5,  Math.round(v)));          }  // step 1
 
-function DCFCalculator({ ticker, financials, metrics, quote, aiInputs }) {
+function DCFCalculator({ ticker, financials, metrics, quote, aiInputs, resolvedRevenue }) {
   const [wacc,           setWacc]           = useState(DCF_DEFAULTS.wacc);
   const [terminalGrowth, setTerminalGrowth] = useState(DCF_DEFAULTS.terminalGrowth);
   const [revenueCagr,    setRevenueCagr]    = useState(DCF_DEFAULTS.revenueCagr);
@@ -1000,8 +1002,9 @@ function DCFCalculator({ ticker, financials, metrics, quote, aiInputs }) {
     return (v) => { userTouched.current = true; setter(v); };
   }
 
-  // Derive inputs from financials
-  const lastRevenue  = financials?.revenue?.at(-1)?.value ?? null;
+  // Derive inputs: prefer resolvedRevenue waterfall (EDGAR annual or TTM fallback)
+  const lastRevenue   = resolvedRevenue?.value ?? null;
+  const revenueSource = resolvedRevenue?.source ?? null;
   // Shares outstanding: marketCap (Finnhub millions) / price
   const marketCapUSD = metrics?.marketCap != null ? metrics.marketCap * 1e6 : null;
   const sharesOut    = marketCapUSD && quote?.price ? marketCapUSD / quote.price : null;
@@ -1084,7 +1087,8 @@ function DCFCalculator({ ticker, financials, metrics, quote, aiInputs }) {
                 </div>
                 <PriceBar bear={dcf.bear} base={dcf.base} bull={dcf.bull} current={quote?.price} />
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
-                  Based on ${(lastRevenue / 1e9).toFixed(1)}B last annual revenue
+                  Based on ${(lastRevenue / 1e9).toFixed(1)}B revenue
+                  {revenueSource ? ` · ${revenueSource}` : ''}
                 </div>
               </>
             ) : (
@@ -1117,6 +1121,21 @@ function ResearchPageInner() {
   const [savedCash,    setSavedCash]    = useState(null);
   const [overlayPeers, setOverlayPeers] = useState([]);
   const [thesis,       setThesis]       = useState(null); // lifted from ThesisHero for DCF wiring
+
+  // Waterfall-resolved revenue: EDGAR annual (Layer-2-patched) → earnings-history TTM
+  const resolvedRevenue = useMemo(() => {
+    const annualVal = financials?.revenue?.at(-1)?.value;
+    if (annualVal) return { value: annualVal, source: 'EDGAR annual' };
+    // Earnings-history TTM: sum last 4 quarters of reported revenue
+    const recentQ = earningsHistory.filter(e => e.revenueActual != null).slice(-4);
+    if (recentQ.length === 4) {
+      const ttm = recentQ.reduce((s, e) => s + e.revenueActual, 0);
+      if (ttm > 0) return { value: ttm, source: 'earnings TTM' };
+    }
+    return null;
+  }, [financials, earningsHistory]);
+
+  const priorAnnualRevenue = financials?.revenue?.at(-2)?.value ?? null;
 
   // Step 1: resolve ticker
   useEffect(() => {
@@ -1342,6 +1361,8 @@ function ResearchPageInner() {
         savedHoldings={savedHoldings}
         thesis={thesis}
         setThesis={setThesis}
+        resolvedRevenue={resolvedRevenue}
+        priorAnnualRevenue={priorAnnualRevenue}
       />
 
       {/* 3–4. Analyst Ratings | Earnings */}
@@ -1363,7 +1384,7 @@ function ResearchPageInner() {
       </div>
 
       {/* DCF CALCULATOR (between Valuation Metrics and Insider) */}
-      <DCFCalculator ticker={ticker} financials={financials} metrics={metrics} quote={quote} aiInputs={thesis?.dcfInputs ?? null} />
+      <DCFCalculator ticker={ticker} financials={financials} metrics={metrics} quote={quote} aiInputs={thesis?.dcfInputs ?? null} resolvedRevenue={resolvedRevenue} />
 
       {/* 7–8–9. Insider | Institutional | Short Interest */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
