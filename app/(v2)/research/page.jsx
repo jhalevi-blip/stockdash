@@ -514,12 +514,12 @@ function BulletList({ items }) {
   );
 }
 
-function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings }) {
+// thesis + setThesis are lifted to ResearchPageInner so DCFCalculator can read thesis.dcfInputs
+function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings, thesis, setThesis }) {
   const usageKey   = `research_thesis_usage_${userId ?? 'anon'}`;
   const cacheKey   = `research_thesis_${ticker}`;
   const LIMIT      = isSignedIn ? THESIS_LIMIT_SIGNED : THESIS_LIMIT_ANON;
 
-  const [thesis,       setThesis]       = useState(null);
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState(null);
   const [usageCount,   setUsageCount]   = useState(0);
@@ -528,18 +528,13 @@ function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings 
   const [quickResult,  setQuickResult]  = useState(null); // { prompt, response }
   const [quickLoading, setQuickLoading] = useState(false);
 
-  // Load cached thesis + usage on ticker change
+  // Reset local-only state on ticker change (thesis reset + cache load handled by parent)
   useEffect(() => {
-    setThesis(null);
     setError(null);
     setGeneratedAt(null);
     setQuickResult(null);
-    try {
-      const cached = JSON.parse(localStorage.getItem(cacheKey));
-      if (cached?.rating != null) { setThesis(cached); setGeneratedAt(null); }
-    } catch {}
     setUsageCount(readThesisUsage(usageKey));
-  }, [ticker, cacheKey, usageKey]);
+  }, [ticker, usageKey]);
 
   const limitReached = usageCount >= LIMIT;
 
@@ -547,7 +542,7 @@ function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings 
     if (limitReached && !overwrite) return;
     setLoading(true);
     setError(null);
-    if (overwrite) setThesis(null);
+    if (overwrite) setThesis(null); // clears parent state → resets DCF aiInputs
 
     const newCount = usageCount + 1;
     setUsageCount(newCount);
@@ -966,11 +961,44 @@ function Slider({ label, value, min, max, step, onChange, unit = '%' }) {
   );
 }
 
-function DCFCalculator({ ticker, financials, metrics, quote }) {
+// Clamp + round helpers for each slider (keeps AI values within UI bounds)
+function clampWacc(v)   { return Math.min(18, Math.max(4,  Math.round(v * 2) / 2)); }  // step 0.5
+function clampTg(v)     { return Math.min(5,  Math.max(1,  Math.round(v * 4) / 4)); }  // step 0.25
+function clampCagr(v)   { return Math.min(60, Math.max(0,  Math.round(v)));          }  // step 1
+function clampMargin(v) { return Math.min(80, Math.max(5,  Math.round(v)));          }  // step 1
+
+function DCFCalculator({ ticker, financials, metrics, quote, aiInputs }) {
   const [wacc,           setWacc]           = useState(DCF_DEFAULTS.wacc);
   const [terminalGrowth, setTerminalGrowth] = useState(DCF_DEFAULTS.terminalGrowth);
   const [revenueCagr,    setRevenueCagr]    = useState(DCF_DEFAULTS.revenueCagr);
   const [terminalMargin, setTerminalMargin] = useState(DCF_DEFAULTS.terminalMargin);
+  // Ref: did the user manually move any slider since last ticker change / aiInputs arrival?
+  const userTouched = useRef(false);
+
+  // Reset sliders + userTouched when ticker changes (aiInputs effect fires after in the same cycle)
+  useEffect(() => {
+    userTouched.current = false;
+    setWacc(DCF_DEFAULTS.wacc);
+    setTerminalGrowth(DCF_DEFAULTS.terminalGrowth);
+    setRevenueCagr(DCF_DEFAULTS.revenueCagr);
+    setTerminalMargin(DCF_DEFAULTS.terminalMargin);
+  }, [ticker]);
+
+  // Auto-populate from AI inputs: fires whenever aiInputs arrives/changes,
+  // but only if the user hasn't manually touched a slider yet.
+  useEffect(() => {
+    if (!aiInputs) return;
+    if (userTouched.current) return;
+    setWacc(clampWacc(aiInputs.wacc));
+    setTerminalGrowth(clampTg(aiInputs.terminalGrowth));
+    setRevenueCagr(clampCagr(aiInputs.revenueCagr));
+    setTerminalMargin(clampMargin(aiInputs.terminalMargin));
+  }, [aiInputs]);
+
+  // Wrap each setter to mark user-touched before first interaction
+  function handleSlider(setter) {
+    return (v) => { userTouched.current = true; setter(v); };
+  }
 
   // Derive inputs from financials
   const lastRevenue  = financials?.revenue?.at(-1)?.value ?? null;
@@ -982,14 +1010,27 @@ function DCFCalculator({ ticker, financials, metrics, quote }) {
     ? calcDCF({ lastRevenue, wacc, terminalGrowth, revenueCagr, terminalMargin, sharesOut, netDebt: 0 })
     : null;
 
+  // Reset: restore AI-suggested values if available, otherwise generic defaults
   function reset() {
-    setWacc(DCF_DEFAULTS.wacc);
-    setTerminalGrowth(DCF_DEFAULTS.terminalGrowth);
-    setRevenueCagr(DCF_DEFAULTS.revenueCagr);
-    setTerminalMargin(DCF_DEFAULTS.terminalMargin);
+    userTouched.current = false;
+    if (aiInputs) {
+      setWacc(clampWacc(aiInputs.wacc));
+      setTerminalGrowth(clampTg(aiInputs.terminalGrowth));
+      setRevenueCagr(clampCagr(aiInputs.revenueCagr));
+      setTerminalMargin(clampMargin(aiInputs.terminalMargin));
+    } else {
+      setWacc(DCF_DEFAULTS.wacc);
+      setTerminalGrowth(DCF_DEFAULTS.terminalGrowth);
+      setRevenueCagr(DCF_DEFAULTS.revenueCagr);
+      setTerminalMargin(DCF_DEFAULTS.terminalMargin);
+    }
   }
 
-  const noData = !lastRevenue || !sharesOut;
+  const noData       = !lastRevenue || !sharesOut;
+  const aiTuned      = !!aiInputs;
+  const footerPrefix = aiTuned
+    ? `DCF assumes (AI-tuned for ${ticker}):`
+    : 'DCF assumes:';
 
   return (
     <Card
@@ -999,9 +1040,9 @@ function DCFCalculator({ ticker, financials, metrics, quote }) {
         <button onClick={reset} style={{
           background: 'none', border: '1px solid var(--border-color)', borderRadius: 5,
           color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', padding: '3px 10px',
-        }}>Reset</button>
+        }}>Reset{aiTuned ? ' to AI' : ''}</button>
       }
-      footer={dcf ? `DCF assumes: 5-year projection · ${wacc}% WACC · ${terminalGrowth}% terminal growth · ${revenueCagr}% revenue CAGR · ${terminalMargin}% terminal op margin. Net debt assumed $0 (not available from EDGAR). Sensitivity bands are ±20% around base.` : undefined}
+      footer={dcf ? `${footerPrefix} 5-year projection · ${wacc}% WACC · ${terminalGrowth}% terminal growth · ${revenueCagr}% revenue CAGR · ${terminalMargin}% terminal op margin. Net debt assumed $0 (not available from EDGAR). Sensitivity bands are ±20% around base.` : undefined}
     >
       {noData ? (
         <PlaceholderBody label={`Financial data not available for ${ticker} — DCF requires annual revenue from EDGAR`} height={140} />
@@ -1009,10 +1050,16 @@ function DCFCalculator({ ticker, financials, metrics, quote }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
           {/* Sliders */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <Slider label="WACC"             value={wacc}           min={6}  max={14} step={0.5}  onChange={setWacc} />
-            <Slider label="Terminal Growth"  value={terminalGrowth} min={1}  max={5}  step={0.25} onChange={setTerminalGrowth} />
-            <Slider label="Revenue CAGR"     value={revenueCagr}    min={5}  max={35} step={1}    onChange={setRevenueCagr} />
-            <Slider label="Terminal Op Margin" value={terminalMargin} min={20} max={80} step={1}  onChange={setTerminalMargin} />
+            {/* AI rationale caption */}
+            {aiInputs?.rationale && (
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>
+                ✨ {aiInputs.rationale}
+              </p>
+            )}
+            <Slider label="WACC"               value={wacc}           min={4}  max={18} step={0.5}  onChange={handleSlider(setWacc)} />
+            <Slider label="Terminal Growth"    value={terminalGrowth} min={1}  max={5}  step={0.25} onChange={handleSlider(setTerminalGrowth)} />
+            <Slider label="Revenue CAGR"       value={revenueCagr}    min={0}  max={60} step={1}    onChange={handleSlider(setRevenueCagr)} />
+            <Slider label="Terminal Op Margin" value={terminalMargin} min={5}  max={80} step={1}    onChange={handleSlider(setTerminalMargin)} />
           </div>
 
           {/* DCF result */}
@@ -1069,6 +1116,7 @@ function ResearchPageInner() {
   const [savedHoldings,setSavedHoldings]= useState([]);
   const [savedCash,    setSavedCash]    = useState(null);
   const [overlayPeers, setOverlayPeers] = useState([]);
+  const [thesis,       setThesis]       = useState(null); // lifted from ThesisHero for DCF wiring
 
   // Step 1: resolve ticker
   useEffect(() => {
@@ -1104,6 +1152,11 @@ function ResearchPageInner() {
     setQuote(null); setMetrics(null); setProfile(null);
     setFinancials(null); setEarningsHistory([]);
     setOverlayPeers([]);
+    // Load cached thesis for this ticker (syncs to DCFCalculator via aiInputs prop)
+    try {
+      const cached = JSON.parse(localStorage.getItem(`research_thesis_${ticker}`));
+      setThesis(cached?.rating != null ? cached : null);
+    } catch { setThesis(null); }
 
     Promise.all([
       fetch(`/api/prices?tickers=${ticker}`).then(r => r.json()).catch(() => []),
@@ -1287,6 +1340,8 @@ function ResearchPageInner() {
         isSignedIn={!!isSignedIn}
         userId={user?.id}
         savedHoldings={savedHoldings}
+        thesis={thesis}
+        setThesis={setThesis}
       />
 
       {/* 3–4. Analyst Ratings | Earnings */}
@@ -1308,7 +1363,7 @@ function ResearchPageInner() {
       </div>
 
       {/* DCF CALCULATOR (between Valuation Metrics and Insider) */}
-      <DCFCalculator ticker={ticker} financials={financials} metrics={metrics} quote={quote} />
+      <DCFCalculator ticker={ticker} financials={financials} metrics={metrics} quote={quote} aiInputs={thesis?.dcfInputs ?? null} />
 
       {/* 7–8–9. Insider | Institutional | Short Interest */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>

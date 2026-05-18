@@ -67,12 +67,47 @@ const generateStockSummaryTool = {
         type: ['string', 'null'],
         description: "How this stock fits the user's existing portfolio (concentration, diversification, correlation to existing positions). Null if no holdings context was provided.",
       },
+      dcfInputs: {
+        type: 'object',
+        description: "DCF slider assumptions tuned to THIS specific company's profile and 3-year outlook. Must stay within slider bounds: WACC 4–18, terminalGrowth 1–5, revenueCagr 0–60, terminalMargin 5–80.",
+        properties: {
+          wacc: {
+            type: 'number',
+            minimum: 4,
+            maximum: 18,
+            description: 'Weighted average cost of capital %, reflecting beta and capital structure (e.g. 9 for high-beta growth, 7 for stable large-cap).',
+          },
+          terminalGrowth: {
+            type: 'number',
+            minimum: 1,
+            maximum: 5,
+            description: 'Long-run terminal growth rate % (GDP-anchored; rarely above 4 outside high-growth niches).',
+          },
+          revenueCagr: {
+            type: 'number',
+            minimum: 0,
+            maximum: 60,
+            description: '5-year revenue CAGR % projection from last reported fiscal year. Should reflect current trajectory fading toward normalised growth.',
+          },
+          terminalMargin: {
+            type: 'number',
+            minimum: 5,
+            maximum: 80,
+            description: 'Terminal-year operating margin % — where the business lands at scale, not current margin.',
+          },
+          rationale: {
+            type: 'string',
+            description: '1–2 sentences explaining the key picks (especially WACC and CAGR) referencing this company\'s specific characteristics.',
+          },
+        },
+        required: ['wacc', 'terminalGrowth', 'revenueCagr', 'terminalMargin', 'rationale'],
+      },
       language: {
         type: 'string',
         description: "ISO language code used for the text content (e.g., 'en', 'nl', 'de', 'fr').",
       },
     },
-    required: ['rating', 'rating_summary', 'thesis', 'what_to_watch', 'oneLiner', 'bull', 'bear', 'risks', 'threeYearTarget', 'language'],
+    required: ['rating', 'rating_summary', 'thesis', 'what_to_watch', 'oneLiner', 'bull', 'bear', 'risks', 'threeYearTarget', 'dcfInputs', 'language'],
   },
 };
 
@@ -107,6 +142,20 @@ Set threeYearTarget.base at the level you genuinely expect the stock to reach in
 ## Portfolio fit (fitsPortfolio)
 
 If the user's portfolio holdings are provided in the context, populate fitsPortfolio with 2-3 sentences on how this stock fits (or clashes with) the portfolio: concentration risk, sector overlap, diversification benefit, or correlation to existing positions. If no holdings context is provided, return null.
+
+## DCF inputs
+
+Always return dcfInputs with the four key DCF assumptions tuned to THIS specific company over a 3-year horizon. Examples of the reasoning we expect:
+
+- Hyper-growth tech (NVDA, recent AI names): WACC 8–11 (high beta), terminal growth 3–4, revenue CAGR 30–55 fading from current hyper-growth, terminal op margin matching mature-state expectations.
+- Mature large-cap tech (MSFT, AAPL): WACC 8–10, terminal growth 2.5–3.5, revenue CAGR 8–15, terminal op margin 30–40.
+- Cyclicals (semis non-AI, homebuilders): WACC 9–12, terminal growth 2–3, revenue CAGR 5–12 (smoothed through cycle), terminal op margin 15–25.
+- Defensives/utilities: WACC 6–8, terminal growth 2–3, revenue CAGR 3–6, terminal op margin 10–20.
+- Distressed or unprofitable growth: WACC 12–16, terminal growth 1–2, revenue CAGR 15–35, terminal op margin 5–15.
+
+Provide a 1–2 sentence rationale explaining the key picks (especially WACC and CAGR) referencing the company's specific characteristics. Example: "NVDA: WACC 9% reflects beta ~1.7 and rising rates; revenue CAGR 45% fades from FY25's 114% growth as hyperscaler capex normalizes by year 3."
+
+The slider ranges in the UI are: WACC 4–18, terminal growth 1–5, revenue CAGR 0–60, terminal op margin 5–80. All values MUST stay inside these bounds.
 
 ## Adaptive sections
 
