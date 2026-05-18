@@ -85,7 +85,7 @@ export default function HeroValue({ range = '1M', onRange, sparkData, data = POR
         <span>Cash {fmtCurrency(data.cash, 0)}</span>
       </div>
       <div style={{ marginTop: 8 }}>
-        <Sparkline data={sparkData ?? PORTFOLIO_SPARK} width={700} height={200} strokeWidth={2} responsive />
+        <Sparkline data={sparkData ?? PORTFOLIO_SPARK} width={700} height={140} strokeWidth={2} responsive />
       </div>
     </div>
   );
