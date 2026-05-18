@@ -27,9 +27,10 @@ export async function GET(request) {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const oneYearAgo = new Date();
-  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-  const fromDate = oneYearAgo.toISOString().slice(0, 10);
+  const yearsBack = Math.min(Math.max(parseInt(searchParams.get('years') ?? '1', 10), 1), 5);
+  const fromDateObj = new Date();
+  fromDateObj.setFullYear(fromDateObj.getFullYear() - yearsBack);
+  const fromDate = fromDateObj.toISOString().slice(0, 10);
 
   trackFMP(tickers.length).catch(() => {});
 

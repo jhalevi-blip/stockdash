@@ -39,9 +39,9 @@ export async function GET(request) {
         return {
           ticker,
           sector,
-          companyName: d?.companyName ?? null,
-          volAvg:      d?.volAvg      ?? null,
-          image:       d?.image       ?? null,
+          companyName: d?.companyName     ?? null,
+          volAvg:      d?.averageVolume   ?? null,
+          image:       d?.image           ?? null,
         };
       } catch {
         return null;

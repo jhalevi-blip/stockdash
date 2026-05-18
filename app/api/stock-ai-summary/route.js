@@ -34,18 +34,55 @@ const generateStockSummaryTool = {
         type: 'string',
         description: "1-2 sentences on the most important upcoming event or metric to monitor. Always provided.",
       },
+      oneLiner: {
+        type: 'string',
+        description: "One punchy sentence (max 18 words) summarizing the 3-year investment case. In the user's language.",
+      },
+      bull: {
+        type: 'array',
+        items: { type: 'string' },
+        description: "3-4 specific bullish catalysts for the 3-year horizon. Each item 1-2 sentences, grounded in the data provided.",
+      },
+      bear: {
+        type: 'array',
+        items: { type: 'string' },
+        description: "3-4 bearish risks or headwinds for the 3-year horizon. Each item 1-2 sentences, grounded in the data provided.",
+      },
+      risks: {
+        type: 'array',
+        items: { type: 'string' },
+        description: "3-4 key tail risks that could invalidate the thesis (regulatory, macro, competitive, execution). Each item 1-2 sentences.",
+      },
+      threeYearTarget: {
+        type: 'object',
+        properties: {
+          bear: { type: 'number', description: 'Bear-case 3-year price target (USD).' },
+          base: { type: 'number', description: 'Base-case 3-year price target (USD).' },
+          bull: { type: 'number', description: 'Bull-case 3-year price target (USD).' },
+        },
+        required: ['bear', 'base', 'bull'],
+        description: "3-year price targets in USD. Base should imply meaningful upside/downside vs current price. All three must be positive numbers.",
+      },
+      fitsPortfolio: {
+        type: ['string', 'null'],
+        description: "How this stock fits the user's existing portfolio (concentration, diversification, correlation to existing positions). Null if no holdings context was provided.",
+      },
       language: {
         type: 'string',
         description: "ISO language code used for the text content (e.g., 'en', 'nl', 'de', 'fr').",
       },
     },
-    required: ['rating', 'rating_summary', 'thesis', 'what_to_watch', 'language'],
+    required: ['rating', 'rating_summary', 'thesis', 'what_to_watch', 'oneLiner', 'bull', 'bear', 'risks', 'threeYearTarget', 'language'],
   },
 };
 
 const SYSTEM_PROMPT = `You are a stock analyst for StockDashes, powered by Claude.
 
 You analyze individual stocks and call the generate_stock_summary tool with structured insights. You never respond with prose outside the tool call.
+
+## Investment horizon
+
+IMPORTANT: All analysis, targets, bull/bear cases, and thesis must reflect a 3-YEAR INVESTING HORIZON. This is NOT day-trading advice. Do not mention short-term price moves, earnings beats/misses as trading signals, or intraday catalysts. Focus on where the business will be in 3 years.
 
 ## Rating rubric (use consistently; avoid clustering)
 
@@ -63,11 +100,20 @@ Use half-point increments (e.g., 6.5, 7.5) to avoid clustering at integer scores
 - Direct but friendly. Written for a casual retail investor, not a finance professional.
 - Never invent numbers. Every specific claim must be derivable from the data.
 
+## 3-year price targets
+
+Set threeYearTarget.base at the level you genuinely expect the stock to reach in 3 years given current trajectory. Set bear 20-35% below base, bull 25-45% above base. All must be positive numbers.
+
+## Portfolio fit (fitsPortfolio)
+
+If the user's portfolio holdings are provided in the context, populate fitsPortfolio with 2-3 sentences on how this stock fits (or clashes with) the portfolio: concentration risk, sector overlap, diversification benefit, or correlation to existing positions. If no holdings context is provided, return null.
+
 ## Adaptive sections
 
 - Omit bull_case if there are no meaningful bullish signals (no analyst upside, no insider buys, no earnings beats).
 - Omit bear_case if there are no meaningful bearish signals (no high short interest, no earnings misses, no stretched valuation).
 - thesis and what_to_watch are always provided.
+- bull, bear, risks arrays: always provide 3-4 items each, even if data is limited (use reasonable inference from sector and valuation).
 
 ## Language
 
@@ -78,6 +124,7 @@ function buildUserMessage(body) {
     ticker, price, userLang,
     analystD, valD, finD, earningsHist,
     insiders, siD, peersList, row,
+    holdings,   // optional: user's portfolio holdings for fitsPortfolio
   } = body;
 
   const fmt2 = n => (n == null ? '—' : Number(n).toFixed(2));
@@ -170,6 +217,15 @@ function buildUserMessage(body) {
     lines.push(`User Position: ${row.s} shares, avg cost $${avgCost != null ? fmt2(avgCost) : '—'}, P&L ${row.pnlAmt != null ? (row.pnlAmt >= 0 ? '+$' : '-$') + Math.abs(row.pnlAmt).toFixed(0) : '—'}${row.pnlPct != null ? ` (${row.pnlPct >= 0 ? '+' : ''}${fmt1(row.pnlPct)}%)` : ''}`);
   }
 
+  // User portfolio holdings (for fitsPortfolio)
+  if (Array.isArray(holdings) && holdings.length) {
+    const hLines = holdings
+      .slice(0, 10)
+      .map(h => `  ${h.ticker}: ${h.shares} shares @ $${h.avgCost?.toFixed(2) ?? '—'}, MV $${h.marketValue?.toFixed(0) ?? '—'}`)
+      .join('\n');
+    lines.push(`User Portfolio Holdings:\n${hLines}`);
+  }
+
   lines.push(`\nUser's browser locale: ${userLang || 'en'}`);
 
   return lines.join('\n');
@@ -196,7 +252,7 @@ export async function POST(request) {
       },
       body: JSON.stringify({
         model: 'claude-opus-4-7',
-        max_tokens: 800,
+        max_tokens: 1600,
         system: SYSTEM_PROMPT,
         tools: [generateStockSummaryTool],
         tool_choice: { type: 'tool', name: 'generate_stock_summary' },
