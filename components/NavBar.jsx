@@ -16,7 +16,7 @@ const links = [
   { href: '/insider',        label: 'Insider',     icon: '🔎', dataTour: 'insider-link' },
   { href: '/institutional',  label: 'Ownership',   icon: '🏛', dataTour: 'ownership-link' },
   { href: '/peers',          label: 'Peers',       icon: '📋' },
-  { href: '/research',       label: 'Research',    icon: '📑' },
+  { href: '/financial-filings', label: 'Financial Filings', icon: '📑' },
   { href: '/valuation',      label: 'Valuation',   icon: '📐' },
   { href: '/earnings',       label: 'Earnings',    icon: '📅' },
   { href: '/analyst-ratings', label: 'Analyst',     icon: '🎯' },
