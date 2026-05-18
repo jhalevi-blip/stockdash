@@ -13,11 +13,15 @@ export async function GET(request) {
 
   trackFinnhub(holdings.length); // 1 call per ticker
 
+  // Single-ticker research card requests get 15 transactions; multi-ticker
+  // portfolio queries keep 3 per ticker to stay within the global 30-cap.
+  const perTickerLimit = holdings.length === 1 ? 15 : 3;
+
   const results = await Promise.all(
     holdings.map(h =>
       fetch(`https://finnhub.io/api/v1/stock/insider-transactions?symbol=${h.t}&token=${key}`, { next: { revalidate: 86400 } })
         .then(r => r.json())
-        .then(d => (d.data || []).slice(0, 3).map(t => ({
+        .then(d => (d.data || []).slice(0, perTickerLimit).map(t => ({
           ticker: h.t,
           name: t.name,
           share: t.share,

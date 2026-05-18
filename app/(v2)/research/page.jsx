@@ -1459,6 +1459,363 @@ function ValuationMetricsCard({ ticker, metrics, valHistory }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// SUBSYSTEM 9 — INSIDER TRADING CARD
+// ─────────────────────────────────────────────────────────────
+
+const INSIDER_CODES = {
+  P: { label: 'Purchase',        color: '#16a34a' },
+  S: { label: 'Sale',            color: '#dc2626' },
+  A: { label: 'Award',           color: '#2563eb' },
+  M: { label: 'Option Exercise', color: '#7c3aed' },
+  X: { label: 'Exercise',        color: '#7c3aed' },
+  F: { label: 'Tax Withhold',    color: '#d97706' },
+  D: { label: 'Disposition',     color: '#d97706' },
+};
+
+function InsiderTradingCard({ ticker }) {
+  const [transactions, setTransactions] = useState(null); // null = loading
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!ticker) return;
+    setTransactions(null);
+    setError(false);
+    fetch(`/api/insider?tickers=${ticker}`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) setTransactions(data);
+        else { setTransactions([]); setError(true); }
+      })
+      .catch(() => { setTransactions([]); setError(true); });
+  }, [ticker]);
+
+  if (transactions === null) {
+    return <Card title="Insider Trading" eyebrow={ticker}><PlaceholderBody label="Loading insider activity…" /></Card>;
+  }
+
+  if (error) {
+    return <Card title="Insider Trading" eyebrow={ticker}><PlaceholderBody label="Insider data unavailable." /></Card>;
+  }
+
+  if (transactions.length === 0) {
+    return <Card title="Insider Trading" eyebrow={ticker}><PlaceholderBody label={`No recent insider activity for ${ticker}.`} /></Card>;
+  }
+
+  // Summary computation
+  const buys  = transactions.filter(t => t.transactionCode === 'P');
+  const sells = transactions.filter(t => t.transactionCode === 'S');
+  const other = transactions.filter(t => t.transactionCode !== 'P' && t.transactionCode !== 'S');
+  const hasOpenMarket = buys.length > 0 || sells.length > 0;
+
+  const netValue = transactions.reduce((sum, t) => {
+    const sign = t.transactionCode === 'P' ? 1 : -1;
+    return sum + sign * Math.abs((t.change ?? 0) * (t.transactionPrice ?? 0));
+  }, 0);
+
+  const dates = transactions.map(t => t.transactionDate).filter(Boolean).sort();
+
+  function fmtShortDate(s) {
+    return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  function fmtAmt(v) {
+    const abs = Math.abs(v);
+    const sign = v < 0 ? '-' : '';
+    if (abs >= 1e9) return sign + '$' + (abs / 1e9).toFixed(1) + 'B';
+    if (abs >= 1e6) return sign + '$' + (abs / 1e6).toFixed(1) + 'M';
+    if (abs >= 1e3) return sign + '$' + (abs / 1e3).toFixed(0) + 'K';
+    return sign + '$' + abs.toFixed(0);
+  }
+
+  const dateRange = dates.length
+    ? fmtShortDate(dates[0]) + (dates.length > 1 ? ' – ' + fmtShortDate(dates[dates.length - 1]) : '')
+    : '';
+
+  return (
+    <Card title="Insider Trading" eyebrow={ticker}>
+      {/* Summary strip */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10, fontSize: 11 }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{dateRange}</span>
+        {hasOpenMarket ? (
+          <>
+            <span style={{ color: 'var(--text-muted)' }}>·</span>
+            {buys.length > 0 && (
+              <span style={{ color: 'var(--positive)', fontWeight: 700 }}>{buys.length} buy{buys.length !== 1 ? 's' : ''}</span>
+            )}
+            {buys.length > 0 && sells.length > 0 && <span style={{ color: 'var(--text-muted)' }}>·</span>}
+            {sells.length > 0 && (
+              <span style={{ color: 'var(--negative)', fontWeight: 700 }}>{sells.length} sell{sells.length !== 1 ? 's' : ''}</span>
+            )}
+            <span style={{ color: 'var(--text-muted)' }}>·</span>
+            <span style={{ fontWeight: 700, color: netValue >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
+              Net {netValue >= 0 ? '+' : ''}{fmtAmt(netValue)}
+            </span>
+          </>
+        ) : (
+          <>
+            <span style={{ color: 'var(--text-muted)' }}>·</span>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              {other.length} exercise{other.length !== 1 ? 's' : ''}/award{other.length !== 1 ? 's' : ''} · No open-market activity
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* Transaction table */}
+      <div style={{ overflowX: 'auto', maxHeight: 260, overflowY: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+          <thead>
+            <tr>
+              {['Date', 'Insider', 'Type', 'Shares', 'Price', 'Value'].map((h, i) => (
+                <th key={h} style={{
+                  textAlign: i < 2 ? 'left' : 'right',
+                  fontSize: 9, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase',
+                  color: 'var(--text-muted)', padding: '4px 6px',
+                  borderBottom: '1px solid var(--border-color)',
+                  background: 'var(--bg-secondary)', whiteSpace: 'nowrap',
+                  position: 'sticky', top: 0,
+                }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {transactions.slice(0, 10).map((t, i) => {
+              const code   = INSIDER_CODES[t.transactionCode];
+              const isBuy  = t.transactionCode === 'P';
+              const isSell = t.transactionCode === 'S';
+              const value  = Math.abs((t.change ?? 0) * (t.transactionPrice ?? 0));
+              const name   = t.name?.length > 22 ? t.name.slice(0, 20) + '…' : (t.name ?? '—');
+              return (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <td style={{ padding: '6px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                    {t.transactionDate ? fmtShortDate(t.transactionDate) : '—'}
+                  </td>
+                  <td style={{ padding: '6px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {name}
+                  </td>
+                  <td style={{ padding: '6px', textAlign: 'right' }}>
+                    <span style={{
+                      background: (code?.color ?? '#6b7280') + '22',
+                      color:      code?.color ?? '#6b7280',
+                      border:     `1px solid ${(code?.color ?? '#6b7280')}55`,
+                      borderRadius: 3, padding: '1px 5px',
+                      fontSize: 9, fontWeight: 700, whiteSpace: 'nowrap',
+                    }}>
+                      {code?.label ?? t.transactionCode}
+                    </span>
+                  </td>
+                  <td style={{
+                    padding: '6px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600,
+                    color: isBuy ? 'var(--positive)' : isSell ? 'var(--negative)' : 'var(--text-secondary)',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {t.change != null ? (t.change > 0 ? '+' : '') + t.change.toLocaleString('en-US') : '—'}
+                  </td>
+                  <td style={{ padding: '6px', textAlign: 'right', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                    {t.transactionPrice ? '$' + t.transactionPrice.toFixed(2) : '—'}
+                  </td>
+                  <td style={{ padding: '6px', textAlign: 'right', color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    {value > 0 ? fmtAmt(value) : '—'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {transactions.length > 10 && (
+        <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6 }}>
+          Showing 10 of {transactions.length} transactions
+        </p>
+      )}
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SUBSYSTEM 10 — INSTITUTIONAL OWNERSHIP CARD
+// ─────────────────────────────────────────────────────────────
+
+function InstitutionalOwnershipCard({ ticker }) {
+  const [data,    setData]    = useState(null);  // null = loading, false = unavailable, obj = loaded
+  const [loading, setLoading] = useState(true);
+  const [retry,   setRetry]   = useState(0);
+
+  useEffect(() => {
+    if (!ticker) return;
+    setData(null);
+    setLoading(true);
+    fetch(`/api/institutional?tickers=${ticker}`)
+      .then(r => r.json())
+      .then(arr => setData(Array.isArray(arr) && arr[0] ? arr[0] : false))
+      .catch(() => setData(false))
+      .finally(() => setLoading(false));
+  }, [ticker, retry]);
+
+  if (loading) {
+    return <Card title="Institutional Ownership" eyebrow={ticker}><PlaceholderBody label="Loading 13F filings…" /></Card>;
+  }
+
+  if (!data || data.institutionsPctHeld === null) {
+    return (
+      <Card title="Institutional Ownership" eyebrow={ticker}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '20px 0' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Institutional data unavailable</div>
+          <button
+            onClick={() => setRetry(r => r + 1)}
+            style={{
+              fontSize: 11, color: 'var(--accent)', background: 'none',
+              border: '1px solid var(--accent)', borderRadius: 4,
+              padding: '3px 12px', cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >Retry</button>
+        </div>
+      </Card>
+    );
+  }
+
+  function fmtPct(n) { return n == null ? '—' : (n * 100).toFixed(1) + '%'; }
+  function fmtB(n) {
+    if (n == null) return '—';
+    if (n >= 1e9) return '$' + (n / 1e9).toFixed(1) + 'B';
+    if (n >= 1e6) return '$' + (n / 1e6).toFixed(0) + 'M';
+    return '$' + n.toFixed(0);
+  }
+
+  const statStyle = {
+    flex: 1, padding: '10px 12px',
+    borderLeft: '1px solid var(--border-color)',
+  };
+
+  return (
+    <Card title="Institutional Ownership" eyebrow={ticker}>
+      {/* 3-stat strip */}
+      <div style={{ display: 'flex', border: '1px solid var(--border-color)', borderRadius: 6, overflow: 'hidden', marginBottom: 14 }}>
+        <div style={{ flex: 1, padding: '10px 12px' }}>
+          <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>Inst. Own</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{fmtPct(data.institutionsPctHeld)}</div>
+        </div>
+        <div style={statStyle}>
+          <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>Insider Own</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{fmtPct(data.insidersPctHeld)}</div>
+        </div>
+        <div style={statStyle}>
+          <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>Filers</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+            {data.institutionsCount?.toLocaleString('en-US') ?? '—'}
+          </div>
+        </div>
+      </div>
+
+      {/* Top 5 holders */}
+      {data.top5?.length > 0 && (
+        <>
+          <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>
+            Top Holders
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {data.top5.map((h, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: 10, minWidth: 14, textAlign: 'right', flexShrink: 0 }}>{i + 1}.</span>
+                <span style={{ flex: 1, fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {h.name}
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                  {fmtPct(h.pctHeld)}
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                  {fmtB(h.value)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 10 }}>
+        Source: Yahoo Finance 13F filings. Shares column not reported by Yahoo.
+      </p>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SUBSYSTEM 11 — SHORT INTEREST CARD
+// ─────────────────────────────────────────────────────────────
+
+function ShortInterestCard({ ticker }) {
+  const [data,    setData]    = useState(null);  // null = loading, false = unavailable, obj = loaded
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!ticker) return;
+    setData(null);
+    setLoading(true);
+    fetch(`/api/short-interest-data?tickers=${ticker}`)
+      .then(r => r.json())
+      .then(arr => setData(Array.isArray(arr) && arr[0] ? arr[0] : false))
+      .catch(() => setData(false))
+      .finally(() => setLoading(false));
+  }, [ticker]);
+
+  if (loading) {
+    return <Card title="Short Interest" eyebrow={ticker}><PlaceholderBody label="Loading short interest…" /></Card>;
+  }
+
+  if (!data || data.shortPercentOfFloat === null) {
+    return <Card title="Short Interest" eyebrow={ticker}><PlaceholderBody label="Short interest data unavailable." /></Card>;
+  }
+
+  const siPct   = (data.shortPercentOfFloat ?? 0) * 100;
+  const siColor = siPct < 2 ? 'var(--positive)' : siPct < 5 ? 'var(--text-primary)' : siPct < 10 ? 'var(--warn)' : 'var(--negative)';
+  const momColor = data.siChange == null ? 'var(--text-muted)' : data.siChange > 0 ? 'var(--warn)' : 'var(--positive)';
+
+  function fmtM(n) { return n == null ? '—' : (n / 1e6).toFixed(1) + 'M'; }
+
+  const statBorder = { flex: 1, padding: '10px 12px', borderLeft: '1px solid var(--border-color)' };
+
+  return (
+    <Card title="Short Interest" eyebrow={ticker}>
+      {/* 3-stat strip */}
+      <div style={{ display: 'flex', border: '1px solid var(--border-color)', borderRadius: 6, overflow: 'hidden', marginBottom: 14 }}>
+        <div style={{ flex: 1, padding: '10px 12px' }}>
+          <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>Short % Float</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: siColor, fontVariantNumeric: 'tabular-nums' }}>{siPct.toFixed(2)}%</div>
+        </div>
+        <div style={statBorder}>
+          <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>Days to Cover</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+            {data.shortRatio != null ? data.shortRatio.toFixed(2) : '—'}
+          </div>
+        </div>
+        <div style={statBorder}>
+          <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>MoM Change</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: momColor, fontVariantNumeric: 'tabular-nums' }}>
+            {data.siChange != null ? (data.siChange > 0 ? '+' : '') + data.siChange.toFixed(1) + '%' : '—'}
+          </div>
+        </div>
+      </div>
+
+      {/* Detail row */}
+      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 12 }}>
+        {[
+          { label: 'Shares Short',  value: fmtM(data.sharesShort)           },
+          { label: 'Prior Month',   value: fmtM(data.sharesShortPriorMonth)  },
+          { label: 'As of',         value: data.lastUpdated ?? '—'           },
+        ].map(s => (
+          <div key={s.label}>
+            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 3 }}>{s.label}</div>
+            <div style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--text-secondary)' }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+      <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 10 }}>
+        Short interest is settlement-date lagged (~2 weeks).
+      </p>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────
 
@@ -1755,15 +2112,9 @@ function ResearchPageInner() {
 
       {/* 7–8–9. Insider | Institutional | Short Interest */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-        <Card title="Insider Trading" eyebrow="Coming in B3">
-          <PlaceholderBody label="Form 4 trades — loading in B3" height={120} />
-        </Card>
-        <Card title="Institutional Ownership" eyebrow="Coming in B3">
-          <PlaceholderBody label="13F holdings — loading in B3" height={120} />
-        </Card>
-        <Card title="Short Interest" eyebrow="Coming in B3">
-          <PlaceholderBody label="Short % float, ratio — loading in B3" height={120} />
-        </Card>
+        <InsiderTradingCard         ticker={ticker} />
+        <InstitutionalOwnershipCard ticker={ticker} />
+        <ShortInterestCard          ticker={ticker} />
       </div>
 
       {/* 10. Peer Comparison */}

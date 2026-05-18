@@ -44,12 +44,16 @@ async function fetchShortInterest(ticker, auth) {
       ? ((sharesShort - sharesShortPriorMonth) / sharesShortPriorMonth) * 100
       : null;
 
+    const dateRaw   = ks.dateShortInterest?.raw ?? null;
+    const lastUpdated = dateRaw ? new Date(dateRaw * 1000).toISOString().slice(0, 10) : null;
+
     return {
       shortPercentOfFloat:  ks.shortPercentOfFloat?.raw ?? null,
       sharesShort,
       shortRatio:           ks.shortRatio?.raw          ?? null,
       sharesShortPriorMonth,
       siChange,
+      lastUpdated,
     };
   } catch {
     return null;
@@ -73,6 +77,7 @@ export async function GET(request) {
         shortRatio:           si?.shortRatio           ?? null,
         sharesShortPriorMonth: si?.sharesShortPriorMonth ?? null,
         siChange:             si?.siChange             ?? null,
+        lastUpdated:          si?.lastUpdated          ?? null,
       };
     })
   );
