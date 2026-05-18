@@ -1,10 +1,27 @@
 'use client';
 
-import Sparkline from '@/app/(v2)/_components/Sparkline';
-import { PORTFOLIO, PORTFOLIO_SPARK } from '../_lib/mockData';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { PORTFOLIO } from '../_lib/mockData';
 import { fmtCurrency, fmtPct, fmtSigned } from '@/app/(v2)/_lib/format';
 
 const RANGES = ['1D', '1W', '1M', '3M', '1Y', 'ALL'];
+
+function fmtXTick(dateStr, range) {
+  const d = new Date(dateStr);
+  if (range === '1W') return d.toLocaleDateString('en-US', { weekday: 'short' });
+  if (range === '1M') return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'short' });
+}
+
+function fmtKAxis(v) {
+  if (v >= 1000000) return '$' + (v / 1000000).toFixed(1) + 'M';
+  if (v >= 1000)    return '$' + (v / 1000).toFixed(0) + 'k';
+  return '$' + v;
+}
+
+function fmtFullValue(v) {
+  return v?.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
 
 export default function HeroValue({ range = '1M', onRange, sparkData, data = PORTFOLIO }) {
   return (
@@ -84,8 +101,52 @@ export default function HeroValue({ range = '1M', onRange, sparkData, data = POR
         <span>·</span>
         <span>Cash {fmtCurrency(data.cash, 0)}</span>
       </div>
-      <div style={{ marginTop: 8 }}>
-        <Sparkline data={sparkData ?? PORTFOLIO_SPARK} width={700} height={140} strokeWidth={2} responsive />
+      <div style={{ marginTop: 8, width: '100%', height: 140 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={sparkData ?? []} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="hero-spark-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#16a34a" stopOpacity={0.2} />
+                <stop offset="100%" stopColor="#16a34a" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
+            <XAxis
+              dataKey="date"
+              tickFormatter={(v) => fmtXTick(v, range)}
+              tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
+              axisLine={false}
+              tickLine={false}
+              minTickGap={30}
+            />
+            <YAxis
+              dataKey="value"
+              tickFormatter={fmtKAxis}
+              tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
+              axisLine={false}
+              tickLine={false}
+              width={50}
+              domain={['dataMin', 'dataMax']}
+            />
+            <Tooltip
+              contentStyle={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 6,
+                fontSize: 12,
+              }}
+              labelStyle={{ color: 'var(--text-muted)' }}
+              formatter={(v) => [fmtFullValue(v), 'Portfolio']}
+            />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke="#16a34a"
+              strokeWidth={2}
+              fill="url(#hero-spark-fill)"
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );

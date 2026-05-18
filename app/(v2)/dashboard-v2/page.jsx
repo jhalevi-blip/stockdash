@@ -159,14 +159,19 @@ export default function DashboardV2Page() {
       .catch(() => {});
   }, [holdings]);
 
-  // Slice the full history array by the selected range → flat number[] for Sparkline.
-  // Falls back to mock PORTFOLIO_SPARK when history hasn't loaded yet.
+  // Slice the full history array by the selected range → { date, value }[] for the hero chart.
+  // Falls back to mock PORTFOLIO_SPARK (with synthetic trailing dates) when history hasn't loaded yet.
   const sparkData = useMemo(() => {
-    if (!history || !history.length) return PORTFOLIO_SPARK;
+    if (!history || !history.length) {
+      const now = Date.now();
+      return PORTFOLIO_SPARK.map((value, i) => ({
+        date: new Date(now - (PORTFOLIO_SPARK.length - 1 - i) * 86400000).toISOString().slice(0, 10),
+        value,
+      }));
+    }
     const sliceCount = { '1W': 7, '1M': 22, '3M': 66, '1Y': Infinity, 'ALL': Infinity };
     const n = sliceCount[range] ?? 22; // '1D' guard: treat unknown range as 1M
-    const sliced = n === Infinity ? history : history.slice(-n);
-    return sliced.map(d => d.value);
+    return n === Infinity ? history : history.slice(-n);
   }, [history, range]);
 
   // Compute enriched rows in the shape HoldingsTable expects.
