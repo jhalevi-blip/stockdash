@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip,
@@ -1816,6 +1816,286 @@ function ShortInterestCard({ ticker }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// SUBSYSTEM 12 — PEER COMPARISON CARD
+// ─────────────────────────────────────────────────────────────
+
+const PEER_METRICS = [
+  { key: 'marketCap',     label: 'Market Cap',  fmt: v => fmtCap(v),                                lowerIsBetter: false },
+  { key: 'revenueGrowth', label: 'Rev Growth',  fmt: v => v == null ? '—' : v.toFixed(1) + '%',    lowerIsBetter: false },
+  { key: 'peRatio',       label: 'P/E TTM',     fmt: v => fmtRatio(v),                              lowerIsBetter: true  },
+  { key: 'psRatio',       label: 'P/S',         fmt: v => fmtRatio(v),                              lowerIsBetter: true  },
+  { key: 'netMargin',     label: 'Net Margin',  fmt: v => v == null ? '—' : v.toFixed(1) + '%',    lowerIsBetter: false },
+  { key: 'roe',           label: 'ROE',         fmt: v => v == null ? '—' : v.toFixed(1) + '%',    lowerIsBetter: false },
+];
+
+function PeerComparisonCard({ ticker, overlayPeers, setOverlayPeers }) {
+  const router = useRouter();
+  const [peers, setPeers] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!ticker) return;
+    setPeers(null);
+    setLoading(true);
+    setError(false);
+    fetch(`/api/peers?ticker=${ticker}`)
+      .then(r => r.json())
+      .then(data => setPeers(Array.isArray(data) && data.length ? data : null))
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [ticker]);
+
+  if (loading) return <Card title="Peer Comparison" eyebrow={ticker}><PlaceholderBody label="Loading peer data…" /></Card>;
+  if (error)   return <Card title="Peer Comparison" eyebrow={ticker}><PlaceholderBody label="Peer data unavailable." /></Card>;
+  if (!peers)  return <Card title="Peer Comparison" eyebrow={ticker}><PlaceholderBody label={`No peer data found for ${ticker}.`} /></Card>;
+
+  const base  = peers.find(p => p.isBase) ?? peers[0];
+  const peerList = peers.filter(p => !p.isBase).slice(0, 5);
+  const allCols  = [base, ...peerList];
+
+  // Best-in-class index per metric (across all columns)
+  function getBestIdx(metric) {
+    const vals = allCols.map(p => p[metric.key]);
+    const valid = vals.filter(v => v != null && isFinite(v) && v > 0);
+    if (!valid.length) return -1;
+    const best = metric.lowerIsBetter ? Math.min(...valid) : Math.max(...valid);
+    return vals.findIndex(v => v === best);
+  }
+
+  return (
+    <Card
+      title="Peer Comparison"
+      eyebrow={ticker}
+      footer={<a href="/peers" style={{ color: 'var(--accent)', fontSize: 12 }}>View full peer matrix →</a>}
+    >
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--text-muted)', fontWeight: 500, width: 100 }}>Metric</th>
+              {allCols.map((p, ci) => {
+                const isBase    = p.isBase;
+                const peerTick  = p.ticker;
+                const isOverlay = overlayPeers.includes(peerTick);
+                const slotIdx   = overlayPeers.indexOf(peerTick);
+                const slotColor = isOverlay ? PEER_COLORS[slotIdx] : 'var(--accent)';
+                const canToggle = isOverlay || overlayPeers.length < 3;
+                return (
+                  <th
+                    key={peerTick}
+                    style={{
+                      textAlign: 'right',
+                      padding: '6px 8px',
+                      background: isBase ? 'color-mix(in srgb, var(--accent) 11%, transparent)' : undefined,
+                      borderBottom: isBase ? '2px solid var(--accent)' : '2px solid var(--border-color)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                      <span
+                        style={{ color: isBase ? 'var(--accent)' : 'var(--text-primary)', fontWeight: 600, cursor: isBase ? 'default' : 'pointer' }}
+                        onClick={() => !isBase && router.push(`/research?ticker=${peerTick}`)}
+                      >
+                        {peerTick}
+                      </span>
+                      {!isBase && (
+                        <button
+                          onClick={() => setOverlayPeers(prev =>
+                            prev.includes(peerTick)
+                              ? prev.filter(t => t !== peerTick)
+                              : prev.length >= 3 ? prev : [...prev, peerTick]
+                          )}
+                          disabled={!canToggle}
+                          style={{
+                            fontSize: 10,
+                            padding: '1px 5px',
+                            borderRadius: 4,
+                            border: `1px solid ${slotColor}`,
+                            background: isOverlay ? slotColor : 'transparent',
+                            color: isOverlay ? '#fff' : slotColor,
+                            cursor: canToggle ? 'pointer' : 'not-allowed',
+                            opacity: canToggle ? 1 : 0.4,
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {isOverlay ? '✕ Overlay' : '+ Overlay'}
+                        </button>
+                      )}
+                    </div>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {PEER_METRICS.map(metric => {
+              const bestIdx = getBestIdx(metric);
+              return (
+                <tr key={metric.key} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <td style={{ padding: '7px 8px', color: 'var(--text-secondary)', fontWeight: 500 }}>{metric.label}</td>
+                  {allCols.map((p, ci) => {
+                    const isBest   = ci === bestIdx;
+                    const isBase   = p.isBase;
+                    const val      = p[metric.key];
+                    return (
+                      <td
+                        key={p.ticker}
+                        style={{
+                          textAlign: 'right',
+                          padding: '7px 8px',
+                          fontVariantNumeric: 'tabular-nums',
+                          fontWeight: isBest ? 700 : 400,
+                          color: isBest ? 'var(--positive)' : isBase ? 'var(--text-primary)' : 'var(--text-secondary)',
+                          background: isBest
+                            ? 'color-mix(in srgb, var(--positive) 12%, transparent)'
+                            : isBase ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : undefined,
+                        }}
+                      >
+                        {metric.fmt(val)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SUBSYSTEM 13 — SEC FILINGS CARD
+// ─────────────────────────────────────────────────────────────
+
+const FILING_BADGE_COLORS = {
+  '10-K':    'var(--accent)',
+  '10-Q':    'var(--positive)',
+  '8-K':     'var(--warn)',
+  'DEF 14A': '#7c3aed',
+};
+
+const SHOWN_TYPES = ['10-K', '10-Q', '8-K', 'DEF 14A'];
+
+function fmtFilingDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function SECFilingsCard({ ticker }) {
+  const [filings, setFilings]     = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState(false);
+  const [filterType, setFilterType] = useState('all');
+
+  useEffect(() => {
+    if (!ticker) return;
+    setFilings(null);
+    setLoading(true);
+    setError(false);
+    setFilterType('all');
+    fetch(`/api/research?symbol=${ticker}&type=filings`)
+      .then(r => r.json())
+      .then(data => setFilings(Array.isArray(data) ? data.filter(f => SHOWN_TYPES.includes(f.type)) : null))
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [ticker]);
+
+  if (loading) return <Card title="SEC Filings" eyebrow={ticker}><PlaceholderBody label="Loading filings…" /></Card>;
+  if (error)   return <Card title="SEC Filings" eyebrow={ticker}><PlaceholderBody label="Filing data unavailable." /></Card>;
+  if (!filings || !filings.length) return <Card title="SEC Filings" eyebrow={ticker}><PlaceholderBody label={`No filings found for ${ticker}.`} /></Card>;
+
+  const typeCounts = {};
+  SHOWN_TYPES.forEach(t => { typeCounts[t] = filings.filter(f => f.type === t).length; });
+
+  const filtered = filterType === 'all' ? filings : filings.filter(f => f.type === filterType);
+  const visible  = filtered.slice(0, 8);
+
+  return (
+    <Card title="SEC Filings" eyebrow={ticker}>
+      {/* Filter chips */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        {[{ key: 'all', label: 'All', count: filings.length }, ...SHOWN_TYPES.map(t => ({ key: t, label: t, count: typeCounts[t] }))].map(chip => {
+          if (chip.key !== 'all' && chip.count === 0) return null;
+          const active = filterType === chip.key;
+          return (
+            <button
+              key={chip.key}
+              onClick={() => setFilterType(chip.key)}
+              style={{
+                fontSize: 11,
+                padding: '3px 10px',
+                borderRadius: 99,
+                border: `1px solid ${active ? 'var(--accent)' : 'var(--border-color)'}`,
+                background: active ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent',
+                color: active ? 'var(--accent)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              {chip.label}
+              <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }}>{chip.count}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Filing rows */}
+      <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {visible.map((f, i) => {
+          const color = FILING_BADGE_COLORS[f.type] ?? 'var(--text-muted)';
+          const label = `${f.type} — ${fmtFilingDate(f.date)}`;
+          return (
+            <a
+              key={i}
+              href={f.finalLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '7px 10px',
+                borderRadius: 6,
+                textDecoration: 'none',
+                color: 'var(--text-primary)',
+                background: 'transparent',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <span style={{
+                fontSize: 10,
+                fontWeight: 700,
+                padding: '2px 6px',
+                borderRadius: 4,
+                background: `color-mix(in srgb, ${color} 18%, transparent)`,
+                color,
+                minWidth: 48,
+                textAlign: 'center',
+              }}>
+                {f.type}
+              </span>
+              <span style={{ flex: 1, fontSize: 12 }}>{label}</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>→</span>
+            </a>
+          );
+        })}
+      </div>
+
+      {/* Footer */}
+      {filtered.length > 8 && (
+        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+          Showing 8 of {filtered.length}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────
 
@@ -2119,15 +2399,15 @@ function ResearchPageInner() {
 
       {/* 10. Peer Comparison */}
       <div id="section-peers">
-        <Card title="Peer Comparison" eyebrow="Coming in B3">
-          <PlaceholderBody label="Valuation vs sector peers — loading in B3" />
-        </Card>
+        <PeerComparisonCard
+          ticker={ticker}
+          overlayPeers={overlayPeers}
+          setOverlayPeers={setOverlayPeers}
+        />
       </div>
 
       {/* 11. SEC Filings */}
-      <Card title="SEC Filings" eyebrow="Coming in B3">
-        <PlaceholderBody label="10-K, 10-Q, 8-K via /api/research — loading in B3" />
-      </Card>
+      <SECFilingsCard ticker={ticker} />
 
       {/* Portfolio modal */}
       {modalOpen && (
