@@ -33,9 +33,16 @@ export async function GET(request) {
         const res  = await fetch(url, { next: { revalidate: 86400 } });
         if (!res.ok) return null;
         const json = await res.json();
-        const sector = Array.isArray(json) ? json[0]?.sector : json?.sector;
+        const d = Array.isArray(json) ? json[0] : json;
+        const sector = d?.sector;
         if (!sector) return null;
-        return { ticker, sector };
+        return {
+          ticker,
+          sector,
+          companyName: d?.companyName ?? null,
+          volAvg:      d?.volAvg      ?? null,
+          image:       d?.image       ?? null,
+        };
       } catch {
         return null;
       }
@@ -44,7 +51,12 @@ export async function GET(request) {
 
   const sectorMap = {};
   for (const entry of results) {
-    if (entry) sectorMap[entry.ticker] = entry.sector;
+    if (entry) sectorMap[entry.ticker] = {
+      sector:      entry.sector,
+      companyName: entry.companyName,
+      volAvg:      entry.volAvg,
+      image:       entry.image,
+    };
   }
 
   return Response.json(sectorMap, {

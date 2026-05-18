@@ -219,7 +219,7 @@ export default function DashboardV2Page() {
     if (totalMktValue <= 0) return null;
     const bySector = {};
     for (const r of enrichedRows) {
-      const sector = sectors[r.ticker] ?? 'Other';
+      const sector = sectors[r.ticker]?.sector ?? 'Other';
       bySector[sector] = (bySector[sector] ?? 0) + r.mktValue;
     }
     const entries = Object.entries(bySector)
