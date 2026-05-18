@@ -969,37 +969,48 @@ function clampTg(v)     { return Math.min(5,  Math.max(1,  Math.round(v * 4) / 4
 function clampCagr(v)   { return Math.min(60, Math.max(0,  Math.round(v)));          }  // step 1
 function clampMargin(v) { return Math.min(80, Math.max(5,  Math.round(v)));          }  // step 1
 
-function DCFCalculator({ ticker, financials, metrics, quote, aiInputs, resolvedRevenue }) {
+function DCFCalculator({ ticker, financials, metrics, quote, aiScenarios, resolvedRevenue }) {
   const [wacc,           setWacc]           = useState(DCF_DEFAULTS.wacc);
   const [terminalGrowth, setTerminalGrowth] = useState(DCF_DEFAULTS.terminalGrowth);
   const [revenueCagr,    setRevenueCagr]    = useState(DCF_DEFAULTS.revenueCagr);
   const [terminalMargin, setTerminalMargin] = useState(DCF_DEFAULTS.terminalMargin);
-  // Ref: did the user manually move any slider since last ticker change / aiInputs arrival?
+  const [activePreset,   setActivePreset]   = useState('consensus');
+  const [isCustomized,   setIsCustomized]   = useState(false);
+  // Ref: true once user manually moves a slider (resets on ticker change or preset click)
   const userTouched = useRef(false);
 
-  // Reset sliders + userTouched when ticker changes (aiInputs effect fires after in the same cycle)
+  // Reset everything on ticker change
   useEffect(() => {
     userTouched.current = false;
+    setIsCustomized(false);
+    setActivePreset('consensus');
     setWacc(DCF_DEFAULTS.wacc);
     setTerminalGrowth(DCF_DEFAULTS.terminalGrowth);
     setRevenueCagr(DCF_DEFAULTS.revenueCagr);
     setTerminalMargin(DCF_DEFAULTS.terminalMargin);
   }, [ticker]);
 
-  // Auto-populate from AI inputs: fires whenever aiInputs arrives/changes,
-  // but only if the user hasn't manually touched a slider yet.
+  // Auto-populate when AI scenarios arrive or active preset changes (skips if user touched)
   useEffect(() => {
-    if (!aiInputs) return;
-    if (userTouched.current) return;
-    setWacc(clampWacc(aiInputs.wacc));
-    setTerminalGrowth(clampTg(aiInputs.terminalGrowth));
-    setRevenueCagr(clampCagr(aiInputs.revenueCagr));
-    setTerminalMargin(clampMargin(aiInputs.terminalMargin));
-  }, [aiInputs]);
+    if (!aiScenarios || userTouched.current) return;
+    const p = aiScenarios[activePreset];
+    if (!p) return;
+    setWacc(clampWacc(p.wacc));
+    setTerminalGrowth(clampTg(p.terminalGrowth));
+    setRevenueCagr(clampCagr(p.revenueCagr));
+    setTerminalMargin(clampMargin(p.terminalMargin));
+  }, [aiScenarios, activePreset]);
 
-  // Wrap each setter to mark user-touched before first interaction
+  // Wrap each setter to mark user-touched + isCustomized on first manual interaction
   function handleSlider(setter) {
-    return (v) => { userTouched.current = true; setter(v); };
+    return (v) => { userTouched.current = true; setIsCustomized(true); setter(v); };
+  }
+
+  // Preset click: reset touch flag, switch preset, let effect populate sliders
+  function selectPreset(preset) {
+    userTouched.current = false;
+    setIsCustomized(false);
+    setActivePreset(preset);
   }
 
   // Derive inputs: prefer resolvedRevenue waterfall (EDGAR annual or TTM fallback)
@@ -1013,26 +1024,12 @@ function DCFCalculator({ ticker, financials, metrics, quote, aiInputs, resolvedR
     ? calcDCF({ lastRevenue, wacc, terminalGrowth, revenueCagr, terminalMargin, sharesOut, netDebt: 0 })
     : null;
 
-  // Reset: restore AI-suggested values if available, otherwise generic defaults
-  function reset() {
-    userTouched.current = false;
-    if (aiInputs) {
-      setWacc(clampWacc(aiInputs.wacc));
-      setTerminalGrowth(clampTg(aiInputs.terminalGrowth));
-      setRevenueCagr(clampCagr(aiInputs.revenueCagr));
-      setTerminalMargin(clampMargin(aiInputs.terminalMargin));
-    } else {
-      setWacc(DCF_DEFAULTS.wacc);
-      setTerminalGrowth(DCF_DEFAULTS.terminalGrowth);
-      setRevenueCagr(DCF_DEFAULTS.revenueCagr);
-      setTerminalMargin(DCF_DEFAULTS.terminalMargin);
-    }
-  }
-
   const noData       = !lastRevenue || !sharesOut;
-  const aiTuned      = !!aiInputs;
-  const footerPrefix = aiTuned
-    ? `DCF assumes (AI-tuned for ${ticker}):`
+  const presetLabel  = activePreset.charAt(0).toUpperCase() + activePreset.slice(1);
+  const footerPrefix = aiScenarios
+    ? (isCustomized
+        ? `DCF assumes (customized from ${presetLabel} for ${ticker}):`
+        : `DCF assumes (${presetLabel} AI-tuned for ${ticker}):`)
     : 'DCF assumes:';
 
   return (
@@ -1040,10 +1037,31 @@ function DCFCalculator({ ticker, financials, metrics, quote, aiInputs, resolvedR
       title="DCF Calculator"
       eyebrow={ticker}
       action={
-        <button onClick={reset} style={{
-          background: 'none', border: '1px solid var(--border-color)', borderRadius: 5,
-          color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', padding: '3px 10px',
-        }}>Reset{aiTuned ? ' to AI' : ''}</button>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {['conservative', 'consensus', 'bull'].map(preset => {
+            const label    = preset.charAt(0).toUpperCase() + preset.slice(1);
+            const isActive = activePreset === preset;
+            const hasData  = !!aiScenarios?.[preset];
+            return (
+              <button
+                key={preset}
+                onClick={() => hasData && selectPreset(preset)}
+                disabled={!hasData}
+                title={!hasData ? 'Regenerate thesis to unlock' : undefined}
+                style={{
+                  background:   isActive ? 'var(--bg-hover)' : 'transparent',
+                  border:       '1px solid ' + (isActive ? 'var(--accent)' : 'var(--border-color)'),
+                  color:        isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  fontSize: 10, padding: '2px 7px', borderRadius: 4,
+                  cursor:     hasData ? 'pointer' : 'not-allowed',
+                  fontWeight: 500, opacity: hasData ? 1 : 0.4,
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       }
       footer={dcf ? `${footerPrefix} 5-year projection · ${wacc}% WACC · ${terminalGrowth}% terminal growth · ${revenueCagr}% revenue CAGR · ${terminalMargin}% terminal op margin. Net debt assumed $0 (not available from EDGAR). Sensitivity bands are ±20% around base.` : undefined}
     >
@@ -1053,10 +1071,15 @@ function DCFCalculator({ ticker, financials, metrics, quote, aiInputs, resolvedR
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
           {/* Sliders */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* AI rationale caption */}
-            {aiInputs?.rationale && (
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>
-                ✨ {aiInputs.rationale}
+            {/* Active preset rationale caption — dims when user has customized sliders */}
+            {aiScenarios?.[activePreset]?.rationale && (
+              <p style={{
+                fontSize: 11, fontStyle: 'italic', margin: 0, lineHeight: 1.5,
+                color:   isCustomized ? 'var(--text-muted)' : 'var(--text-secondary)',
+                opacity: isCustomized ? 0.5 : 1,
+                transition: 'opacity .2s',
+              }}>
+                ✨ {aiScenarios[activePreset].rationale}
               </p>
             )}
             <Slider label="WACC"               value={wacc}           min={4}  max={18} step={0.5}  onChange={handleSlider(setWacc)} />
@@ -1121,6 +1144,15 @@ function ResearchPageInner() {
   const [savedCash,    setSavedCash]    = useState(null);
   const [overlayPeers, setOverlayPeers] = useState([]);
   const [thesis,       setThesis]       = useState(null); // lifted from ThesisHero for DCF wiring
+
+  // DCF scenarios: use new three-scenario shape; promote legacy dcfInputs to consensus-only
+  const aiScenarios = useMemo(() => {
+    if (!thesis) return null;
+    if (thesis.dcfScenarios) return thesis.dcfScenarios;
+    // Legacy cached thesis (pre-B2.3) has dcfInputs only — promote to consensus slot
+    if (thesis.dcfInputs) return { consensus: thesis.dcfInputs };
+    return null;
+  }, [thesis]);
 
   // Waterfall-resolved revenue: EDGAR annual (Layer-2-patched) → earnings-history TTM
   const resolvedRevenue = useMemo(() => {
@@ -1384,7 +1416,7 @@ function ResearchPageInner() {
       </div>
 
       {/* DCF CALCULATOR (between Valuation Metrics and Insider) */}
-      <DCFCalculator ticker={ticker} financials={financials} metrics={metrics} quote={quote} aiInputs={thesis?.dcfInputs ?? null} resolvedRevenue={resolvedRevenue} />
+      <DCFCalculator ticker={ticker} financials={financials} metrics={metrics} quote={quote} aiScenarios={aiScenarios} resolvedRevenue={resolvedRevenue} />
 
       {/* 7–8–9. Insider | Institutional | Short Interest */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>

@@ -2,6 +2,42 @@ export const dynamic = 'force-dynamic';
 
 const BUY_CODES = new Set(['P', 'M', 'A', 'G']);
 
+// Shared schema for a single DCF scenario (reused for conservative / consensus / bull)
+const scenarioPropDef = {
+  type: 'object',
+  properties: {
+    wacc: {
+      type: 'number',
+      minimum: 4,
+      maximum: 18,
+      description: 'Weighted average cost of capital % (e.g. 9 for high-beta growth, 7 for stable large-cap).',
+    },
+    terminalGrowth: {
+      type: 'number',
+      minimum: 1,
+      maximum: 5,
+      description: 'Long-run terminal growth rate % (GDP-anchored; rarely above 4 outside high-growth niches).',
+    },
+    revenueCagr: {
+      type: 'number',
+      minimum: 0,
+      maximum: 60,
+      description: '5-year revenue CAGR % projection, fading from current trajectory toward normalised growth.',
+    },
+    terminalMargin: {
+      type: 'number',
+      minimum: 5,
+      maximum: 80,
+      description: 'Terminal-year operating margin % — where the business lands at scale.',
+    },
+    rationale: {
+      type: 'string',
+      description: "1–2 sentences explaining this scenario's worldview and key numerical picks.",
+    },
+  },
+  required: ['wacc', 'terminalGrowth', 'revenueCagr', 'terminalMargin', 'rationale'],
+};
+
 const generateStockSummaryTool = {
   name: 'generate_stock_summary',
   description: 'Generate a structured AI summary for a single stock, including a rating and key insight sections.',
@@ -67,47 +103,22 @@ const generateStockSummaryTool = {
         type: ['string', 'null'],
         description: "How this stock fits the user's existing portfolio (concentration, diversification, correlation to existing positions). Null if no holdings context was provided.",
       },
-      dcfInputs: {
+      dcfScenarios: {
         type: 'object',
-        description: "DCF slider assumptions tuned to THIS specific company's profile and 3-year outlook. Must stay within slider bounds: WACC 4–18, terminalGrowth 1–5, revenueCagr 0–60, terminalMargin 5–80.",
+        description: 'Three self-consistent DCF scenario presets — Conservative, Consensus, Bull. Each is a coherent worldview, not just a CAGR knob. All values must stay within slider bounds.',
         properties: {
-          wacc: {
-            type: 'number',
-            minimum: 4,
-            maximum: 18,
-            description: 'Weighted average cost of capital %, reflecting beta and capital structure (e.g. 9 for high-beta growth, 7 for stable large-cap).',
-          },
-          terminalGrowth: {
-            type: 'number',
-            minimum: 1,
-            maximum: 5,
-            description: 'Long-run terminal growth rate % (GDP-anchored; rarely above 4 outside high-growth niches).',
-          },
-          revenueCagr: {
-            type: 'number',
-            minimum: 0,
-            maximum: 60,
-            description: '5-year revenue CAGR % projection from last reported fiscal year. Should reflect current trajectory fading toward normalised growth.',
-          },
-          terminalMargin: {
-            type: 'number',
-            minimum: 5,
-            maximum: 80,
-            description: 'Terminal-year operating margin % — where the business lands at scale, not current margin.',
-          },
-          rationale: {
-            type: 'string',
-            description: '1–2 sentences explaining the key picks (especially WACC and CAGR) referencing this company\'s specific characteristics.',
-          },
+          conservative: scenarioPropDef,
+          consensus:    scenarioPropDef,
+          bull:         scenarioPropDef,
         },
-        required: ['wacc', 'terminalGrowth', 'revenueCagr', 'terminalMargin', 'rationale'],
+        required: ['conservative', 'consensus', 'bull'],
       },
       language: {
         type: 'string',
         description: "ISO language code used for the text content (e.g., 'en', 'nl', 'de', 'fr').",
       },
     },
-    required: ['rating', 'rating_summary', 'thesis', 'what_to_watch', 'oneLiner', 'bull', 'bear', 'risks', 'threeYearTarget', 'dcfInputs', 'language'],
+    required: ['rating', 'rating_summary', 'thesis', 'what_to_watch', 'oneLiner', 'bull', 'bear', 'risks', 'threeYearTarget', 'dcfScenarios', 'language'],
   },
 };
 
@@ -143,21 +154,26 @@ Set threeYearTarget.base at the level you genuinely expect the stock to reach in
 
 If the user's portfolio holdings are provided in the context, populate fitsPortfolio with 2-3 sentences on how this stock fits (or clashes with) the portfolio: concentration risk, sector overlap, diversification benefit, or correlation to existing positions. If no holdings context is provided, return null.
 
-## DCF inputs
+## DCF scenarios
 
-Always return dcfInputs with the four key DCF assumptions tuned to THIS specific company over a 3-year horizon. Examples of the reasoning we expect:
+Return THREE coherent DCF scenarios — Conservative, Consensus, Bull — each with all four assumptions tuned together. Each scenario is a self-consistent worldview, not just a CAGR knob.
 
-- Hyper-growth tech (NVDA, recent AI names): WACC 8–11 (high beta), terminal growth 3–4, revenue CAGR 30–55 fading from current hyper-growth, terminal op margin matching mature-state expectations.
-- Mature large-cap tech (MSFT, AAPL): WACC 8–10, terminal growth 2.5–3.5, revenue CAGR 8–15, terminal op margin 30–40.
-- Cyclicals (semis non-AI, homebuilders): WACC 9–12, terminal growth 2–3, revenue CAGR 5–12 (smoothed through cycle), terminal op margin 15–25.
-- Defensives/utilities: WACC 6–8, terminal growth 2–3, revenue CAGR 3–6, terminal op margin 10–20.
-- Distressed or unprofitable growth: WACC 12–16, terminal growth 1–2, revenue CAGR 15–35, terminal op margin 5–15.
+- **Conservative**: cautious base case. Lower CAGR fading aggressively, higher WACC (risk premium), terminal margin near or below current. Reflects skepticism on TAM, competition, or execution.
+- **Consensus**: matches Wall Street analyst consensus and management guidance midpoint. CAGR ~= analyst median 3yr growth estimate (if cited in your context), WACC reflects sector beta, terminal margin at industry-mature level.
+- **Bull**: management's stated guidance midpoint or upside case. Higher CAGR matching CEO/CFO commentary (e.g. "Lisa Su has guided AMD AI to 35%+ CAGR through 2027"), lower WACC reflecting execution confidence, terminal margin reflecting scale benefits + operating leverage.
 
-Provide a 1–2 sentence rationale explaining the key picks (especially WACC and CAGR) referencing the company's specific characteristics. Example: "NVDA: WACC 9% reflects beta ~1.7 and rising rates; revenue CAGR 45% fades from FY25's 114% growth as hyperscaler capex normalizes by year 3."
+Each scenario must be internally coherent — a bull case isn't just higher CAGR, it's also better margins at scale and possibly lower WACC reflecting risk reduction. A conservative case may have lower margins reflecting competitive pressure.
 
-The slider ranges in the UI are: WACC 4–18, terminal growth 1–5, revenue CAGR 0–60, terminal op margin 5–80. All values MUST stay inside these bounds.
+Examples (illustrative, not prescriptive):
+- NVDA conservative: WACC 11, growth 3, CAGR 18, margin 55. "Hyperscaler capex normalizes faster than bulls expect; custom silicon erodes CUDA pricing power by year 3."
+- NVDA consensus: WACC 9, growth 3.5, CAGR 35, margin 65. "Matches Street median; assumes AI capex grows through 2028."
+- NVDA bull: WACC 8, growth 4, CAGR 50, margin 70. "CUDA moat holds; sovereign AI + enterprise expansion is multi-trillion TAM."
 
-When "Last Annual Revenue (best available)" is provided in the context, anchor revenueCagr to the actual YoY growth shown, fading it toward long-run sector norms over the projection window.
+Each rationale: 1–2 sentences explaining the worldview AND key numerical picks. Reference real numbers from the context where available (last annual revenue YoY, current op margin, etc.).
+
+All values must stay within slider bounds: WACC 4–18, terminal growth 1–5, revenue CAGR 0–60, terminal margin 5–80.
+
+When "Last Annual Revenue (best available)" is provided, anchor the Consensus scenario's CAGR to the actual YoY growth rate, with Conservative below and Bull above.
 
 ## Adaptive sections
 
@@ -317,7 +333,7 @@ export async function POST(request) {
       },
       body: JSON.stringify({
         model: 'claude-opus-4-7',
-        max_tokens: 1600,
+        max_tokens: 2000,
         system: SYSTEM_PROMPT,
         tools: [generateStockSummaryTool],
         tool_choice: { type: 'tool', name: 'generate_stock_summary' },
