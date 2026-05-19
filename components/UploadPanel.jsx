@@ -2,6 +2,9 @@
 
 import { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
+import { detectBrokerFormat } from '@/lib/brokers/detectFormat';
+import { parseSaxo } from '@/lib/brokers/saxo';
+import { aggregateFIFO } from '@/lib/brokers/fifo';
 
 // Fuzzy match column headers to detect ticker/shares/cost/date columns.
 // Returns indexes into the headers array. -1 if no match.
@@ -24,22 +27,54 @@ function autoDetect(headers) {
 
 // Phase G.1 Stage C — file picker + SheetJS parse + raw preview + column mapping.
 export default function UploadPanel({ onClose, onImport }) {
-  const [fileName, setFileName] = useState('');
-  const [headers, setHeaders] = useState([]);
-  const [rows, setRows] = useState([]);
-  const [error, setError] = useState('');
-  const [mapping, setMapping] = useState({ ticker: -1, shares: -1, cost: -1, date: -1 });
-  const [importMode, setImportMode] = useState('replace');
+  const [fileName, setFileName]       = useState('');
+  const [headers, setHeaders]         = useState([]);
+  const [rows, setRows]               = useState([]);
+  const [error, setError]             = useState('');
+  const [mapping, setMapping]         = useState({ ticker: -1, shares: -1, cost: -1, date: -1 });
+  const [importMode, setImportMode]   = useState('replace');
+  const [detectedBroker, setDetectedBroker] = useState('generic');
+  const [brokerResult, setBrokerResult]     = useState(null); // { valid, skipped }
   const inputRef = useRef(null);
 
   function handleFile(file) {
     setError('');
     setFileName(file.name);
+    setBrokerResult(null);
+    setDetectedBroker('generic');
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target.result);
         const wb = XLSX.read(data, { type: 'array' });
+
+        // ── Broker format detection ──────────────────────────────────────────
+        const format = detectBrokerFormat(wb);
+        setDetectedBroker(format);
+
+        if (format === 'saxo') {
+          const { trades, skipSummary } = parseSaxo(wb);
+          const { positions, netZeroTickers } = aggregateFIFO(trades, 'saxo');
+          const valid = positions.map(p => ({
+            t: p.t, s: p.s, c: p.c, d: p.d ?? '',
+            currency: p.currency, broker: 'saxo',
+          }));
+          setBrokerResult({
+            valid,
+            skipped: { ...skipSummary, netZero: netZeroTickers.length },
+          });
+          setHeaders([]);
+          setRows([]);
+          setMapping({ ticker: -1, shares: -1, cost: -1, date: -1 });
+          return;
+        }
+
+        if (format === 'degiro') {
+          // B3: DeGiro parser not yet implemented — fall through to generic
+          console.log('[brokers] DeGiro detected — parser coming in B3, using generic mapping');
+        }
+
+        // ── Generic path (unchanged) ─────────────────────────────────────────
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
         if (!json.length) {
@@ -66,6 +101,7 @@ export default function UploadPanel({ onClose, onImport }) {
         setError('Could not parse this file. Make sure it is a valid CSV or Excel file.');
         setHeaders([]);
         setRows([]);
+        setBrokerResult(null);
       }
     };
     reader.onerror = () => setError('Failed to read file.');
@@ -89,10 +125,72 @@ export default function UploadPanel({ onClose, onImport }) {
     setRows([]);
     setError('');
     setMapping({ ticker: -1, shares: -1, cost: -1, date: -1 });
+    setDetectedBroker('generic');
+    setBrokerResult(null);
     if (inputRef.current) inputRef.current.value = '';
   }
 
   const previewRows = rows.slice(0, 5);
+
+  // Replace/Append toggle — shared between broker and generic paths
+  const replaceAppendToggle = (
+    <div style={{
+      marginTop: 14,
+      padding: 12,
+      background: 'var(--bg-primary, #0d1117)',
+      border: '1px solid var(--border-color, #2a3142)',
+      borderRadius: 6,
+      fontSize: 13,
+    }}>
+      <div style={{
+        fontSize: 11,
+        fontWeight: 600,
+        letterSpacing: '.08em',
+        textTransform: 'uppercase',
+        color: 'var(--text-muted, #6e7681)',
+        marginBottom: 8,
+      }}>How to import</div>
+      <label style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 8,
+        cursor: 'pointer',
+        marginBottom: 6,
+        color: 'var(--text-primary, #e6edf3)',
+      }}>
+        <input
+          type="radio"
+          name="importMode"
+          value="replace"
+          checked={importMode === 'replace'}
+          onChange={() => setImportMode('replace')}
+          style={{ marginTop: 3, cursor: 'pointer' }}
+        />
+        <span>
+          <strong>Replace</strong> all current holdings with the uploaded file
+        </span>
+      </label>
+      <label style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 8,
+        cursor: 'pointer',
+        color: 'var(--text-primary, #e6edf3)',
+      }}>
+        <input
+          type="radio"
+          name="importMode"
+          value="append"
+          checked={importMode === 'append'}
+          onChange={() => setImportMode('append')}
+          style={{ marginTop: 3, cursor: 'pointer' }}
+        />
+        <span>
+          <strong>Append</strong> uploaded rows on top of existing holdings
+        </span>
+      </label>
+    </div>
+  );
 
   return (
     <div style={{
@@ -130,7 +228,7 @@ export default function UploadPanel({ onClose, onImport }) {
             color: 'var(--text-secondary, #8b949e)',
           }}>
             Export from Saxo, DeGiro, Trading 212, or any broker.
-            We'll parse the file and let you map columns.
+            We&apos;ll parse the file and let you map columns.
           </p>
         </div>
         <button
@@ -182,6 +280,7 @@ export default function UploadPanel({ onClose, onImport }) {
 
       {fileName && (
         <div>
+          {/* File info bar */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -196,6 +295,11 @@ export default function UploadPanel({ onClose, onImport }) {
               📄 {fileName} {rows.length > 0 && (
                 <span style={{ color: 'var(--text-muted, #6e7681)' }}>
                   · {rows.length} row{rows.length !== 1 ? 's' : ''} · {headers.length} column{headers.length !== 1 ? 's' : ''}
+                </span>
+              )}
+              {brokerResult && (
+                <span style={{ color: 'var(--text-muted, #6e7681)' }}>
+                  · {brokerResult.valid.length} position{brokerResult.valid.length !== 1 ? 's' : ''} parsed
                 </span>
               )}
             </div>
@@ -225,8 +329,115 @@ export default function UploadPanel({ onClose, onImport }) {
             }}>{error}</div>
           )}
 
-          {previewRows.length > 0 && (
+          {/* ── Saxo broker path ─────────────────────────────────────────── */}
+          {detectedBroker === 'saxo' && brokerResult && (() => {
+            const sk = brokerResult.skipped;
+            const skipLines = [
+              (sk.optionsSkipped       ?? 0) > 0 && `${sk.optionsSkipped} options trades skipped`,
+              (sk.expirySkipped        ?? 0) > 0 && `${sk.expirySkipped} expiry rows skipped`,
+              (sk.dividendsSkipped     ?? 0) > 0 && `${sk.dividendsSkipped} dividend / corporate action rows skipped`,
+              (sk.cashTransfersSkipped ?? 0) > 0 && `${sk.cashTransfersSkipped} cash transfer rows skipped`,
+              (sk.netZero              ?? 0) > 0 && `${sk.netZero} position${sk.netZero !== 1 ? 's' : ''} fully closed (net zero, excluded)`,
+              (sk.parseErrors          ?? 0) > 0 && `${sk.parseErrors} rows could not be parsed`,
+            ].filter(Boolean);
+
+            return (
+              <div>
+                {/* Broker badge */}
+                <div style={{ marginBottom: 12 }}>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '3px 10px',
+                    background: 'rgba(88, 166, 255, 0.12)',
+                    border: '1px solid rgba(88, 166, 255, 0.35)',
+                    borderRadius: 20,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: '.05em',
+                    color: 'var(--accent-cyan, #58a6ff)',
+                  }}>Detected format: Saxo Bank</span>
+                </div>
+
+                {/* Parse summary */}
+                <div style={{
+                  padding: '12px 14px',
+                  background: 'var(--bg-primary, #0d1117)',
+                  border: '1px solid var(--border-color, #2a3142)',
+                  borderRadius: 6,
+                  marginBottom: 4,
+                }}>
+                  <div style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'var(--text-primary, #e6edf3)',
+                    marginBottom: skipLines.length ? 8 : 0,
+                  }}>
+                    {brokerResult.valid.length > 0
+                      ? `${brokerResult.valid.length} position${brokerResult.valid.length !== 1 ? 's' : ''} ready to import`
+                      : 'No positions found — check that this is a Saxo Transactions export'}
+                  </div>
+                  {skipLines.length > 0 && (
+                    <ul style={{
+                      margin: 0,
+                      paddingLeft: 18,
+                      fontSize: 12,
+                      color: 'var(--text-secondary, #8b949e)',
+                      lineHeight: 1.7,
+                    }}>
+                      {skipLines.map((line, i) => <li key={i}>{line}</li>)}
+                    </ul>
+                  )}
+                </div>
+
+                {brokerResult.valid.length > 0 && (
+                  <div>
+                    {replaceAppendToggle}
+                    <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => onImport(brokerResult.valid, importMode, brokerResult.skipped)}
+                        style={{
+                          background: 'var(--accent-cyan, #58a6ff)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 6,
+                          padding: '10px 18px',
+                          fontSize: 13,
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Import {brokerResult.valid.length} position{brokerResult.valid.length !== 1 ? 's' : ''} →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* ── Generic path (and DeGiro stub) ───────────────────────────── */}
+          {detectedBroker !== 'saxo' && previewRows.length > 0 && (
             <div>
+              {/* Badge for detected-but-not-yet-parsed formats (e.g. DeGiro stub) */}
+              {detectedBroker !== 'generic' && (
+                <div style={{ marginBottom: 12 }}>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '3px 10px',
+                    background: 'rgba(88, 166, 255, 0.12)',
+                    border: '1px solid rgba(88, 166, 255, 0.35)',
+                    borderRadius: 20,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: '.05em',
+                    color: 'var(--accent-cyan, #58a6ff)',
+                  }}>
+                    Detected format: {detectedBroker === 'degiro' ? 'DeGiro' : detectedBroker}
+                    <span style={{ fontWeight: 400, opacity: 0.75 }}> — map columns below</span>
+                  </span>
+                </div>
+              )}
+
               <div style={{
                 fontSize: 11,
                 fontWeight: 600,
@@ -328,62 +539,7 @@ export default function UploadPanel({ onClose, onImport }) {
                   ))}
                 </div>
 
-                <div style={{
-                  marginTop: 14,
-                  padding: 12,
-                  background: 'var(--bg-primary, #0d1117)',
-                  border: '1px solid var(--border-color, #2a3142)',
-                  borderRadius: 6,
-                  fontSize: 13,
-                }}>
-                  <div style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    letterSpacing: '.08em',
-                    textTransform: 'uppercase',
-                    color: 'var(--text-muted, #6e7681)',
-                    marginBottom: 8,
-                  }}>How to import</div>
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 8,
-                    cursor: 'pointer',
-                    marginBottom: 6,
-                    color: 'var(--text-primary, #e6edf3)',
-                  }}>
-                    <input
-                      type="radio"
-                      name="importMode"
-                      value="replace"
-                      checked={importMode === 'replace'}
-                      onChange={() => setImportMode('replace')}
-                      style={{ marginTop: 3, cursor: 'pointer' }}
-                    />
-                    <span>
-                      <strong>Replace</strong> all current holdings with the uploaded file
-                    </span>
-                  </label>
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 8,
-                    cursor: 'pointer',
-                    color: 'var(--text-primary, #e6edf3)',
-                  }}>
-                    <input
-                      type="radio"
-                      name="importMode"
-                      value="append"
-                      checked={importMode === 'append'}
-                      onChange={() => setImportMode('append')}
-                      style={{ marginTop: 3, cursor: 'pointer' }}
-                    />
-                    <span>
-                      <strong>Append</strong> uploaded rows on top of existing holdings
-                    </span>
-                  </label>
-                </div>
+                {replaceAppendToggle}
 
                 <div style={{
                   marginTop: 14,
