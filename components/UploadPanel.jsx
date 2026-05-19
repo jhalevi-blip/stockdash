@@ -7,6 +7,7 @@ import { parseSaxo } from '@/lib/brokers/saxo';
 import { parseDeGiro } from '@/lib/brokers/degiro';
 import { parseTrading212 } from '@/lib/brokers/trading212';
 import { parseIBKR } from '@/lib/brokers/ibkr';
+import { parseRabobank } from '@/lib/brokers/rabobank';
 import { aggregateFIFO } from '@/lib/brokers/fifo';
 
 // Fuzzy match column headers to detect ticker/shares/cost/date columns.
@@ -101,6 +102,34 @@ export default function UploadPanel({ onClose, onImport }) {
               unresolvedIsins: unresolvedIsins.length,
               unresolvedIsinsList: unresolvedIsins,
               fxConversionsSkipped,
+            },
+          });
+          setHeaders([]);
+          setRows([]);
+          setMapping({ ticker: -1, shares: -1, cost: -1, date: -1 });
+          return;
+        }
+
+        if (format === 'rabobank') {
+          const { trades, skipSummary, unresolvedIsins,
+                  fallbackUsedTickers } = await parseRabobank(wb);
+          const { positions, netZeroTickers, sellsWithoutBuysTickers } =
+            aggregateFIFO(trades, 'rabobank');
+          const valid = positions.map(p => ({
+            t: p.t, s: p.s, c: p.c, d: p.d ?? '',
+            currency: p.currency, broker: 'rabobank',
+          }));
+          setBrokerResult({
+            valid,
+            skipped: {
+              ...skipSummary,
+              netZero: netZeroTickers.length,
+              sellsWithoutBuys: sellsWithoutBuysTickers.length,
+              sellsWithoutBuysTickers,
+              unresolvedIsins: unresolvedIsins.length,
+              unresolvedIsinsList: unresolvedIsins,
+              fallbackTickers: fallbackUsedTickers.length,
+              fallbackTickersList: fallbackUsedTickers,
             },
           });
           setHeaders([]);
@@ -411,20 +440,23 @@ export default function UploadPanel({ onClose, onImport }) {
             }}>{error}</div>
           )}
 
-          {/* ── Saxo / DeGiro / Trading 212 / IBKR broker path ─────────── */}
-          {(detectedBroker === 'saxo' || detectedBroker === 'degiro' || detectedBroker === 'trading212' || detectedBroker === 'ibkr') && brokerResult && (() => {
+          {/* ── Saxo / DeGiro / Trading 212 / IBKR / Rabobank broker path ─ */}
+          {(detectedBroker === 'saxo' || detectedBroker === 'degiro' || detectedBroker === 'trading212' || detectedBroker === 'ibkr' || detectedBroker === 'rabobank') && brokerResult && (() => {
             const sk = brokerResult.skipped;
             const brokerLabel = detectedBroker === 'saxo' ? 'Saxo Bank'
               : detectedBroker === 'degiro' ? 'DeGiro'
               : detectedBroker === 'trading212' ? 'Trading 212'
-              : 'Interactive Brokers';
+              : detectedBroker === 'ibkr' ? 'Interactive Brokers'
+              : 'Rabobank';
             const emptyStateMsg = detectedBroker === 'saxo'
               ? 'No positions found — check that this is a Saxo Transactions export'
               : detectedBroker === 'degiro'
               ? 'No positions found — check that this is a DeGiro Transacties export'
               : detectedBroker === 'trading212'
               ? 'No positions found — check that this is a Trading 212 CSV export'
-              : 'No positions found — check that this is an IBKR Trades Flex Query export (not Dividends)';
+              : detectedBroker === 'ibkr'
+              ? 'No positions found — check that this is an IBKR Trades Flex Query export (not Dividends)'
+              : 'No positions found — check that this is a Rabobank CSV transaction export';
             const skipLines = [
               (sk.optionsSkipped       ?? 0) > 0 && `${sk.optionsSkipped} options trades skipped`,
               (sk.expirySkipped        ?? 0) > 0 && `${sk.expirySkipped} expiry rows skipped`,
@@ -432,6 +464,7 @@ export default function UploadPanel({ onClose, onImport }) {
               (sk.cashTransfersSkipped ?? 0) > 0 && `${sk.cashTransfersSkipped} cash transfer rows skipped`,
               (sk.transfersOutSkipped  ?? 0) > 0 && `${sk.transfersOutSkipped} asset${sk.transfersOutSkipped !== 1 ? 's' : ''} transferred out (excluded)`,
               (sk.fxConversionsSkipped ?? 0) > 0 && `${sk.fxConversionsSkipped} FX conversion${sk.fxConversionsSkipped !== 1 ? 's' : ''} skipped (empty ISIN)`,
+              (sk.fallbackTickers     ?? 0) > 0 && `${sk.fallbackTickers} position${sk.fallbackTickers !== 1 ? 's' : ''} using fund name as ticker (no exchange ticker available): ${sk.fallbackTickersList?.join(', ')}`,
               (sk.netZero              ?? 0) > 0 && `${sk.netZero} position${sk.netZero !== 1 ? 's' : ''} fully closed (net zero, excluded)`,
               (sk.parseErrors          ?? 0) > 0 && `${sk.parseErrors} rows could not be parsed`,
               (sk.sellsWithoutBuys     ?? 0) > 0 && `${sk.sellsWithoutBuys} ticker${sk.sellsWithoutBuys !== 1 ? 's' : ''} could not be imported — sells without prior buys (likely bought before this export's date range): ${sk.sellsWithoutBuysTickers?.join(', ')}`,
