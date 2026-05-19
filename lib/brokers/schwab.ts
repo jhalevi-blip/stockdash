@@ -26,10 +26,16 @@ function isCUSIP(symbol: string): boolean {
   return /^[A-Z0-9]{8}[A-Z0-9*@#]$/i.test(symbol);
 }
 
-export function parseSchwab(wb: XLSX.WorkBook): {
+export function parseSchwab(rawBytes: Uint8Array): {
   trades: BrokerTrade[];
   skipSummary: SkipSummary;
 } {
+  // Re-parse the file with cellDates:false and raw:true to preserve
+  // MM/DD/YYYY date strings. SheetJS's default XLSX.read auto-detects
+  // dates and converts them to Excel serials — but parseDate only
+  // handles MM/DD/YYYY and "as of" patterns, not serials, so every trade
+  // would end up with date="" and FIFO ordering would break.
+  const wb = XLSX.read(rawBytes, { type: 'array', cellDates: false, raw: true });
   const sheet = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(sheet, {
     header: 1,

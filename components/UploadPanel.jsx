@@ -140,7 +140,7 @@ export default function UploadPanel({ onClose, onImport }) {
         }
 
         if (format === 'schwab') {
-          const { trades, skipSummary } = parseSchwab(wb);
+          const { trades, skipSummary } = parseSchwab(data);
           const { positions, netZeroTickers, sellsWithoutBuysTickers } =
             aggregateFIFO(trades, 'schwab');
           const valid = positions.map(p => ({
