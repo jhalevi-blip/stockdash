@@ -34,4 +34,6 @@ export interface SkipSummary {
   parseErrors?: number;
   sellsWithoutBuys?: number;
   sellsWithoutBuysTickers?: string[];
+  unresolvedIsins?: number;
+  unresolvedIsinsList?: string[];
 }

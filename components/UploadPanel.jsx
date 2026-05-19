@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { detectBrokerFormat } from '@/lib/brokers/detectFormat';
 import { parseSaxo } from '@/lib/brokers/saxo';
+import { parseDeGiro } from '@/lib/brokers/degiro';
 import { aggregateFIFO } from '@/lib/brokers/fifo';
 
 // Fuzzy match column headers to detect ticker/shares/cost/date columns.
@@ -43,7 +44,7 @@ export default function UploadPanel({ onClose, onImport }) {
     setBrokerResult(null);
     setDetectedBroker('generic');
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const data = new Uint8Array(e.target.result);
         const wb = XLSX.read(data, { type: 'array' });
@@ -75,8 +76,28 @@ export default function UploadPanel({ onClose, onImport }) {
         }
 
         if (format === 'degiro') {
-          // B3: DeGiro parser not yet implemented — fall through to generic
-          console.log('[brokers] DeGiro detected — parser coming in B3, using generic mapping');
+          const { trades, skipSummary, unresolvedIsins } = await parseDeGiro(wb);
+          const { positions, netZeroTickers, sellsWithoutBuysTickers } =
+            aggregateFIFO(trades, 'degiro');
+          const valid = positions.map(p => ({
+            t: p.t, s: p.s, c: p.c, d: p.d ?? '',
+            currency: p.currency, broker: 'degiro',
+          }));
+          setBrokerResult({
+            valid,
+            skipped: {
+              ...skipSummary,
+              netZero: netZeroTickers.length,
+              sellsWithoutBuys: sellsWithoutBuysTickers.length,
+              sellsWithoutBuysTickers,
+              unresolvedIsins: unresolvedIsins.length,
+              unresolvedIsinsList: unresolvedIsins,
+            },
+          });
+          setHeaders([]);
+          setRows([]);
+          setMapping({ ticker: -1, shares: -1, cost: -1, date: -1 });
+          return;
         }
 
         // ── Generic path (unchanged) ─────────────────────────────────────────
@@ -334,9 +355,13 @@ export default function UploadPanel({ onClose, onImport }) {
             }}>{error}</div>
           )}
 
-          {/* ── Saxo broker path ─────────────────────────────────────────── */}
-          {detectedBroker === 'saxo' && brokerResult && (() => {
+          {/* ── Saxo / DeGiro broker path ────────────────────────────────── */}
+          {(detectedBroker === 'saxo' || detectedBroker === 'degiro') && brokerResult && (() => {
             const sk = brokerResult.skipped;
+            const brokerLabel = detectedBroker === 'saxo' ? 'Saxo Bank' : 'DeGiro';
+            const emptyStateMsg = detectedBroker === 'saxo'
+              ? 'No positions found — check that this is a Saxo Transactions export'
+              : 'No positions found — check that this is a DeGiro Transacties export';
             const skipLines = [
               (sk.optionsSkipped       ?? 0) > 0 && `${sk.optionsSkipped} options trades skipped`,
               (sk.expirySkipped        ?? 0) > 0 && `${sk.expirySkipped} expiry rows skipped`,
@@ -345,6 +370,7 @@ export default function UploadPanel({ onClose, onImport }) {
               (sk.netZero              ?? 0) > 0 && `${sk.netZero} position${sk.netZero !== 1 ? 's' : ''} fully closed (net zero, excluded)`,
               (sk.parseErrors          ?? 0) > 0 && `${sk.parseErrors} rows could not be parsed`,
               (sk.sellsWithoutBuys     ?? 0) > 0 && `${sk.sellsWithoutBuys} ticker${sk.sellsWithoutBuys !== 1 ? 's' : ''} could not be imported — sells without prior buys (likely bought before this export's date range): ${sk.sellsWithoutBuysTickers?.join(', ')}`,
+              (sk.unresolvedIsins      ?? 0) > 0 && `${sk.unresolvedIsins} row${sk.unresolvedIsins !== 1 ? 's' : ''} skipped — ISIN could not be resolved to a ticker: ${sk.unresolvedIsinsList?.join(', ')}`,
             ].filter(Boolean);
 
             return (
@@ -361,7 +387,7 @@ export default function UploadPanel({ onClose, onImport }) {
                     fontWeight: 600,
                     letterSpacing: '.05em',
                     color: 'var(--accent-cyan, #58a6ff)',
-                  }}>Detected format: Saxo Bank</span>
+                  }}>Detected format: {brokerLabel}</span>
                 </div>
 
                 {/* Parse summary */}
@@ -380,7 +406,7 @@ export default function UploadPanel({ onClose, onImport }) {
                   }}>
                     {brokerResult.valid.length > 0
                       ? `${brokerResult.valid.length} position${brokerResult.valid.length !== 1 ? 's' : ''} ready to import`
-                      : 'No positions found — check that this is a Saxo Transactions export'}
+                      : emptyStateMsg}
                   </div>
                   {skipLines.length > 0 && (
                     <ul style={{
