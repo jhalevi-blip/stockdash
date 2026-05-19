@@ -52,6 +52,12 @@ export default async function middleware(req, ev) {
     }
   }
 
+  // Webhook routes bypass Clerk auth — requests come from Clerk's servers,
+  // not signed-in users, so there is no session to validate.
+  if (req.nextUrl.pathname.startsWith('/api/webhooks/')) {
+    return NextResponse.next();
+  }
+
   const res = await clerkHandler(req, ev);
 
   // First-touch UTM attribution — set once, never overwritten
