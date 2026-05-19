@@ -112,7 +112,7 @@ export default function UploadPanel({ onClose, onImport }) {
 
         if (format === 'rabobank') {
           const { trades, skipSummary, unresolvedIsins,
-                  fallbackUsedTickers } = await parseRabobank(wb);
+                  fallbackUsedTickers } = await parseRabobank(data);
           const { positions, netZeroTickers, sellsWithoutBuysTickers } =
             aggregateFIFO(trades, 'rabobank');
           const valid = positions.map(p => ({

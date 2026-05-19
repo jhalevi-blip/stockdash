@@ -2,14 +2,27 @@ import * as XLSX from 'xlsx';
 import type { BrokerTrade, SkipSummary } from './types';
 import { resolveBatchIsins } from './isinResolver';
 
-/** Parse dd-mm-yyyy → ISO yyyy-mm-dd. Returns '' if unrecognised. */
+/** Parse dd-mm-yyyy OR Excel serial → ISO yyyy-mm-dd. Returns '' if unrecognised. */
 function parseDate(raw: unknown): string {
-  if (!raw) return '';
+  if (raw === undefined || raw === null || raw === '') return '';
+
+  // Excel serial date (e.g. 45506 for 2024-02-08) — unambiguous.
+  // Excel's epoch is Dec 30 1899 (accounts for 1900 leap-year bug).
+  if (typeof raw === 'number' && raw > 0 && raw < 100000) {
+    const ms = (raw - 25569) * 86400 * 1000;
+    const d = new Date(ms);
+    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  }
+
   const s = String(raw).trim();
+  if (!s) return '';
+
+  // Dutch dd-mm-yyyy (the original CSV format for day > 12)
   const ddmm = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(s);
   if (ddmm) {
     return `${ddmm[3]}-${ddmm[2].padStart(2, '0')}-${ddmm[1].padStart(2, '0')}`;
   }
+
   return '';
 }
 
@@ -19,20 +32,44 @@ function parseDutchNumber(raw: unknown): number {
   return parseFloat(String(raw ?? '').replace(',', '.'));
 }
 
-export async function parseRabobank(wb: XLSX.WorkBook): Promise<{
+/** Read a cell's display text (.w) if available, falling back to .v.
+ *  Use this for Dutch-decimal columns so "1,8726" doesn't get
+ *  auto-coerced to 18726 by SheetJS's US-thousands assumption.
+ */
+function getCellText(sheet: XLSX.WorkSheet, rowIdx: number, colIdx: number): unknown {
+  const addr = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx });
+  const cell = sheet[addr];
+  if (!cell) return '';
+  // Prefer formatted text for numeric cells; fall back to value for strings
+  return cell.w ?? cell.v ?? '';
+}
+
+/** Read raw cell value (.v) directly — for date cells where the
+ *  numeric serial is unambiguous and the formatted .w may be
+ *  locale-ambiguous (e.g. "8/2/24" could be Aug 2 or Feb 8).
+ */
+function getCellValue(sheet: XLSX.WorkSheet, rowIdx: number, colIdx: number): unknown {
+  const addr = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx });
+  const cell = sheet[addr];
+  if (!cell) return '';
+  return cell.v ?? '';
+}
+
+export async function parseRabobank(rawBytes: Uint8Array): Promise<{
   trades: BrokerTrade[];
   skipSummary: SkipSummary;
   unresolvedIsins: string[];
   fallbackUsedTickers: string[];
 }> {
+  // Re-parse the file with cellDates:false to preserve original date strings.
+  // SheetJS's default XLSX.read auto-detects strings like "08-02-2024" as
+  // dates using US MM-DD-YYYY convention — which is wrong for Dutch CSVs.
+  // Disabling auto-detection lets parseDate handle dd-mm-yyyy correctly.
+  const wb = XLSX.read(rawBytes, { type: 'array', cellDates: false, raw: true });
   const sheet = wb.Sheets[wb.SheetNames[0]];
-  // raw: false → return formatted text (cell.w) instead of auto-coerced
-  // numeric values (cell.v). SheetJS treats Dutch decimal-comma as a
-  // US thousands separator otherwise, turning "1,8726" into 18726.
   const rows = XLSX.utils.sheet_to_json(sheet, {
     header: 1,
     defval: '',
-    raw: false,
   }) as unknown[][];
 
   if (rows.length < 2) {
@@ -134,8 +171,11 @@ export async function parseRabobank(wb: XLSX.WorkBook): Promise<{
     }
 
     // ── Parse volume and price ───────────────────────────────────────────────
-    const volume = parseDutchNumber(row[volumeCol]);
-    const koers  = parseDutchNumber(row[koersCol]);
+    // getCellText reads cell.w (formatted text) to preserve Dutch decimal-comma.
+    // sheet_to_json without raw:false coerces "1,8726" → 18726 via US-thousands
+    // convention; reading .w directly bypasses that coercion.
+    const volume = parseDutchNumber(getCellText(sheet, ri, volumeCol));
+    const koers  = parseDutchNumber(getCellText(sheet, ri, koersCol));
 
     if (isNaN(volume) || isNaN(koers)) {
       skip.parseErrors = (skip.parseErrors ?? 0) + 1;
@@ -144,7 +184,7 @@ export async function parseRabobank(wb: XLSX.WorkBook): Promise<{
 
     // ── Currency, date, action ───────────────────────────────────────────────
     const currency = String(row[valutaCol] ?? '').trim() || 'EUR';
-    const date     = parseDate(row[datumCol]);
+    const date     = parseDate(getCellValue(sheet, ri, datumCol));
     // Volume is already signed (negative = sell); action follows sign
     const action: 'buy' | 'sell' = volume < 0 ? 'sell' : 'buy';
 
