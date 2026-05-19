@@ -496,7 +496,7 @@ export default function UploadPanel({ onClose, onImport }) {
               (sk.corporateActionsHeld ?? 0) > 0 && `${sk.corporateActionsHeld} corporate-action row${sk.corporateActionsHeld !== 1 ? 's' : ''} excluded (${sk.corporateActionsHeldTypes?.join(', ')}) \u2014 these affect positions but require manual adjustment after import. Verify any affected holdings.`,
               (sk.netZero              ?? 0) > 0 && `${sk.netZero} position${sk.netZero !== 1 ? 's' : ''} fully closed (net zero, excluded)`,
               (sk.parseErrors          ?? 0) > 0 && `${sk.parseErrors} rows could not be parsed`,
-              (sk.sellsWithoutBuys     ?? 0) > 0 && `${sk.sellsWithoutBuys} ticker${sk.sellsWithoutBuys !== 1 ? 's' : ''} could not be imported — sells without prior buys (likely bought before this export's date range): ${sk.sellsWithoutBuysTickers?.join(', ')}`,
+              (sk.sellsWithoutBuys     ?? 0) > 0 && `${sk.sellsWithoutBuys} ticker${sk.sellsWithoutBuys !== 1 ? 's' : ''} had sells without matching buys (likely bought before this export's date range): ${sk.sellsWithoutBuysTickers?.join(', ')} \u2014 verify these positions`,
               (sk.unresolvedIsins      ?? 0) > 0 && `${sk.unresolvedIsins} row${sk.unresolvedIsins !== 1 ? 's' : ''} skipped — ISIN could not be resolved to a ticker: ${sk.unresolvedIsinsList?.join(', ')}`,
             ].filter(Boolean);
 
