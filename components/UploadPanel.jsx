@@ -54,14 +54,19 @@ export default function UploadPanel({ onClose, onImport }) {
 
         if (format === 'saxo') {
           const { trades, skipSummary } = parseSaxo(wb);
-          const { positions, netZeroTickers } = aggregateFIFO(trades, 'saxo');
+          const { positions, netZeroTickers, sellsWithoutBuysTickers } = aggregateFIFO(trades, 'saxo');
           const valid = positions.map(p => ({
             t: p.t, s: p.s, c: p.c, d: p.d ?? '',
             currency: p.currency, broker: 'saxo',
           }));
           setBrokerResult({
             valid,
-            skipped: { ...skipSummary, netZero: netZeroTickers.length },
+            skipped: {
+              ...skipSummary,
+              netZero: netZeroTickers.length,
+              sellsWithoutBuys: sellsWithoutBuysTickers.length,
+              sellsWithoutBuysTickers,
+            },
           });
           setHeaders([]);
           setRows([]);
@@ -339,6 +344,7 @@ export default function UploadPanel({ onClose, onImport }) {
               (sk.cashTransfersSkipped ?? 0) > 0 && `${sk.cashTransfersSkipped} cash transfer rows skipped`,
               (sk.netZero              ?? 0) > 0 && `${sk.netZero} position${sk.netZero !== 1 ? 's' : ''} fully closed (net zero, excluded)`,
               (sk.parseErrors          ?? 0) > 0 && `${sk.parseErrors} rows could not be parsed`,
+              (sk.sellsWithoutBuys     ?? 0) > 0 && `${sk.sellsWithoutBuys} ticker${sk.sellsWithoutBuys !== 1 ? 's' : ''} could not be imported — sells without prior buys (likely bought before this export's date range): ${sk.sellsWithoutBuysTickers?.join(', ')}`,
             ].filter(Boolean);
 
             return (

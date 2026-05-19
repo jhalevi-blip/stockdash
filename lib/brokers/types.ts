@@ -32,4 +32,6 @@ export interface SkipSummary {
   dividendsSkipped?: number;
   cashTransfersSkipped?: number;
   parseErrors?: number;
+  sellsWithoutBuys?: number;
+  sellsWithoutBuysTickers?: string[];
 }

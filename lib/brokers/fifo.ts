@@ -10,7 +10,11 @@ interface Lot {
 export function aggregateFIFO(
   trades: BrokerTrade[],
   broker: BrokerFormat
-): { positions: NormalizedPosition[]; netZeroTickers: string[] } {
+): {
+  positions: NormalizedPosition[];
+  netZeroTickers: string[];
+  sellsWithoutBuysTickers: string[];
+} {
   // Group trades by ticker
   const byTicker = new Map<string, BrokerTrade[]>();
   for (const trade of trades) {
@@ -20,6 +24,7 @@ export function aggregateFIFO(
 
   const positions: NormalizedPosition[] = [];
   const netZeroTickers: string[] = [];
+  const sellsWithoutBuysTickers: string[] = [];
 
   for (const [ticker, tickerTrades] of byTicker) {
     // Sort chronologically so FIFO consumes oldest lots first
@@ -28,11 +33,14 @@ export function aggregateFIFO(
     );
 
     const lots: Lot[] = [];
+    let hadBuys = false;
+    let hadUnmatchedSell = false;
 
     for (const trade of sorted) {
       const absShares = Math.abs(trade.shares);
 
       if (trade.action === 'buy') {
+        hadBuys = true;
         lots.push({
           shares: absShares,
           price: trade.price,
@@ -52,15 +60,22 @@ export function aggregateFIFO(
             remaining = 0;
           }
         }
-        // If remaining > 0 after all lots consumed: short or data gap — ignore
+        // remaining > 0 means the sell exceeded available buy lots
+        if (remaining > 1e-9) hadUnmatchedSell = true;
       }
     }
 
     const netShares = lots.reduce((sum, l) => sum + l.shares, 0);
 
     if (netShares <= 1e-9) {
-      // Net-zero (or rounding dust): fully closed position
-      netZeroTickers.push(ticker);
+      // Distinguish: sell-without-buy vs true round-trip
+      if (hadUnmatchedSell || !hadBuys) {
+        // Sell exceeded buy history — bought before this export's date range
+        sellsWithoutBuysTickers.push(ticker);
+      } else {
+        // True round-trip: buys fully matched by sells
+        netZeroTickers.push(ticker);
+      }
       continue;
     }
 
@@ -85,5 +100,5 @@ export function aggregateFIFO(
     });
   }
 
-  return { positions, netZeroTickers };
+  return { positions, netZeroTickers, sellsWithoutBuysTickers };
 }
