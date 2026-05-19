@@ -493,6 +493,7 @@ export default function UploadPanel({ onClose, onImport }) {
               (sk.fxConversionsSkipped ?? 0) > 0 && `${sk.fxConversionsSkipped} FX conversion${sk.fxConversionsSkipped !== 1 ? 's' : ''} skipped (empty ISIN)`,
               (sk.fallbackTickers     ?? 0) > 0 && `${sk.fallbackTickers} position${sk.fallbackTickers !== 1 ? 's' : ''} using fund name as ticker (no exchange ticker available): ${sk.fallbackTickersList?.join(', ')}`,
               (sk.corporateActionsSkipped ?? 0) > 0 && `${sk.corporateActionsSkipped} corporate-action row${sk.corporateActionsSkipped !== 1 ? 's' : ''} skipped (CUSIP-identified \u2014 verify your portfolio if you had positions in renamed/merged/converted securities)`,
+              (sk.corporateActionsHeld ?? 0) > 0 && `${sk.corporateActionsHeld} corporate-action row${sk.corporateActionsHeld !== 1 ? 's' : ''} excluded (${sk.corporateActionsHeldTypes?.join(', ')}) \u2014 these affect positions but require manual adjustment after import. Verify any affected holdings.`,
               (sk.netZero              ?? 0) > 0 && `${sk.netZero} position${sk.netZero !== 1 ? 's' : ''} fully closed (net zero, excluded)`,
               (sk.parseErrors          ?? 0) > 0 && `${sk.parseErrors} rows could not be parsed`,
               (sk.sellsWithoutBuys     ?? 0) > 0 && `${sk.sellsWithoutBuys} ticker${sk.sellsWithoutBuys !== 1 ? 's' : ''} could not be imported — sells without prior buys (likely bought before this export's date range): ${sk.sellsWithoutBuysTickers?.join(', ')}`,

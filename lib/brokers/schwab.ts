@@ -57,10 +57,12 @@ export function parseSchwab(rawBytes: Uint8Array): {
   const priceCol   = col('price');
 
   const skip: SkipSummary = {
-    dividendsSkipped:        0,
-    cashTransfersSkipped:    0,
-    parseErrors:             0,
-    corporateActionsSkipped: 0,
+    dividendsSkipped:          0,
+    cashTransfersSkipped:      0,
+    parseErrors:               0,
+    corporateActionsSkipped:   0,
+    corporateActionsHeld:      0,
+    corporateActionsHeldTypes: [],
   };
 
   const trades: BrokerTrade[] = [];
@@ -78,7 +80,7 @@ export function parseSchwab(rawBytes: Uint8Array): {
     const actionRaw   = String(row[actionCol] ?? '').trim();
     const actionLower = actionRaw.toLowerCase();
 
-    // ── B8b corporate actions — hold as parseErrors for now ─────────────────
+    // ── Corporate actions — excluded with dedicated bucket ──────────────────
     if (
       actionLower === 'stock split'    ||
       actionLower === 'reverse split'  ||
@@ -89,7 +91,11 @@ export function parseSchwab(rawBytes: Uint8Array): {
       actionLower === 'conversion'     ||
       actionLower === 'cash in lieu'
     ) {
-      skip.parseErrors = (skip.parseErrors ?? 0) + 1;
+      skip.corporateActionsHeld = (skip.corporateActionsHeld ?? 0) + 1;
+      if (!skip.corporateActionsHeldTypes) skip.corporateActionsHeldTypes = [];
+      if (!skip.corporateActionsHeldTypes.includes(actionRaw)) {
+        skip.corporateActionsHeldTypes.push(actionRaw);
+      }
       continue;
     }
 

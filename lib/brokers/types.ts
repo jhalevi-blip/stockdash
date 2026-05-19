@@ -43,4 +43,6 @@ export interface SkipSummary {
   fallbackTickers?: number;
   fallbackTickersList?: string[];
   corporateActionsSkipped?: number;
+  corporateActionsHeld?: number;
+  corporateActionsHeldTypes?: string[];
 }
