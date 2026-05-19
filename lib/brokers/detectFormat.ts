@@ -33,6 +33,21 @@ export function detectBrokerFormat(wb: XLSX.WorkBook): BrokerFormat {
     }
   }
 
+  // ── IBKR Trades Flex Query: 9-column CSV ─────────────────────────────────
+  for (const sn of wb.SheetNames) {
+    const headers = getSheetHeaders(wb.Sheets[sn], 5);
+    if (
+      headers.includes('buy/sell') &&
+      headers.includes('tradedate') &&
+      headers.includes('isin') &&
+      headers.includes('quantity') &&
+      headers.includes('tradeprice') &&
+      headers.includes('currencyprimary')
+    ) {
+      return 'ibkr';
+    }
+  }
+
   // ── Saxo / DeGiro: Dutch Excel with a "Transacties" sheet ────────────────
   const transactiesName = wb.SheetNames.find(
     (n) => n.trim().toLowerCase() === 'transacties'
