@@ -26,9 +26,13 @@ export async function parseRabobank(wb: XLSX.WorkBook): Promise<{
   fallbackUsedTickers: string[];
 }> {
   const sheet = wb.Sheets[wb.SheetNames[0]];
+  // raw: false → return formatted text (cell.w) instead of auto-coerced
+  // numeric values (cell.v). SheetJS treats Dutch decimal-comma as a
+  // US thousands separator otherwise, turning "1,8726" into 18726.
   const rows = XLSX.utils.sheet_to_json(sheet, {
     header: 1,
     defval: '',
+    raw: false,
   }) as unknown[][];
 
   if (rows.length < 2) {
