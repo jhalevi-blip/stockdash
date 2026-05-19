@@ -1,6 +1,15 @@
 import * as XLSX from 'xlsx';
 import type { BrokerTrade, SkipSummary } from './types';
 
+// T212 EXPORTS HAVE A COLUMN-SHIFT QUIRK on Stock distribution and
+// Stock split rows: the "No. of shares" cell is blank, the order ID
+// sits in "Price / share", and the actual numeric values are pushed
+// one column to the right. So for these row types:
+//   - shares come from the "Currency (Price / share)" cell (priceCurrCol)
+//   - price comes from "Exchange rate" (exchangeRateCol)
+//   - currency comes from "Result" (resultCol)
+// Market buy/sell rows use the normal column layout.
+
 export function parseTrading212(wb: XLSX.WorkBook): {
   trades: BrokerTrade[];
   skipSummary: SkipSummary;
@@ -37,7 +46,6 @@ export function parseTrading212(wb: XLSX.WorkBook): {
   const priceCurrCol    = col('currency (price / share)');
   const exchangeRateCol = col('exchange rate');
   const resultCol       = col('result');
-  const resultCurrCol   = col('currency (result)');
 
   const trades: BrokerTrade[] = [];
   const skip: SkipSummary = {
@@ -115,26 +123,27 @@ export function parseTrading212(wb: XLSX.WorkBook): {
     let currency: string;
 
     if (actionType === 'distribution') {
-      // Shares from Result column; price = 0 (free shares)
-      const resultRaw = row[resultCol];
-      shares = typeof resultRaw === 'number'
-        ? resultRaw
-        : parseFloat(String(resultRaw ?? '').replace(',', '.'));
+      // T212 column-shifts these rows: shares in priceCurrCol,
+      // price stays in exchangeRateCol, currency in resultCol.
+      const sharesRaw = row[priceCurrCol];
+      shares = typeof sharesRaw === 'number'
+        ? sharesRaw
+        : parseFloat(String(sharesRaw ?? '').replace(',', '.'));
       if (isNaN(shares) || shares === 0) {
         skip.parseErrors = (skip.parseErrors ?? 0) + 1;
         continue;
       }
       price    = 0;
-      currency = String(row[resultCurrCol] ?? '').trim() || 'USD';
+      currency = String(row[resultCol] ?? '').trim() || 'USD';
       distributionsCounted++;
 
     } else if (actionType === 'split_open' || actionType === 'split_close') {
-      // Shares from Result column; price from Exchange rate column
-      const resultRaw      = row[resultCol];
+      // Same shift as distribution; price is in exchangeRateCol.
+      const sharesRaw       = row[priceCurrCol];
       const exchangeRateRaw = row[exchangeRateCol];
-      shares = typeof resultRaw === 'number'
-        ? resultRaw
-        : parseFloat(String(resultRaw ?? '').replace(',', '.'));
+      shares = typeof sharesRaw === 'number'
+        ? sharesRaw
+        : parseFloat(String(sharesRaw ?? '').replace(',', '.'));
       price  = typeof exchangeRateRaw === 'number'
         ? exchangeRateRaw
         : parseFloat(String(exchangeRateRaw ?? '').replace(',', '.'));
@@ -143,7 +152,7 @@ export function parseTrading212(wb: XLSX.WorkBook): {
         continue;
       }
       if (isNaN(price)) price = 0;
-      currency = String(row[resultCurrCol] ?? '').trim() || 'USD';
+      currency = String(row[resultCol] ?? '').trim() || 'USD';
       splitsCounted++;
 
     } else {
