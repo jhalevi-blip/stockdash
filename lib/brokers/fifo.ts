@@ -67,13 +67,17 @@ export function aggregateFIFO(
 
     const netShares = lots.reduce((sum, l) => sum + l.shares, 0);
 
+    // Always flag unmatched sells — even when later buys leave a positive
+    // net position (e.g. sell with no prior lots, then new buy the next month).
+    if (hadUnmatchedSell || !hadBuys && netShares <= 1e-9) {
+      sellsWithoutBuysTickers.push(ticker);
+    }
+
     if (netShares <= 1e-9) {
-      // Distinguish: sell-without-buy vs true round-trip
-      if (hadUnmatchedSell || !hadBuys) {
-        // Sell exceeded buy history — bought before this export's date range
-        sellsWithoutBuysTickers.push(ticker);
-      } else {
-        // True round-trip: buys fully matched by sells
+      // True round-trip (no unmatched sells, all buys consumed by sells)
+      // OR pure unmatched-sell with no remaining lots — either way, nothing
+      // to push to positions[]. sellsWithoutBuysTickers already updated above.
+      if (!hadUnmatchedSell && hadBuys) {
         netZeroTickers.push(ticker);
       }
       continue;
