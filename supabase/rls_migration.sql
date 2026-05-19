@@ -60,34 +60,8 @@ CREATE POLICY "portfolios_delete_own"
   USING (auth.uid()::text = user_id);
 
 
--- =============================================================================
--- TABLE: holdings
--- Row-per-holding table (legacy — app now primarily uses portfolios).
--- Same user_id ownership pattern.
--- =============================================================================
-
-ALTER TABLE holdings ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "holdings_select_own"
-  ON holdings
-  FOR SELECT
-  USING (auth.uid()::text = user_id);
-
-CREATE POLICY "holdings_insert_own"
-  ON holdings
-  FOR INSERT
-  WITH CHECK (auth.uid()::text = user_id);
-
-CREATE POLICY "holdings_update_own"
-  ON holdings
-  FOR UPDATE
-  USING (auth.uid()::text = user_id)
-  WITH CHECK (auth.uid()::text = user_id);
-
-CREATE POLICY "holdings_delete_own"
-  ON holdings
-  FOR DELETE
-  USING (auth.uid()::text = user_id);
+-- holdings table dropped on 2026-05-19 (was legacy row-per-holding;
+-- app uses portfolios JSONB exclusively, see app/api/portfolio/route.ts)
 
 
 -- =============================================================================
@@ -115,9 +89,9 @@ ALTER TABLE api_usage ENABLE ROW LEVEL SECURITY;
 --   rowsecurity
 -- FROM pg_tables
 -- WHERE schemaname = 'public'
---   AND tablename IN ('portfolios', 'holdings', 'api_usage');
+--   AND tablename IN ('portfolios', 'api_usage');
 --
--- Expected: rowsecurity = true for all three rows.
+-- Expected: rowsecurity = true for both rows.
 --
 -- SELECT
 --   tablename,
@@ -129,5 +103,5 @@ ALTER TABLE api_usage ENABLE ROW LEVEL SECURITY;
 -- WHERE schemaname = 'public'
 -- ORDER BY tablename, policyname;
 --
--- Expected: 4 policies on portfolios, 4 on holdings, 0 on api_usage.
+-- Expected: 4 policies on portfolios, 0 on api_usage.
 -- =============================================================================
