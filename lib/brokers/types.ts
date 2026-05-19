@@ -1,4 +1,4 @@
-export type BrokerFormat = 'saxo' | 'degiro' | 'generic';
+export type BrokerFormat = 'saxo' | 'degiro' | 'trading212' | 'generic';
 
 export interface BrokerTrade {
   ticker: string;
@@ -36,4 +36,7 @@ export interface SkipSummary {
   sellsWithoutBuysTickers?: string[];
   unresolvedIsins?: number;
   unresolvedIsinsList?: string[];
+  transfersOutSkipped?: number;
+  splitsCounted?: number;
+  distributionsCounted?: number;
 }

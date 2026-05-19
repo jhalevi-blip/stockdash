@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import { detectBrokerFormat } from '@/lib/brokers/detectFormat';
 import { parseSaxo } from '@/lib/brokers/saxo';
 import { parseDeGiro } from '@/lib/brokers/degiro';
+import { parseTrading212 } from '@/lib/brokers/trading212';
 import { aggregateFIFO } from '@/lib/brokers/fifo';
 
 // Fuzzy match column headers to detect ticker/shares/cost/date columns.
@@ -52,6 +53,33 @@ export default function UploadPanel({ onClose, onImport }) {
         // ── Broker format detection ──────────────────────────────────────────
         const format = detectBrokerFormat(wb);
         setDetectedBroker(format);
+
+        if (format === 'trading212') {
+          const { trades, skipSummary, splitsCounted, distributionsCounted,
+                  transfersOutSkipped } = parseTrading212(wb);
+          const { positions, netZeroTickers, sellsWithoutBuysTickers } =
+            aggregateFIFO(trades, 'trading212');
+          const valid = positions.map(p => ({
+            t: p.t, s: p.s, c: p.c, d: p.d ?? '',
+            currency: p.currency, broker: 'trading212',
+          }));
+          setBrokerResult({
+            valid,
+            skipped: {
+              ...skipSummary,
+              netZero: netZeroTickers.length,
+              sellsWithoutBuys: sellsWithoutBuysTickers.length,
+              sellsWithoutBuysTickers,
+              transfersOutSkipped,
+              splitsCounted,
+              distributionsCounted,
+            },
+          });
+          setHeaders([]);
+          setRows([]);
+          setMapping({ ticker: -1, shares: -1, cost: -1, date: -1 });
+          return;
+        }
 
         if (format === 'saxo') {
           const { trades, skipSummary } = parseSaxo(wb);
@@ -355,18 +383,23 @@ export default function UploadPanel({ onClose, onImport }) {
             }}>{error}</div>
           )}
 
-          {/* ── Saxo / DeGiro broker path ────────────────────────────────── */}
-          {(detectedBroker === 'saxo' || detectedBroker === 'degiro') && brokerResult && (() => {
+          {/* ── Saxo / DeGiro / Trading 212 broker path ─────────────────── */}
+          {(detectedBroker === 'saxo' || detectedBroker === 'degiro' || detectedBroker === 'trading212') && brokerResult && (() => {
             const sk = brokerResult.skipped;
-            const brokerLabel = detectedBroker === 'saxo' ? 'Saxo Bank' : 'DeGiro';
+            const brokerLabel = detectedBroker === 'saxo' ? 'Saxo Bank'
+              : detectedBroker === 'degiro' ? 'DeGiro'
+              : 'Trading 212';
             const emptyStateMsg = detectedBroker === 'saxo'
               ? 'No positions found — check that this is a Saxo Transactions export'
-              : 'No positions found — check that this is a DeGiro Transacties export';
+              : detectedBroker === 'degiro'
+              ? 'No positions found — check that this is a DeGiro Transacties export'
+              : 'No positions found — check that this is a Trading 212 CSV export';
             const skipLines = [
               (sk.optionsSkipped       ?? 0) > 0 && `${sk.optionsSkipped} options trades skipped`,
               (sk.expirySkipped        ?? 0) > 0 && `${sk.expirySkipped} expiry rows skipped`,
               (sk.dividendsSkipped     ?? 0) > 0 && `${sk.dividendsSkipped} dividend / corporate action rows skipped`,
               (sk.cashTransfersSkipped ?? 0) > 0 && `${sk.cashTransfersSkipped} cash transfer rows skipped`,
+              (sk.transfersOutSkipped  ?? 0) > 0 && `${sk.transfersOutSkipped} asset${sk.transfersOutSkipped !== 1 ? 's' : ''} transferred out (excluded)`,
               (sk.netZero              ?? 0) > 0 && `${sk.netZero} position${sk.netZero !== 1 ? 's' : ''} fully closed (net zero, excluded)`,
               (sk.parseErrors          ?? 0) > 0 && `${sk.parseErrors} rows could not be parsed`,
               (sk.sellsWithoutBuys     ?? 0) > 0 && `${sk.sellsWithoutBuys} ticker${sk.sellsWithoutBuys !== 1 ? 's' : ''} could not be imported — sells without prior buys (likely bought before this export's date range): ${sk.sellsWithoutBuysTickers?.join(', ')}`,
@@ -418,6 +451,18 @@ export default function UploadPanel({ onClose, onImport }) {
                     }}>
                       {skipLines.map((line, i) => <li key={i}>{line}</li>)}
                     </ul>
+                  )}
+                  {((sk.splitsCounted ?? 0) > 0 || (sk.distributionsCounted ?? 0) > 0) && (
+                    <div style={{
+                      marginTop: 8,
+                      paddingTop: 8,
+                      borderTop: '1px solid var(--border-color, #2a3142)',
+                      fontSize: 11,
+                      color: 'var(--text-muted, #6e7681)',
+                    }}>
+                      {(sk.splitsCounted ?? 0) > 0 && <div>✓ {sk.splitsCounted} stock split{sk.splitsCounted !== 1 ? 's' : ''} processed</div>}
+                      {(sk.distributionsCounted ?? 0) > 0 && <div>✓ {sk.distributionsCounted} stock distribution{sk.distributionsCounted !== 1 ? 's' : ''} processed</div>}
+                    </div>
                   )}
                 </div>
 
