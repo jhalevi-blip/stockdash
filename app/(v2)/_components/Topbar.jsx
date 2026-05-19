@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useUser, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
 import Dot from './Dot';
 import { PORTFOLIO } from '@/app/(v2)/dashboard-v2/_lib/mockData';
 
@@ -20,6 +21,7 @@ function addRecent(symbol) {
 
 export default function Topbar({ onCommand }) {
   const router = useRouter();
+  const { isSignedIn, isLoaded } = useUser();
   const [open,        setOpen]        = useState(false);
   const [query,       setQuery]       = useState('');
   const [results,     setResults]     = useState([]);
@@ -176,6 +178,39 @@ export default function Topbar({ onCommand }) {
           cursor: 'pointer',
           fontWeight: 500,
         }}>🛠 Edit Portfolio</button>
+
+        {/* Auth UI — mirrors V1 NavBar pattern */}
+        {isLoaded && !isSignedIn && (
+          <>
+            <SignInButton mode="modal">
+              <button style={{
+                background: 'none',
+                border: '1px solid var(--border-color)',
+                borderRadius: 6,
+                color: 'var(--text-secondary)',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                padding: '6px 12px',
+              }}>Sign In</button>
+            </SignInButton>
+            <SignUpButton mode="modal">
+              <button style={{
+                background: '#2563eb',
+                border: '1px solid #2563eb',
+                borderRadius: 6,
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                padding: '6px 12px',
+              }}>Sign Up</button>
+            </SignUpButton>
+          </>
+        )}
+        {isLoaded && isSignedIn && (
+          <UserButton afterSignOutUrl="/" />
+        )}
       </div>
 
       {/* Command palette overlay */}
