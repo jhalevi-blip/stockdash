@@ -1,4 +1,4 @@
-export type BrokerFormat = 'saxo' | 'degiro' | 'trading212' | 'ibkr' | 'rabobank' | 'generic';
+export type BrokerFormat = 'saxo' | 'degiro' | 'trading212' | 'ibkr' | 'rabobank' | 'schwab' | 'generic';
 
 export interface BrokerTrade {
   ticker: string;
@@ -42,4 +42,5 @@ export interface SkipSummary {
   fxConversionsSkipped?: number;
   fallbackTickers?: number;
   fallbackTickersList?: string[];
+  corporateActionsSkipped?: number;
 }

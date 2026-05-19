@@ -8,6 +8,7 @@ import { parseDeGiro } from '@/lib/brokers/degiro';
 import { parseTrading212 } from '@/lib/brokers/trading212';
 import { parseIBKR } from '@/lib/brokers/ibkr';
 import { parseRabobank } from '@/lib/brokers/rabobank';
+import { parseSchwab } from '@/lib/brokers/schwab';
 import { aggregateFIFO } from '@/lib/brokers/fifo';
 
 // Fuzzy match column headers to detect ticker/shares/cost/date columns.
@@ -130,6 +131,29 @@ export default function UploadPanel({ onClose, onImport }) {
               unresolvedIsinsList: unresolvedIsins,
               fallbackTickers: fallbackUsedTickers.length,
               fallbackTickersList: fallbackUsedTickers,
+            },
+          });
+          setHeaders([]);
+          setRows([]);
+          setMapping({ ticker: -1, shares: -1, cost: -1, date: -1 });
+          return;
+        }
+
+        if (format === 'schwab') {
+          const { trades, skipSummary } = parseSchwab(wb);
+          const { positions, netZeroTickers, sellsWithoutBuysTickers } =
+            aggregateFIFO(trades, 'schwab');
+          const valid = positions.map(p => ({
+            t: p.t, s: p.s, c: p.c, d: p.d ?? '',
+            currency: p.currency, broker: 'schwab',
+          }));
+          setBrokerResult({
+            valid,
+            skipped: {
+              ...skipSummary,
+              netZero: netZeroTickers.length,
+              sellsWithoutBuys: sellsWithoutBuysTickers.length,
+              sellsWithoutBuysTickers,
             },
           });
           setHeaders([]);
@@ -440,14 +464,15 @@ export default function UploadPanel({ onClose, onImport }) {
             }}>{error}</div>
           )}
 
-          {/* ── Saxo / DeGiro / Trading 212 / IBKR / Rabobank broker path ─ */}
-          {(detectedBroker === 'saxo' || detectedBroker === 'degiro' || detectedBroker === 'trading212' || detectedBroker === 'ibkr' || detectedBroker === 'rabobank') && brokerResult && (() => {
+          {/* ── Saxo / DeGiro / Trading 212 / IBKR / Rabobank / Schwab broker path ─ */}
+          {(detectedBroker === 'saxo' || detectedBroker === 'degiro' || detectedBroker === 'trading212' || detectedBroker === 'ibkr' || detectedBroker === 'rabobank' || detectedBroker === 'schwab') && brokerResult && (() => {
             const sk = brokerResult.skipped;
             const brokerLabel = detectedBroker === 'saxo' ? 'Saxo Bank'
               : detectedBroker === 'degiro' ? 'DeGiro'
               : detectedBroker === 'trading212' ? 'Trading 212'
               : detectedBroker === 'ibkr' ? 'Interactive Brokers'
-              : 'Rabobank';
+              : detectedBroker === 'rabobank' ? 'Rabobank'
+              : 'Charles Schwab';
             const emptyStateMsg = detectedBroker === 'saxo'
               ? 'No positions found — check that this is a Saxo Transactions export'
               : detectedBroker === 'degiro'
@@ -456,7 +481,9 @@ export default function UploadPanel({ onClose, onImport }) {
               ? 'No positions found — check that this is a Trading 212 CSV export'
               : detectedBroker === 'ibkr'
               ? 'No positions found — check that this is an IBKR Trades Flex Query export (not Dividends)'
-              : 'No positions found — check that this is a Rabobank CSV transaction export';
+              : detectedBroker === 'rabobank'
+              ? 'No positions found — check that this is a Rabobank CSV transaction export'
+              : 'No positions found — check that this is a Charles Schwab transaction history CSV';
             const skipLines = [
               (sk.optionsSkipped       ?? 0) > 0 && `${sk.optionsSkipped} options trades skipped`,
               (sk.expirySkipped        ?? 0) > 0 && `${sk.expirySkipped} expiry rows skipped`,
@@ -465,6 +492,7 @@ export default function UploadPanel({ onClose, onImport }) {
               (sk.transfersOutSkipped  ?? 0) > 0 && `${sk.transfersOutSkipped} asset${sk.transfersOutSkipped !== 1 ? 's' : ''} transferred out (excluded)`,
               (sk.fxConversionsSkipped ?? 0) > 0 && `${sk.fxConversionsSkipped} FX conversion${sk.fxConversionsSkipped !== 1 ? 's' : ''} skipped (empty ISIN)`,
               (sk.fallbackTickers     ?? 0) > 0 && `${sk.fallbackTickers} position${sk.fallbackTickers !== 1 ? 's' : ''} using fund name as ticker (no exchange ticker available): ${sk.fallbackTickersList?.join(', ')}`,
+              (sk.corporateActionsSkipped ?? 0) > 0 && `${sk.corporateActionsSkipped} corporate-action row${sk.corporateActionsSkipped !== 1 ? 's' : ''} skipped (CUSIP-identified \u2014 verify your portfolio if you had positions in renamed/merged/converted securities)`,
               (sk.netZero              ?? 0) > 0 && `${sk.netZero} position${sk.netZero !== 1 ? 's' : ''} fully closed (net zero, excluded)`,
               (sk.parseErrors          ?? 0) > 0 && `${sk.parseErrors} rows could not be parsed`,
               (sk.sellsWithoutBuys     ?? 0) > 0 && `${sk.sellsWithoutBuys} ticker${sk.sellsWithoutBuys !== 1 ? 's' : ''} could not be imported — sells without prior buys (likely bought before this export's date range): ${sk.sellsWithoutBuysTickers?.join(', ')}`,

@@ -61,6 +61,22 @@ export function detectBrokerFormat(wb: XLSX.WorkBook): BrokerFormat {
     }
   }
 
+  // ── Charles Schwab: US comma-delimited CSV with $ and MM/DD/YYYY dates ───
+  for (const sn of wb.SheetNames) {
+    const headers = getSheetHeaders(wb.Sheets[sn], 5);
+    if (
+      headers.includes('date') &&
+      headers.includes('action') &&
+      headers.includes('symbol') &&
+      headers.includes('quantity') &&
+      headers.includes('price') &&
+      headers.includes('fees & comm') &&
+      headers.includes('amount')
+    ) {
+      return 'schwab';
+    }
+  }
+
   // ── Saxo / DeGiro: Dutch Excel with a "Transacties" sheet ────────────────
   const transactiesName = wb.SheetNames.find(
     (n) => n.trim().toLowerCase() === 'transacties'
