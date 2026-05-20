@@ -15,7 +15,7 @@ export default function AllocationDonut({
   let offset = 0;
 
   return (
-    <div style={{
+    <div className="v2-allocation-donut" style={{
       display: 'flex',
       alignItems: 'center',
       gap: 18,

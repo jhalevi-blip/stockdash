@@ -41,12 +41,14 @@ export default function MoversList({ kind = 'up', onTickerClick, movers }) {
             fontSize: 12,
             width: 56,
           }}>{m.ticker}</span>
-          <Sparkline
-            data={TICKER_SPARKS[m.ticker]}
-            width={60}
-            height={20}
-            strokeWidth={1.3}
-          />
+          <span className="v2-mover-sparkline" style={{ display: 'contents' }}>
+            <Sparkline
+              data={TICKER_SPARKS[m.ticker]}
+              width={60}
+              height={20}
+              strokeWidth={1.3}
+            />
+          </span>
           <span style={{
             marginLeft: 'auto',
             color: colorForChange(m.change),

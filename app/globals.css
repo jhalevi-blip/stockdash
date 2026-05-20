@@ -321,6 +321,21 @@ body:has(.app-sidebar) { padding-left: 200px; }
   }
 }
 
+/* === V2 MOBILE COMPONENT FITS === */
+@media (max-width: 768px) {
+  .v2-allocation-donut {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 14px !important;
+  }
+  .v2-allocation-donut > svg {
+    align-self: center;
+  }
+  .v2-mover-sparkline {
+    display: none !important;
+  }
+}
+
 /* === DASHBOARD-V2 RESPONSIVE GRIDS === */
 
 /* KPI chips: 4 cols desktop → 2 cols mobile */
