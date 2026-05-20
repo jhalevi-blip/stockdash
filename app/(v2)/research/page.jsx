@@ -1068,7 +1068,7 @@ function DCFCalculator({ ticker, financials, metrics, quote, aiScenarios, resolv
       {noData ? (
         <PlaceholderBody label={`Financial data not available for ${ticker} — DCF requires annual revenue from EDGAR`} height={140} />
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
+        <div className="dcf-inner-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
           {/* Sliders */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Active preset rationale caption — dims when user has customized sliders */}
