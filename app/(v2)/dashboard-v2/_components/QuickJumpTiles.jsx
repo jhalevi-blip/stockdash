@@ -15,11 +15,7 @@ export default function QuickJumpTiles() {
   const [hovered, setHovered] = useState(null);
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-      gap: 10,
-    }}>
+    <div className="dv2-tiles-grid">
       {TILES.map(tile => (
         <Link
           key={tile.id}

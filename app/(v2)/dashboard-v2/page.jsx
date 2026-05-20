@@ -284,11 +284,7 @@ export default function DashboardV2Page() {
       </Card>
 
       {/* 2. KPI chips */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-        gap: 10,
-      }}>
+      <div className="dv2-kpi-grid">
         <MetricChip label="Today's P&L"  value={fmtCurrency(hero.dayChange, 0)}  change={hero.dayChangePct} />
         <MetricChip label="Unrealized"   value={fmtCurrency(hero.unrealized, 0)} change={hero.unrealizedPct} />
         <MetricChip label="Positions"    value={String(hero.positions)} />
@@ -299,11 +295,7 @@ export default function DashboardV2Page() {
       <MacroStrip />
 
       {/* 4. Holdings + side rail */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 1fr)',
-        gap: 14,
-      }}>
+      <div className="dv2-holdings-grid">
         <Card title="Holdings" eyebrow="Live">
           {/* Use real enriched rows when available; fall back to mock for demo/anonymous visitors */}
           <HoldingsTable rows={enrichedRows.length > 0 ? enrichedRows : HOLDINGS} />
@@ -360,11 +352,7 @@ export default function DashboardV2Page() {
       )}
 
       {/* 6. Earnings · News · Insider — 3-column feed row */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-        gap: 14,
-      }}>
+      <div className="dv2-feed-grid">
         <Card title="Upcoming Earnings" eyebrow="Calendar">
           <EarningsList tickers={tickerList} />
         </Card>

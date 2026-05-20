@@ -74,14 +74,8 @@ export default function MacroStrip({ onIndexClick }) {
   const list = data ?? MACRO;
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
-      gap: 1,
-      background: 'var(--border-color)',
-      border: '1px solid var(--border-color)',
-      borderRadius: 6,
-      overflow: 'hidden',
+    <div className="dv2-macro-scroll">
+    <div className="dv2-macro-grid" style={{
       fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
     }}>
       {list.map(m => (
@@ -125,6 +119,7 @@ export default function MacroStrip({ onIndexClick }) {
           }}>{m.changeAbs}{m.change !== 0 && ` (${fmtPct(m.change)})`}</span>
         </button>
       ))}
+    </div>
     </div>
   );
 }
