@@ -311,6 +311,16 @@ body:has(.app-sidebar) { padding-left: 200px; }
   }
 }
 
+/* === V2 TOPBAR === */
+@media (max-width: 768px) {
+  .v2-topbar {
+    padding-left: 70px !important;
+  }
+  .v2-topbar-desktop-only {
+    display: none !important;
+  }
+}
+
 /* === DASHBOARD-V2 RESPONSIVE GRIDS === */
 
 /* KPI chips: 4 cols desktop → 2 cols mobile */

@@ -120,7 +120,7 @@ export default function Topbar({ onCommand }) {
   return (
     <>
       {/* Topbar */}
-      <div style={{
+      <div className="v2-topbar" style={{
         display: 'flex',
         alignItems: 'center',
         gap: 12,
@@ -152,7 +152,7 @@ export default function Topbar({ onCommand }) {
           >
             <span style={{ opacity: .6 }}>🔎</span>
             <span style={{ flex: 1 }}>Search ticker…</span>
-            <span style={{
+            <span className="v2-topbar-desktop-only" style={{
               fontSize: 10,
               color: 'var(--text-muted)',
               border: '1px solid var(--border-color)',
@@ -162,11 +162,11 @@ export default function Topbar({ onCommand }) {
           </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span className="v2-topbar-desktop-only" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Dot color="var(--positive)" /> Market open
           </span>
-          <span style={{ color: 'var(--text-muted)' }}>·</span>
-          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{PORTFOLIO.asOf}</span>
+          <span className="v2-topbar-desktop-only" style={{ color: 'var(--text-muted)' }}>·</span>
+          <span className="v2-topbar-desktop-only" style={{ fontVariantNumeric: 'tabular-nums' }}>{PORTFOLIO.asOf}</span>
         </div>
         <button onClick={() => onCommand?.('editPortfolio')} style={{
           background: 'transparent',
