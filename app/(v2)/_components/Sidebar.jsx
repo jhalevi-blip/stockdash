@@ -9,7 +9,7 @@ import { NAV_ITEMS } from '../_lib/routes';
 export default function Sidebar() {
   const pathname = usePathname();
   return (
-    <aside style={{
+    <aside className="v2-sidebar" style={{
       width: 208,
       flexShrink: 0,
       background: 'var(--bg-page-deep)',

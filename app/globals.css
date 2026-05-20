@@ -246,6 +246,71 @@ body:has(.app-sidebar) { padding-left: 200px; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* === V2 MOBILE NAV === */
+
+/* Desktop sidebar: hidden below 768px */
+@media (max-width: 768px) {
+  .v2-sidebar { display: none; }
+}
+
+/* Hamburger button: fixed top-left, visible only below 768px */
+.v2-hamburger {
+  display: none;
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  width: 44px;
+  height: 44px;
+  background: var(--bg-page-deep, var(--bg-primary));
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 20px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 0;
+  line-height: 1;
+}
+@media (max-width: 768px) {
+  .v2-hamburger { display: flex; }
+}
+
+/* Backdrop: full-viewport overlay, only rendered when open */
+.v2-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 60;
+}
+
+/* Drawer: slide-in panel, visible only below 768px */
+.v2-drawer {
+  display: none;
+}
+@media (max-width: 768px) {
+  .v2-drawer {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 260px;
+    height: 100vh;
+    background: var(--bg-page-deep, var(--bg-primary));
+    border-right: 1px solid var(--border-color);
+    flex-direction: column;
+    z-index: 70;
+    transform: translateX(-100%);
+    transition: transform 200ms ease;
+    overflow-y: auto;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+  .v2-drawer.v2-drawer--open {
+    transform: translateX(0);
+  }
+}
+
 /* === DASHBOARD-V2 RESPONSIVE GRIDS === */
 
 /* KPI chips: 4 cols desktop → 2 cols mobile */

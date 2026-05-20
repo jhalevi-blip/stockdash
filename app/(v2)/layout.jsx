@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import Sidebar from './_components/Sidebar';
 import Topbar from './_components/Topbar';
+import MobileNavDrawer from './_components/MobileNavDrawer';
 import PortfolioModal from '@/components/PortfolioModal';
 import { loadUserHoldings, saveUserHoldings } from '@/lib/holdingsStorage';
 
@@ -66,6 +67,7 @@ export default function DashboardV2Layout({ children }) {
       background: 'var(--bg-primary)',
     }}>
       <Sidebar />
+      <MobileNavDrawer />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <Topbar onCommand={handleCommand} />
         {children}
