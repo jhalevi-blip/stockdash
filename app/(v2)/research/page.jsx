@@ -1199,6 +1199,32 @@ function AnalystRatingsCard({ ticker, data, currentPrice }) {
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>No consensus data</div>
       )}
 
+      {/* Avg analyst price target — prominent display */}
+      {ptMean != null && (
+        <div style={{ textAlign: 'center', marginBottom: 14 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>
+            Avg Analyst Price Target
+          </div>
+          <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-.02em' }}>
+            {fmtDollars(ptMean)}
+          </div>
+          <div style={{ fontSize: 12, marginTop: 4, fontWeight: 600 }}>
+            {currentPrice != null ? (
+              <>
+                <span style={{ color: ptMean > currentPrice ? 'var(--positive)' : 'var(--negative)' }}>
+                  {ptMean > currentPrice ? '+' : ''}{(((ptMean - currentPrice) / currentPrice) * 100).toFixed(1)}% {ptMean > currentPrice ? 'upside' : 'downside'}
+                </span>
+                {priceTarget.analysts != null && (
+                  <span style={{ color: 'var(--text-muted)' }}> · {priceTarget.analysts} analysts</span>
+                )}
+              </>
+            ) : priceTarget.analysts != null ? (
+              <span style={{ color: 'var(--text-muted)' }}>based on {priceTarget.analysts} analysts</span>
+            ) : null}
+          </div>
+        </div>
+      )}
+
       {/* Price target range bar */}
       {hasTarget && (
         <div style={{ marginBottom: 14 }}>
