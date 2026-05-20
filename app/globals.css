@@ -250,7 +250,7 @@ body:has(.app-sidebar) { padding-left: 200px; }
 
 /* Desktop sidebar: hidden below 768px */
 @media (max-width: 768px) {
-  .v2-sidebar { display: none; }
+  .v2-sidebar { display: none !important; }
 }
 
 /* Hamburger button: fixed top-left, visible only below 768px */

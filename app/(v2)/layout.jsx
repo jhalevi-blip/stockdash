@@ -5,7 +5,6 @@ import { useUser } from '@clerk/nextjs';
 import Sidebar from './_components/Sidebar';
 import Topbar from './_components/Topbar';
 import MobileNavDrawer from './_components/MobileNavDrawer';
-import DebugOverlay from './_components/DebugOverlay';
 import PortfolioModal from '@/components/PortfolioModal';
 import { loadUserHoldings, saveUserHoldings } from '@/lib/holdingsStorage';
 
@@ -67,7 +66,6 @@ export default function DashboardV2Layout({ children }) {
       minHeight: '100vh',
       background: 'var(--bg-primary)',
     }}>
-      <DebugOverlay />
       <Sidebar />
       <MobileNavDrawer />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
