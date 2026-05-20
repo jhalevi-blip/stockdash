@@ -28,6 +28,7 @@ export const ROUTES = {
 
 export const NAV_ITEMS = [
   { id: 'dashboard',   label: 'Dashboard',       emoji: '📊', href: ROUTES.dashboard },
+  { id: 'stock-research', label: 'Research',          emoji: '📑', href: ROUTES.researchPage },
   { id: 'performance', label: 'Performance',     emoji: '📈', href: ROUTES.performance },
   { id: 'macro',       label: 'Macro',           emoji: '🌏', href: ROUTES.macro },
   { id: 'insider',     label: 'Insider',         emoji: '🔎', href: ROUTES.insider },
@@ -35,7 +36,6 @@ export const NAV_ITEMS = [
   { id: 'peers',        label: 'Peers',            emoji: '📋', href: ROUTES.peers },
   { id: 'correlations', label: 'Correlations',   emoji: '🔗', href: ROUTES.correlations },
   { id: 'research',       label: 'Financial Filings', emoji: '📑', href: ROUTES.research },
-  { id: 'stock-research', label: 'Research',          emoji: '📑', href: ROUTES.researchPage },
   { id: 'valuation',      label: 'Valuation',         emoji: '📐', href: ROUTES.valuation },
   { id: 'earnings',    label: 'Earnings',        emoji: '📅', href: ROUTES.earnings },
   { id: 'analyst',     label: 'Analyst Ratings', emoji: '🎯', href: ROUTES.analyst },
