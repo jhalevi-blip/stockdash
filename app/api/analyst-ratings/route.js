@@ -22,16 +22,16 @@ export async function GET(request) {
         ).then(r => r.ok ? r.json() : null).catch(() => null)
       : Promise.resolve(null),
 
-    finnhubKey
+    fmpKey
       ? fetch(
-          `https://finnhub.io/api/v1/stock/price-target?symbol=${ticker}&token=${finnhubKey}`,
+          `https://financialmodelingprep.com/stable/price-target-consensus?symbol=${ticker}&apikey=${fmpKey}`,
           { next: { revalidate: 3600 } }
         ).then(r => r.ok ? r.json() : null).catch(() => null)
       : Promise.resolve(null),
 
     fmpKey
       ? fetch(
-          `https://financialmodelingprep.com/stable/grades-historical?symbol=${ticker}&limit=10&apikey=${fmpKey}`,
+          `https://financialmodelingprep.com/stable/grades?symbol=${ticker}&limit=10&apikey=${fmpKey}`,
           { next: { revalidate: 3600 } }
         ).then(r => r.ok ? r.json() : null).catch(() => null)
       : Promise.resolve(null),
@@ -52,13 +52,14 @@ export async function GET(request) {
     period:     latestRec.period,
   } : null;
 
-  // Price target range
-  const priceTarget = ptData?.targetMean != null ? {
-    mean:      ptData.targetMean,
-    high:      ptData.targetHigh,
-    low:       ptData.targetLow,
-    median:    ptData.targetMedian,
-    analysts:  ptData.numberOfAnalysts,
+  // Price target range (FMP /stable/price-target-consensus returns an array)
+  const ptRow = Array.isArray(ptData) ? ptData[0] : null;
+  const priceTarget = ptRow?.targetConsensus != null ? {
+    mean:      ptRow.targetConsensus,
+    high:      ptRow.targetHigh,
+    low:       ptRow.targetLow,
+    median:    ptRow.targetMedian,
+    analysts:  null,  // not available in FMP price-target-consensus response
   } : null;
 
   // Recent grade changes from FMP
