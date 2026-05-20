@@ -383,6 +383,17 @@ body:has(.app-sidebar) { padding-left: 200px; }
   }
 }
 
+/* === THESIS HERO INNER GRID === */
+.thesis-inner-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+}
+@media (max-width: 768px) {
+  .thesis-inner-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
 /* === DASHBOARD-V2 RESPONSIVE GRIDS === */
 
 /* KPI chips: 4 cols desktop → 2 cols mobile */

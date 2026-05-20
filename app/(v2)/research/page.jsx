@@ -681,7 +681,7 @@ function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings,
         </div>
 
         {/* 2-column layout */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+        <div className="thesis-inner-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
 
           {/* LEFT PANE */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
