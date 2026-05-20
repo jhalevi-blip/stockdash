@@ -2312,7 +2312,7 @@ function ResearchPageInner() {
         </div>
 
         {/* 6-up stat strip */}
-        <div style={{
+        <div className="res-kpi-strip" style={{
           marginTop: 16, display: 'flex', border: '1px solid var(--border-color)',
           borderRadius: 6, overflow: 'hidden',
         }}>
@@ -2376,13 +2376,13 @@ function ResearchPageInner() {
       />
 
       {/* 3–4. Analyst Ratings | Earnings */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div className="res-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         <AnalystRatingsCard ticker={ticker} data={analystRatings} currentPrice={quote?.price} />
         <EarningsCard ticker={ticker} />
       </div>
 
       {/* 5–6. Financial Statements | Valuation Metrics */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div className="res-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         <FinancialStatementsCard ticker={ticker} financials={financials} />
         <ValuationMetricsCard ticker={ticker} metrics={metrics} valHistory={valHistory} />
       </div>
@@ -2391,7 +2391,7 @@ function ResearchPageInner() {
       <DCFCalculator ticker={ticker} financials={financials} metrics={metrics} quote={quote} aiScenarios={aiScenarios} resolvedRevenue={resolvedRevenue} />
 
       {/* 7–8–9. Insider | Institutional | Short Interest */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+      <div className="res-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
         <InsiderTradingCard         ticker={ticker} />
         <InstitutionalOwnershipCard ticker={ticker} />
         <ShortInterestCard          ticker={ticker} />

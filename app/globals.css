@@ -336,6 +336,36 @@ body:has(.app-sidebar) { padding-left: 200px; }
   }
 }
 
+/* === V2 RESEARCH GRIDS === */
+.res-2col {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+}
+.res-3col {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+@media (max-width: 768px) {
+  .res-2col,
+  .res-3col {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* KPI strip: 2 cols × 3 rows on mobile */
+.res-kpi-strip {
+  display: flex;
+}
+@media (max-width: 768px) {
+  .res-kpi-strip {
+    flex-wrap: wrap !important;
+  }
+  .res-kpi-strip > div {
+    flex: 0 0 50% !important;
+    min-width: 0 !important;
+  }
+}
+
 /* === DASHBOARD-V2 RESPONSIVE GRIDS === */
 
 /* KPI chips: 4 cols desktop → 2 cols mobile */
