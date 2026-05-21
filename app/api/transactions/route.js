@@ -50,9 +50,163 @@ function detectAction(rawAction, rawShares) {
   return null;
 }
 
+/** Resolve ISINs → tickers via OpenFIGI. Server-safe (direct fetch, no relative URL). */
+async function resolveIsinsServerSide(isins) {
+  if (!isins.length) return new Map();
+  const unique   = [...new Set(isins)];
+  const resolved = new Map();
+  for (let i = 0; i < unique.length; i += 100) {
+    const batch = unique.slice(i, i + 100);
+    try {
+      const res = await fetch('https://api.openfigi.com/v3/mapping', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(batch.map(isin => ({ idType: 'ID_ISIN', idValue: isin }))),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      for (let j = 0; j < batch.length; j++) {
+        const entry = data[j];
+        if (!entry || entry.error || !entry.data?.length) continue;
+        const preferred = entry.data.find(d => d.exchCode === 'US') ?? entry.data[0];
+        if (preferred?.ticker) resolved.set(batch[j], preferred.ticker);
+      }
+    } catch { /* skip failed batch */ }
+  }
+  return resolved;
+}
+
+/** Parse DeGiro Rekeningoverzicht (account statement) sheet. */
+async function parseDeGiroRekeningoverzicht(workbook, filename) {
+  const sheetName = workbook.SheetNames.find(n => n === 'Rekeningoverzicht');
+  const sheet = workbook.Sheets[sheetName];
+  const raw   = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  if (raw.length < 2) return { transactions: [], deposits: [], dividends: [], fees: [], unresolvedIsins: [] };
+
+  const headers  = raw[0];
+  const dataRows = raw.slice(1);
+
+  const datumCol   = findCol(headers, ['datum']);
+  const productCol = findCol(headers, ['product']);
+  const isinCol    = findCol(headers, ['isin']);
+  const omschrCol  = findCol(headers, ['omschrijving']);
+  const mutatieCol = findCol(headers, ['mutatie']);
+  const amountCol  = mutatieCol >= 0 ? mutatieCol + 1 : -1;
+  const orderIdCol = findCol(headers, ['order id', 'orderid', 'order-id']);
+
+  const transactions = [];
+  const deposits     = [];
+  const dividends    = [];
+  const fees         = [];
+
+  // Pass 1: bucket rows by Order Id; collect ISINs from trade rows
+  const groups      = new Map(); // orderId -> rows[]
+  const noOrderRows = [];
+  const tradeIsins  = new Set();
+
+  for (const row of dataRows) {
+    if (!row.some(v => v !== '')) continue;
+    const orderId = orderIdCol !== -1 ? String(row[orderIdCol] ?? '').trim() : '';
+    const omschr  = omschrCol  !== -1 ? String(row[omschrCol]  ?? '').trim() : '';
+    if (orderId) {
+      if (!groups.has(orderId)) groups.set(orderId, []);
+      groups.get(orderId).push(row);
+      if (/^(koop|verkoop)\s/i.test(omschr)) {
+        const isin = isinCol !== -1 ? String(row[isinCol] ?? '').trim() : '';
+        if (isin) tradeIsins.add(isin);
+      }
+    } else {
+      noOrderRows.push(row);
+    }
+  }
+
+  // Pass 2: batch-resolve all ISINs via OpenFIGI
+  const isinMap = await resolveIsinsServerSide([...tradeIsins]);
+
+  // Pass 3: process each Order Id group → transactions + fees
+  const unresolvedIsins = [];
+  const seenUnresolved  = new Set();
+
+  for (const [orderId, rows] of groups) {
+    let action = null, totalShares = 0, totalEurAmt = 0;
+    let date = null, isin = '', product = '';
+    let hasTrade = false;
+
+    for (const row of rows) {
+      const omschr    = omschrCol  !== -1 ? String(row[omschrCol]  ?? '').trim() : '';
+      const omschrLow = omschr.toLowerCase();
+      const mutatie   = mutatieCol !== -1 ? String(row[mutatieCol] ?? '').trim().toUpperCase() : '';
+      const amount    = amountCol  >= 0   ? parseNum(row[amountCol]) : null;
+
+      // Fee rows (DEGIRO Transactiekosten)
+      if (omschrLow.includes('transactiekosten')) {
+        const feeDate = datumCol !== -1 ? parseDate(row[datumCol]) : null;
+        if (amount != null) fees.push({ date: feeDate, amountEur: Math.abs(amount) });
+        continue;
+      }
+
+      // Trade rows: extract action, shares, ISIN; capture EUR amount if EUR-denominated trade
+      const tradeMatch = omschr.match(/^(koop|verkoop)\s+([\d.,]+)/i);
+      if (tradeMatch) {
+        if (!date)    date    = datumCol   !== -1 ? parseDate(row[datumCol])             : null;
+        if (!action)  action  = tradeMatch[1].toLowerCase() === 'koop' ? 'buy' : 'sell';
+        if (!isin)    isin    = isinCol    !== -1 ? String(row[isinCol]    ?? '').trim() : '';
+        if (!product) product = productCol !== -1 ? String(row[productCol] ?? '').trim() : '';
+        const s = parseNum(tradeMatch[2]);
+        if (s) totalShares += s;
+        // EUR-denominated instruments: the trade row itself carries the EUR amount
+        if (mutatie === 'EUR' && amount != null) totalEurAmt += amount;
+        hasTrade = true;
+        continue;
+      }
+
+      // All other rows: accumulate EUR legs
+      // USD buy → Valuta Debitering EUR row (negative); USD sell → Valuta Creditering EUR row (positive)
+      if (mutatie === 'EUR' && amount != null) totalEurAmt += amount;
+    }
+
+    if (!hasTrade || totalShares === 0 || totalEurAmt === 0) continue;
+
+    if (!isin || !isinMap.has(isin)) {
+      if (isin && !seenUnresolved.has(isin)) {
+        unresolvedIsins.push(isin);
+        seenUnresolved.add(isin);
+      }
+      continue;
+    }
+
+    const ticker = isinMap.get(isin);
+    const price  = Math.abs(totalEurAmt) / totalShares;
+    transactions.push({ date, symbol: ticker, action, shares: totalShares, price, orderId });
+  }
+
+  // Pass 4: no-Order-Id rows → deposits, dividends, standalone fees
+  for (const row of noOrderRows) {
+    const omschr    = omschrCol  !== -1 ? String(row[omschrCol]  ?? '').trim() : '';
+    const omschrLow = omschr.toLowerCase();
+    const mutatie   = mutatieCol !== -1 ? String(row[mutatieCol] ?? '').trim().toUpperCase() : '';
+    const amount    = amountCol  >= 0   ? parseNum(row[amountCol]) : null;
+    const date      = datumCol   !== -1 ? parseDate(row[datumCol]) : null;
+    if (amount == null || mutatie !== 'EUR') continue;
+
+    if (omschrLow.includes('ideal') || omschrLow.includes('storting') || omschrLow.includes('giro deposit')) {
+      if (amount > 0) deposits.push({ date, amountEur: amount });
+    } else if (omschrLow.includes('flatex') || omschrLow.includes('interest') || omschrLow.includes('dividend') || omschrLow.includes('rente')) {
+      if (amount > 0) dividends.push({ date, amountEur: amount });
+    } else if (omschrLow.includes('service fee') || omschrLow.includes('verbindingskosten') || omschrLow.includes('aansluitingskosten')) {
+      if (amount < 0) fees.push({ date, amountEur: Math.abs(amount) });
+    }
+  }
+
+  return { transactions, deposits, dividends, fees, unresolvedIsins };
+}
+
 /** Parse one file buffer → array of transaction objects (with optional orderId). */
-function parseFileBuffer(buffer, filename) {
+async function parseFileBuffer(buffer, filename) {
   const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+  if (workbook.SheetNames.includes('Rekeningoverzicht')) {
+    return parseDeGiroRekeningoverzicht(workbook, filename);
+  }
   const sheet    = workbook.Sheets[workbook.SheetNames[0]];
   const raw      = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
@@ -274,7 +428,8 @@ export async function POST(request) {
     }
 
     const fileStats    = [];  // { name, txCount } per file
-    const allTxs       = [];  // merged across all files
+    const allTxs             = [];  // merged across all files
+    const allUnresolvedIsins = [];
     const allDeposits  = [];
     const allDividends = [];
     const allFees      = [];
@@ -290,9 +445,9 @@ export async function POST(request) {
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
-      let txs, fileDeps, fileDivs, fileFees;
+      let txs, fileDeps, fileDivs, fileFees, fileUnresolved;
       try {
-        ({ transactions: txs, deposits: fileDeps, dividends: fileDivs, fees: fileFees } = parseFileBuffer(buffer, file.name));
+        ({ transactions: txs, deposits: fileDeps, dividends: fileDivs, fees: fileFees, unresolvedIsins: fileUnresolved = [] } = await parseFileBuffer(buffer, file.name));
       } catch (e) {
         return Response.json({ error: e.message }, { status: 400 });
       }
@@ -300,6 +455,7 @@ export async function POST(request) {
       allDeposits.push(...fileDeps);
       allDividends.push(...fileDivs);
       allFees.push(...fileFees);
+      allUnresolvedIsins.push(...fileUnresolved);
 
       // Deduplicate by Order ID across files
       let added = 0;
@@ -369,6 +525,7 @@ export async function POST(request) {
       totalDeposited,
       totalDividends,
       totalFees,
+      unresolvedIsins: [...new Set(allUnresolvedIsins)],
     });
 
   } catch (e) {
