@@ -7,6 +7,7 @@ import {
 import SignupGate from '@/components/SignupGate';
 import DemoPrompt from '@/components/DemoPrompt';
 import { WELCOME_TICKERS } from '@/lib/startDemo';
+import TransactionUpload from '@/components/TransactionUpload';
 
 /* ─── Formatters ─────────────────────────────────────────────────────────── */
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
@@ -754,7 +755,23 @@ export default function PerformanceV2Page() {
                 sub="vs SPY since start"
                 valueColor={s ? clr(s.vsSpyPct) : undefined}
               />
-              {/* ── Phase 9C: Realized P&L metric card (requires realizedData) ── */}
+              {realizedData && (() => {
+                const { positions = [], totalPnl } = realizedData;
+                const best  = positions.length ? positions.reduce((a, b) => b.pnl > a.pnl ? b : a) : null;
+                const worst = positions.length ? positions.reduce((a, b) => b.pnl < a.pnl ? b : a) : null;
+                return (
+                  <MetricCard
+                    label="Realized P&L"
+                    value={totalPnl == null ? '—' : (totalPnl >= 0 ? '+€' : '-€') + fmt(Math.abs(totalPnl))}
+                    sub={
+                      positions.length
+                        ? `${positions.length} closed · best: ${best?.symbol ?? '—'} worst: ${worst?.symbol ?? '—'}`
+                        : 'No closed positions'
+                    }
+                    valueColor={clr(totalPnl)}
+                  />
+                );
+              })()}
             </div>
 
             {/* ── EUR/USD AreaChart ─────────────────────────────────────────── */}
@@ -788,8 +805,47 @@ export default function PerformanceV2Page() {
               )}
             </div>
 
-            {/* ── Phase 9C: Deposits / Dividends / Fees stat cards ─────────── */}
-            {/* ── Phase 9C: TransactionUpload (onResults → setRealizedData) ── */}
+            {realizedData && (realizedData.totalDeposited > 0 || realizedData.totalDividends > 0 || realizedData.totalFees > 0) && (
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {realizedData.totalDeposited > 0 && (
+                  <MetricCard
+                    label="Total Deposited"
+                    value={`€${fmt(realizedData.totalDeposited)}`}
+                    sub={`${realizedData.deposits?.length ?? 0} deposit${(realizedData.deposits?.length ?? 0) !== 1 ? 's' : ''}`}
+                  />
+                )}
+                {realizedData.totalDividends > 0 && (
+                  <MetricCard
+                    label="Dividends Received"
+                    value={`+€${fmt(realizedData.totalDividends)}`}
+                    sub={`${realizedData.dividends?.length ?? 0} payment${(realizedData.dividends?.length ?? 0) !== 1 ? 's' : ''}`}
+                    valueColor="var(--positive)"
+                  />
+                )}
+                <MetricCard
+                  label="Fees Paid"
+                  value={realizedData.totalFees > 0 ? `-€${fmt(realizedData.totalFees)}` : '€0.00'}
+                  sub={`${realizedData.fees?.length ?? 0} fee entr${(realizedData.fees?.length ?? 0) !== 1 ? 'ies' : 'y'}`}
+                  valueColor={realizedData.totalFees > 0 ? 'var(--negative)' : undefined}
+                />
+              </div>
+            )}
+
+            <div style={{
+              background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+              borderRadius: 10, padding: '20px 24px',
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+                Upload Transactions
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                Upload your broker transaction export to calculate realized P&amp;L on closed positions using FIFO.
+              </div>
+              <TransactionUpload
+                startDate={startDate ?? dateInput}
+                onResults={(data) => { setRealizedData(data ?? null); }}
+              />
+            </div>
 
             {/* ── Disclaimer ───────────────────────────────────────────────── */}
             <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
