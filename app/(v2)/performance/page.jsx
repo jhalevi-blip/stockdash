@@ -8,6 +8,7 @@ import SignupGate from '@/components/SignupGate';
 import DemoPrompt from '@/components/DemoPrompt';
 import { WELCOME_TICKERS } from '@/lib/startDemo';
 import TransactionUpload from '@/components/TransactionUpload';
+import InfoTooltip from '@/components/InfoTooltip';
 
 /* ─── Formatters ─────────────────────────────────────────────────────────── */
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
@@ -668,12 +669,26 @@ export default function PerformanceV2Page() {
                 valueColor={s ? clr(s.vsSpyPct) : undefined}
               />
               {s?.twr != null && (
-                <StatCard
-                  label="Time-Weighted Return*"
-                  value={(s.twr >= 0 ? '+' : '') + s.twr.toFixed(1) + '%'}
-                  sub="Modified Dietz — adjusted for deposit timing"
-                  valueColor={clr(s.twr)}
-                />
+                <InfoTooltip text={
+                  <>
+                    <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                      Time-Weighted Return (Modified Dietz)
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                      Your investment performance, adjusted for when you added money. Unlike the chart's return on cost basis, TWR isolates how well your investment decisions performed — not how big your portfolio grew from deposits.
+                    </div>
+                    <div style={{ fontStyle: 'italic', color: 'var(--text-secondary)', fontSize: 12 }}>
+                      Example: depositing €10K right before a rally inflates simple returns. TWR corrects for this.
+                    </div>
+                  </>
+                }>
+                  <StatCard
+                    label="Time-Weighted Return*"
+                    value={(s.twr >= 0 ? '+' : '') + s.twr.toFixed(1) + '%'}
+                    sub="Modified Dietz — adjusted for deposit timing"
+                    valueColor={clr(s.twr)}
+                  />
+                </InfoTooltip>
               )}
             </div>
 
