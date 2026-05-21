@@ -461,6 +461,29 @@ body:has(.app-sidebar) { padding-left: 200px; }
   }
 }
 
+/* Macro page: KPI grid — auto-fill desktop, single-col at ≤480px */
+.dv2-macro-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 12px;
+}
+
+/* Macro page: yield grid — tighter min for 8 items, 2-col floor at ≤480px */
+.dv2-macro-yields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .dv2-macro-kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dv2-macro-yields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* Valuation table: horizontal scroll + sticky ticker column on mobile */
 .dv2-valuation-scroll {
   overflow-x: auto;
