@@ -1,4 +1,5 @@
 import { parseTickers } from '@/lib/holdings';
+import { trackFinnhub } from '@/lib/apiUsage';
 
 async function fetchYahooCrumb() {
   try {
@@ -64,14 +65,24 @@ export async function GET(request) {
   const holdings = parseTickers(searchParams);
   if (!holdings.length) return Response.json([]);
 
-  const auth = await fetchYahooCrumb();
+  const fhKey = process.env.FINNHUB_API_KEY;
+  const auth  = await fetchYahooCrumb();
+
+  if (fhKey) trackFinnhub(holdings.length);
 
   const results = await Promise.all(
     holdings.map(async h => {
-      const inst = await fetchInstitutional(h.t, auth);
+      const profilePromise = fhKey
+        ? fetch(
+            `https://finnhub.io/api/v1/stock/profile2?symbol=${h.t}&token=${fhKey}`,
+            { next: { revalidate: 86400 } }
+          ).then(r => r.json()).catch(() => null)
+        : Promise.resolve(null);
+
+      const [inst, profileData] = await Promise.all([fetchInstitutional(h.t, auth), profilePromise]);
       return {
         ticker: h.t,
-        name:   h.n,
+        name:   profileData?.name || h.t,
         ...(inst || { institutionsPctHeld: null, institutionsCount: null, insidersPctHeld: null, top5: [] }),
       };
     })
