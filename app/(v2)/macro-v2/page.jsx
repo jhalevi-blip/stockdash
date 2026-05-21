@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useState } from 'react';
-import Card from '@/app/(v2)/_components/Card';
 
 /* ─── Formatter ─────────────────────────────────────────────────────────── */
 const fmt = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
@@ -96,6 +95,15 @@ function FearGreedItem({ fearGreed }) {
   );
 }
 
+/* ─── Section label ─────────────────────────────────────────────────────── */
+function SectionLabel({ children }) {
+  return (
+    <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+      {children}
+    </div>
+  );
+}
+
 /* ─── Page ──────────────────────────────────────────────────────────────── */
 export default function MacroV2Page() {
   const [data,    setData]    = useState(null);
@@ -126,11 +134,6 @@ export default function MacroV2Page() {
   const hasSpread  = t?.year2 != null && t?.year10 != null;
   const spread     = hasSpread ? t.year10 - t.year2 : null;
   const spreadColor = spread != null && spread < 0 ? '#dc2626' : '#16a34a';
-  const spreadFooter = hasSpread ? (
-    <span style={{ color: spreadColor }}>
-      {spread < 0 ? '⚠ Inverted yield curve' : '✓ Normal yield curve'} · 2Y/10Y spread: {spread.toFixed(2)}%
-    </span>
-  ) : null;
 
   return (
     <div style={{
@@ -159,16 +162,15 @@ export default function MacroV2Page() {
 
       {/* ── Loading ─────────────────────────────────────────────────────── */}
       {loading && (
-        <Card padding="14px">
-          <div className="chart-placeholder">Loading macro data…</div>
-        </Card>
+        <div className="chart-placeholder">Loading macro data…</div>
       )}
 
       {/* ── Data ────────────────────────────────────────────────────────── */}
       {!loading && (
         <>
           {/* Market Indices */}
-          <Card eyebrow="Markets" title="Indices" padding="12px">
+          <section style={{ marginBottom: 24 }}>
+            <SectionLabel>Market Indices</SectionLabel>
             <div className="dv2-macro-kpis">
               <KpiItem label="S&P 500"        value={spy?.price} changePct={spy?.changesPercentage} change={spy?.change} />
               <KpiItem label="NASDAQ"         value={qqq?.price} changePct={qqq?.changesPercentage} change={qqq?.change} />
@@ -177,20 +179,22 @@ export default function MacroV2Page() {
                 prefix="" valueColor={vixColor} borderColor={vixColor} />
               <FearGreedItem fearGreed={fearGreed} />
             </div>
-          </Card>
+          </section>
 
           {/* Commodities & FX */}
-          <Card eyebrow="Markets" title="Commodities & FX" padding="12px">
+          <section style={{ marginBottom: 24 }}>
+            <SectionLabel>Commodities &amp; FX</SectionLabel>
             <div className="dv2-macro-kpis">
               <KpiItem label="Gold (oz)"        value={gold?.price} changePct={gold?.changesPercentage} change={gold?.change} />
               <KpiItem label="WTI Crude Oil"    value={oil?.price}  changePct={oil?.changesPercentage}  change={oil?.change} />
               <KpiItem label="DXY Dollar Index" value={dxy?.price}  changePct={dxy?.changesPercentage}  change={dxy?.change} prefix="" />
             </div>
-          </Card>
+          </section>
 
           {/* Treasury Yields */}
           {t && (
-            <Card eyebrow="Rates" title="Treasury yields" footer={spreadFooter} padding="12px">
+            <section style={{ marginBottom: 24 }}>
+              <SectionLabel>Treasury Yields</SectionLabel>
               <div className="dv2-macro-yields">
                 <YieldItem label="1 Month" value={t.month1} />
                 <YieldItem label="3 Month" value={t.month3} />
@@ -201,7 +205,12 @@ export default function MacroV2Page() {
                 <YieldItem label="10 Year" value={t.year10} />
                 <YieldItem label="30 Year" value={t.year30} />
               </div>
-            </Card>
+              {hasSpread && (
+                <div style={{ marginTop: 10, fontSize: 12, color: spreadColor }}>
+                  {spread < 0 ? '⚠ Inverted yield curve' : '✓ Normal yield curve'} · 2Y/10Y spread: {spread.toFixed(2)}%
+                </div>
+              )}
+            </section>
           )}
         </>
       )}
