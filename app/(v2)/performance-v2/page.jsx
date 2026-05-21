@@ -1,5 +1,9 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
+import {
+  AreaChart, Area, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid,
+} from 'recharts';
 import SignupGate from '@/components/SignupGate';
 import DemoPrompt from '@/components/DemoPrompt';
 import { WELCOME_TICKERS } from '@/lib/startDemo';
@@ -76,7 +80,63 @@ function StatCard({ label, value, sub, valueColor }) {
   );
 }
 
-// MetricCard, PortTooltip, EurTooltip — declared in Phase 9B alongside chart JSX
+/* ─── PortTooltip ────────────────────────────────────────────────────────── */
+function PortTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: 'var(--bg-card)', border: '1px solid var(--border-strong)',
+      borderRadius: 8, padding: '10px 14px', fontSize: 12,
+    }}>
+      <div style={{ color: 'var(--text-secondary)', marginBottom: 6 }}>{label}</div>
+      {payload.map((p, i) => (
+        <div key={i} style={{ color: p.color, fontWeight: 600, lineHeight: 1.7 }}>
+          {p.name}: {p.value >= 0 ? '+' : ''}{p.value?.toFixed(2)}%
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── EurTooltip ─────────────────────────────────────────────────────────── */
+function EurTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: 'var(--bg-card)', border: '1px solid var(--border-strong)',
+      borderRadius: 8, padding: '10px 14px', fontSize: 12,
+    }}>
+      <div style={{ color: 'var(--text-secondary)', marginBottom: 6 }}>{label}</div>
+      <div style={{ color: payload[0].color, fontWeight: 600 }}>
+        EUR/USD: {payload[0].value?.toFixed(4)}
+      </div>
+    </div>
+  );
+}
+
+/* ─── MetricCard ─────────────────────────────────────────────────────────── */
+function MetricCard({ label, value, sub, valueColor }) {
+  return (
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-color)',
+      borderRadius: 10,
+      padding: '16px 20px',
+      flex: '1 1 180px',
+      minWidth: 0,
+    }}>
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 22, fontWeight: 700, color: valueColor ?? 'var(--text-primary)', lineHeight: 1.2 }}>
+        {value}
+      </div>
+      {sub != null && (
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>{sub}</div>
+      )}
+    </div>
+  );
+}
 
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 export default function PerformanceV2Page() {
@@ -405,7 +465,9 @@ export default function PerformanceV2Page() {
     setShowDatePicker(false);
   }
 
-  const s = stats;
+  const s        = stats;
+  const xInterval = Math.max(1, Math.floor((chartData.length - 1) / 5));
+  const eurXInt   = Math.max(1, Math.floor((eurData.length   - 1) / 5));
 
   /* ── Render ──────────────────────────────────────────────────────────────── */
   return (
@@ -612,9 +674,120 @@ export default function PerformanceV2Page() {
               )}
             </div>
 
-            {/* ── Phase 9B: Portfolio vs SPY AreaChart ─────────────────────── */}
-            {/* ── Phase 9B: Metric cards (Beta, EUR/USD Rate, Currency Impact, vs SPY, Realized P&L) */}
-            {/* ── Phase 9C: EUR/USD AreaChart ──────────────────────────────── */}
+            {/* ── Portfolio vs SPY AreaChart ───────────────────────────────── */}
+            <div style={{
+              background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+              borderRadius: 10, padding: '20px 24px',
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>
+                Portfolio vs SPY
+              </div>
+              {dataLoading || !chartData.length ? (
+                <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
+                  {error ? `Error: ${error}` : 'Loading chart…'}
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                    <defs>
+                      <linearGradient id="perfPortGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#58a6ff" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#58a6ff" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="perfSpyGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#4ade80" stopOpacity={0.2} />
+                        <stop offset="100%" stopColor="#4ade80" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} interval={xInterval} />
+                    <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} tickFormatter={v => `${v >= 0 ? '+' : ''}${v.toFixed(0)}%`} width={52} domain={['auto', 'auto']} />
+                    <Tooltip content={<PortTooltip />} />
+                    <Area type="monotone" dataKey="portfolio" name="Portfolio"   stroke="#58a6ff" strokeWidth={2} fill="url(#perfPortGrad)" dot={false} activeDot={{ r: 4 }} />
+                    <Area type="monotone" dataKey="spy"       name="SPY Mirror" stroke="#4ade80" strokeWidth={2} fill="url(#perfSpyGrad)"  dot={false} activeDot={{ r: 4 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+              <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 12 }}>
+                <span style={{ color: '#58a6ff', fontWeight: 600 }}>
+                  — Portfolio {s?.portReturn != null ? `(${s.portReturn >= 0 ? '+' : ''}${s.portReturn.toFixed(1)}%)` : ''}
+                </span>
+                <span style={{ color: '#4ade80', fontWeight: 600 }}>
+                  — SPY Mirror {s?.spyReturn != null ? `(${s.spyReturn >= 0 ? '+' : ''}${s.spyReturn.toFixed(1)}%)` : ''}
+                </span>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                Chart shows % return since the start date. Both lines are normalized to 0% at the start date.
+              </div>
+            </div>
+
+            {/* ── Metric cards: Beta, EUR/USD Rate, Currency Impact, Outperformance ── */}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <MetricCard
+                label="Portfolio Beta"
+                value={s?.portfolioBeta != null ? fmt(s.portfolioBeta, 2) : '—'}
+                sub={
+                  s?.portfolioBeta == null ? 'Not available' :
+                  s.portfolioBeta < 0.8   ? 'Lower volatility than market' :
+                  s.portfolioBeta > 1.2   ? 'Higher volatility than market' :
+                                            'Close to market volatility'
+                }
+              />
+              <MetricCard
+                label="EUR/USD Rate"
+                value={s?.eurNow != null ? s.eurNow.toFixed(4) : '—'}
+                sub={s?.eurChangePct != null ? `${fmtD(s.eurChangePct, 2)} since start` : s?.eurStart != null ? `At start: ${s.eurStart.toFixed(4)}` : null}
+              />
+              <MetricCard
+                label="Currency Impact"
+                value={s?.currencyImpact != null ? `$${fmt(Math.abs(s.currencyImpact))}` : '—'}
+                sub={
+                  s?.currencyImpact == null ? 'No EUR/USD data' :
+                  s.currencyImpact >= 0     ? 'Tailwind (USD weakened)' :
+                                              'Headwind (USD strengthened)'
+                }
+                valueColor={s?.currencyImpact != null ? clr(s.currencyImpact) : undefined}
+              />
+              <MetricCard
+                label={s?.vsSpyPct != null && s.vsSpyPct >= 0 ? 'Outperforming' : 'Underperforming'}
+                value={s?.vsSpyPct == null ? '—' : (s.vsSpyPct >= 0 ? '+' : '') + s.vsSpyPct.toFixed(1) + '%'}
+                sub="vs SPY since start"
+                valueColor={s ? clr(s.vsSpyPct) : undefined}
+              />
+              {/* ── Phase 9C: Realized P&L metric card (requires realizedData) ── */}
+            </div>
+
+            {/* ── EUR/USD AreaChart ─────────────────────────────────────────── */}
+            <div style={{
+              background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+              borderRadius: 10, padding: '20px 24px',
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>
+                EUR/USD{startDate ? ` (since ${startDate})` : ' (since start)'}
+              </div>
+              {dataLoading || !eurData.length ? (
+                <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
+                  {error ? `Error: ${error}` : 'Loading chart…'}
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={160}>
+                  <AreaChart data={eurData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                    <defs>
+                      <linearGradient id="eurGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} interval={eurXInt} />
+                    <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} tickFormatter={v => v.toFixed(3)} width={52} domain={['auto', 'auto']} />
+                    <Tooltip content={<EurTooltip />} />
+                    <Area type="monotone" dataKey="rate" name="EUR/USD" stroke="#f59e0b" strokeWidth={2} fill="url(#eurGrad)" dot={false} activeDot={{ r: 4 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
             {/* ── Phase 9C: Deposits / Dividends / Fees stat cards ─────────── */}
             {/* ── Phase 9C: TransactionUpload (onResults → setRealizedData) ── */}
 
