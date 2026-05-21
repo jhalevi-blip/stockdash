@@ -5,7 +5,7 @@ export const ROUTES = {
   performance:  '/performance',
   macro:        '/macro',
   insider:      '/insider',
-  ownership:    '/institutional',
+  ownership:    '/ownership',
   peers:        '/peers',
   correlations: '/correlations',
   research:     '/financial-filings',
@@ -22,7 +22,7 @@ export const ROUTES = {
   analystFor:   (t) => `/analyst-ratings?ticker=${t}`,
   insiderFor:   (t) => `/insider?ticker=${t}`,
   shortsFor:    (t) => `/analyst?ticker=${t}`,
-  ownershipFor: (t) => `/institutional?ticker=${t}`,
+  ownershipFor: (t) => `/ownership?ticker=${t}`,
   peersFor:     (t) => `/peers?ticker=${t}`,
   valuationFor: (t) => `/valuation?ticker=${t}`,
 };

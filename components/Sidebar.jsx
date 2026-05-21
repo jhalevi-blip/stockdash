@@ -9,7 +9,7 @@ const links = [
   { href: '/performance',    label: 'Performance', icon: '📈' },
   { href: '/macro',          label: 'Macro',       icon: '🌏', dataTour: 'macro-link' },
   { href: '/insider',        label: 'Insider',     icon: '🔎', dataTour: 'insider-link' },
-  { href: '/institutional',  label: 'Ownership',   icon: '🏛', dataTour: 'ownership-link' },
+  { href: '/ownership',      label: 'Ownership',   icon: '🏛', dataTour: 'ownership-link' },
   { href: '/peers',          label: 'Peers',       icon: '📋' },
   { href: '/financial-filings', label: 'Financial Filings', icon: '📑' },
   { href: '/valuation',      label: 'Valuation',   icon: '📐' },
