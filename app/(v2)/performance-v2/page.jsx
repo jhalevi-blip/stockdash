@@ -419,7 +419,9 @@ export default function PerformanceV2Page() {
     const spyReturn = spyStart > 0 && spyMirrorNow != null ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
     const vsSpyPct  = portReturn != null && spyReturn != null ? portReturn - spyReturn : null;
 
-    // TWR — chains sub-period returns across deposit dates (requires realizedData, wired in 9C)
+    // Modified Dietz — deposit-timing-adjusted return.
+    // MDR = (EndValue - StartValue - ΣDeposits) / (StartValue + Σ(Deposit × WeightRemaining))
+    // Weight W_i = (T - t_i) / T where T = total candles in period, t_i = candles elapsed at deposit.
     let twr = null;
     const twrDeposits = (realizedData?.deposits ?? [])
       .filter(d => d.date && d.amountEur > 0)
@@ -428,15 +430,15 @@ export default function PerformanceV2Page() {
       .filter(d => d.idx > startIdx && d.idx < spyLen - 1);
 
     if (twrDeposits.length > 0) {
-      let twrProduct = 1;
-      let vStart = portValAt(startIdx);
-      for (const dep of twrDeposits) {
-        const vEnd = portValAt(dep.idx);
-        if (vStart > 0) twrProduct *= vEnd / vStart;
-        vStart = vEnd + dep.amountUSD;
-      }
-      if (vStart > 0) twrProduct *= portNow / vStart;
-      twr = (twrProduct - 1) * 100;
+      const T           = (spyLen - 1) - startIdx;
+      const startValue  = portValAt(startIdx);
+      const totalDep    = twrDeposits.reduce((s, d) => s + d.amountUSD, 0);
+      const weightedDep = twrDeposits.reduce((s, d) => {
+        const t_i = d.idx - startIdx;
+        return s + d.amountUSD * ((T - t_i) / T);
+      }, 0);
+      const denom = startValue + weightedDep;
+      if (denom > 0) twr = ((portNow - startValue - totalDep) / denom) * 100;
     }
 
     return {
@@ -667,9 +669,9 @@ export default function PerformanceV2Page() {
               />
               {s?.twr != null && (
                 <StatCard
-                  label="TWR (adj.)"
+                  label="Time-Weighted Return*"
                   value={(s.twr >= 0 ? '+' : '') + s.twr.toFixed(1) + '%'}
-                  sub="Time-weighted return — removes deposit timing effect"
+                  sub="Modified Dietz — adjusted for deposit timing"
                   valueColor={clr(s.twr)}
                 />
               )}
@@ -855,6 +857,9 @@ export default function PerformanceV2Page() {
               SPY mirror assumes your total cost basis was invested in SPY at the start date.
               Currency impact reflects the USD/EUR exchange-rate effect on your portfolio value since the start date.
               Past performance is not indicative of future results. Data provided for informational purposes only.
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>
+                *Time-weighted return uses Modified Dietz approximation — weights each deposit by its position in the period to remove the effect of capital additions on the reported performance %.
+              </div>
             </div>
 
           </div>
