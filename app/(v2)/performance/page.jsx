@@ -431,7 +431,7 @@ export default function PerformanceV2Page() {
 
     if (twrDeposits.length > 0) {
       const T           = (spyLen - 1) - startIdx;
-      const startValue  = portValAt(startIdx);
+      const startValue  = startingCashUSD;
       const totalDep    = twrDeposits.reduce((s, d) => s + d.amountUSD, 0);
       const weightedDep = twrDeposits.reduce((s, d) => {
         const t_i = d.idx - startIdx;
