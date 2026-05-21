@@ -187,7 +187,7 @@ export default function OwnershipV2Page() {
           Analysis
         </div>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-          Institutional Ownership
+          Ownership
         </h1>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '6px 0 0', maxWidth: 600 }}>
           Institutional holders, insider activity, and top fund positions across your portfolio.
