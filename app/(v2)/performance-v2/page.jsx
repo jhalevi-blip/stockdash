@@ -1,0 +1,637 @@
+'use client';
+import { useState, useEffect, useMemo } from 'react';
+import SignupGate from '@/components/SignupGate';
+import DemoPrompt from '@/components/DemoPrompt';
+import { WELCOME_TICKERS } from '@/lib/startDemo';
+
+/* ─── Formatters ─────────────────────────────────────────────────────────── */
+const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
+const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
+const clr  = (n) => n == null ? 'var(--text-secondary)' : n >= 0 ? 'var(--positive)' : 'var(--negative)';
+
+const { tickers: DEMO_FALLBACK, shares: DEMO_SHARES } = WELCOME_TICKERS;
+
+/* ─── Helpers (verbatim from V1) ─────────────────────────────────────────── */
+function getLocalHoldings() {
+  try {
+    // TODO: reads stockdash_holdings without ownership check — a polluted browser
+    // may show stale data here. Track: consolidate all unscoped cache reads behind
+    // a single ownership-aware getter (dual-table consolidation pass).
+    const stored = localStorage.getItem('stockdash_holdings');
+    return stored ? JSON.parse(stored) : [];
+  } catch { return []; }
+}
+
+function estimatePurchaseIdx(candles, avgCost) {
+  if (!candles?.length || avgCost == null || avgCost <= 0) return 0;
+  let best = 0, bestDiff = Infinity;
+  for (let i = 0; i < candles.length; i++) {
+    const diff = Math.abs(candles[i].close - avgCost);
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  }
+  return best;
+}
+
+function candleIdxToDate(candles, idx) {
+  if (!candles?.length) return '';
+  const now = new Date();
+  const weeksBack = candles.length - 1 - idx;
+  const d = new Date(now.getTime() - weeksBack * 7 * 24 * 60 * 60 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+
+function findCandleByDate(candles, dateStr) {
+  if (!candles?.length || !dateStr) return 0;
+  const target = new Date(dateStr).getTime();
+  let best = 0, bestDiff = Infinity;
+  for (let i = 0; i < candles.length; i++) {
+    const diff = Math.abs(new Date(candles[i].date).getTime() - target);
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  }
+  return best;
+}
+
+/* ─── StatCard ───────────────────────────────────────────────────────────── */
+// V2 mobile fix: flex '1 1 180px' (was '1 1 0' in V1 — collapsed to zero on mobile)
+function StatCard({ label, value, sub, valueColor }) {
+  return (
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-color)',
+      borderRadius: 10,
+      padding: '20px 24px',
+      flex: '1 1 180px',
+      minWidth: 0,
+    }}>
+      <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 26, fontWeight: 700, color: valueColor ?? 'var(--text-primary)', lineHeight: 1.1 }}>
+        {value}
+      </div>
+      {sub != null && (
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>{sub}</div>
+      )}
+    </div>
+  );
+}
+
+// MetricCard, PortTooltip, EurTooltip — declared in Phase 9B alongside chart JSX
+
+/* ─── Page ───────────────────────────────────────────────────────────────── */
+export default function PerformanceV2Page() {
+  // ── All 11 state slots declared now (9B/9C consume remaining fields) ──────
+  const [holdings,       setHoldings]       = useState(null);
+  const [rawData,        setRawData]        = useState(null);
+  const [dataLoading,    setDataLoading]    = useState(false);
+  const [error,          setError]          = useState(null);
+  const [realizedData,   setRealizedData]   = useState(null);   // wired in 9C via TransactionUpload onResults
+  const [startDate,      setStartDate]      = useState(null);   // YYYY-MM-DD or null
+  const [dateInput,      setDateInput]      = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [estimatedDate,  setEstimatedDate]  = useState('');
+  const [startingCash,   setStartingCash]   = useState(0);
+  const [cashCurrency,   setCashCurrency]   = useState('EUR'); // 'EUR' | 'USD'
+
+  /* ── Load holdings + saved user preferences from localStorage ───────────── */
+  useEffect(() => {
+    async function loadHoldings() {
+      // Restore persisted date/cash prefs (keys preserved verbatim from V1)
+      const saved = localStorage.getItem('stockdash_start_date');
+      if (saved) setStartDate(saved);
+      const savedCash = localStorage.getItem('starting_cash_eur');
+      if (savedCash) setStartingCash(parseFloat(savedCash) || 0);
+      const savedCashCcy = localStorage.getItem('starting_cash_currency');
+      if (savedCashCcy === 'EUR' || savedCashCcy === 'USD') setCashCurrency(savedCashCcy);
+
+      const isDemo = localStorage.getItem('stockdash_demo') === 'true';
+      if (isDemo) {
+        try {
+          const res  = await fetch('/api/most-traded');
+          const data = await res.json();
+          if (Array.isArray(data) && data.length) {
+            setHoldings(data.slice(0, 5).map((e, i) => ({
+              t: e.symbol, s: DEMO_SHARES[i], c: e.price ?? 0,
+            })));
+            return;
+          }
+        } catch {}
+        try {
+          const res    = await fetch(`/api/prices?tickers=${DEMO_FALLBACK.join(',')}`);
+          const prices = await res.json();
+          const pm = {};
+          if (Array.isArray(prices)) prices.forEach(p => { pm[p.ticker] = p.price ?? 0; });
+          setHoldings(DEMO_FALLBACK.map((t, i) => ({ t, s: DEMO_SHARES[i], c: pm[t] ?? 0 })));
+          return;
+        } catch {}
+        setHoldings(DEMO_FALLBACK.map((t, i) => ({ t, s: DEMO_SHARES[i], c: 0 })));
+        return;
+      }
+
+      try {
+        const res  = await fetch('/api/portfolio');
+        const data = await res.json();
+        if (data.signedIn && data.holdings?.length) {
+          setHoldings(data.holdings);
+          return;
+        }
+      } catch {}
+      setHoldings(getLocalHoldings());
+    }
+    loadHoldings();
+  }, []);
+
+  /* ── Fetch raw candle + valuation data once holdings are known ───────────── */
+  useEffect(() => {
+    if (holdings === null || !holdings.length) return;
+    let cancelled = false;
+    setDataLoading(true);
+    setError(null);
+
+    async function fetchAll() {
+      try {
+        const tickers = holdings.map(h => h.t);
+        const [spyRes, eurRes, valRes, pricesRes, ...tickerChartRes] = await Promise.all([
+          fetch('/api/chart?symbol=SPY').then(r => r.json()),
+          fetch('/api/chart?symbol=EURUSD%3DX').then(r => r.json()),
+          fetch(`/api/valuation?${tickers.map(t => `tickers=${t}`).join('&')}`).then(r => r.json()),
+          fetch(`/api/prices?tickers=SPY,${tickers.join(',')}`).then(r => r.json()),
+          ...tickers.map(t => fetch(`/api/chart?symbol=${t}`).then(r => r.json())),
+        ]);
+        if (cancelled) return;
+
+        const spyCandles    = spyRes.candles ?? [];
+        const eurCandles    = eurRes.candles ?? [];
+        const valArr        = Array.isArray(valRes) ? valRes : [];
+        const tickerCandles = {};
+        tickers.forEach((t, i) => { tickerCandles[t] = tickerChartRes[i]?.candles ?? []; });
+
+        const livePrices = {};
+        if (Array.isArray(pricesRes)) {
+          pricesRes.forEach(p => { if (p.ticker && p.price != null) livePrices[p.ticker] = p.price; });
+        }
+
+        // Estimate start index from cost basis / explicit purchase dates
+        const spyLen = spyCandles.length;
+        const spyStartIndices = holdings.map(h => {
+          if (h.d) return findCandleByDate(spyCandles, h.d);
+          const pIdx = estimatePurchaseIdx(tickerCandles[h.t], h.c);
+          const tLen = tickerCandles[h.t].length;
+          if (!tLen) return 0;
+          return Math.round((pIdx / tLen) * spyLen);
+        });
+        const optionBIdx      = Math.min(...spyStartIndices, spyLen - 1);
+        const explicitDates   = holdings.map(h => h.d).filter(Boolean);
+        const earliestExplicit = explicitDates.length
+          ? explicitDates.reduce((a, b) => a < b ? a : b)
+          : null;
+        const optionBDate = earliestExplicit ?? candleIdxToDate(spyCandles, optionBIdx);
+
+        if (!cancelled) {
+          setRawData({ spyCandles, eurCandles, valArr, tickerCandles, livePrices });
+          setEstimatedDate(optionBDate);
+          setDateInput(d => d || optionBDate);
+          setDataLoading(false);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e.message ?? 'Failed to load data');
+          setDataLoading(false);
+        }
+      }
+    }
+    fetchAll();
+    return () => { cancelled = true; };
+  }, [holdings]);
+
+  /* ── Full stats useMemo — all fields computed now ────────────────────────
+     9A renders:  portNow, spyMirrorNow, vsSpyPct, portReturn, spyReturn,
+                  adjustedCostBasis, totalCostBasis, netCapital,
+                  startingCashUSD, realizedGainsUSD, hasRealizedData, twr
+     9B consumes: chartData, eurData, portfolioBeta, eurNow, eurStart,
+                  eurChangePct, currencyImpact, vsSpyAmt
+     ─────────────────────────────────────────────────────────────────────── */
+  const { chartData, eurData, stats } = useMemo(() => {
+    if (!rawData || !holdings?.length) return { chartData: [], eurData: [], stats: null };
+
+    const { spyCandles, eurCandles, valArr, tickerCandles, livePrices = {} } = rawData;
+    const spyLen = spyCandles.length;
+    if (!spyLen) return { chartData: [], eurData: [], stats: null };
+
+    const eurUsd         = eurCandles[eurCandles.length - 1]?.close ?? 1;
+    const totalCostBasis = holdings.reduce((sum, h) => sum + h.s * h.c, 0);
+
+    const startingCashUSD   = cashCurrency === 'USD'
+      ? (startingCash || 0)
+      : (startingCash || 0) * eurUsd;
+    const adjustedCostBasis = Math.max(0, totalCostBasis - startingCashUSD);
+
+    // Current portfolio value — live Finnhub prices, fallback to last candle close
+    // __CASH__ positions excluded (not invested capital)
+    let portNow = 0;
+    holdings.forEach(h => {
+      if (h.t === '__CASH__') return;
+      const price = livePrices[h.t] ?? tickerCandles[h.t]?.[tickerCandles[h.t].length - 1]?.close;
+      if (price != null) portNow += h.s * price;
+    });
+
+    function portValAt(i) {
+      let v = 0;
+      holdings.forEach(h => {
+        const tc = tickerCandles[h.t];
+        if (!tc.length) return;
+        v += h.s * (tc[Math.min(Math.round((i / spyLen) * tc.length), tc.length - 1)]?.close ?? h.c);
+      });
+      return v;
+    }
+
+    const realizedGainsUSD   = (realizedData?.totalPnl ?? 0) * eurUsd;
+    const totalCostWithGains = adjustedCostBasis + realizedGainsUSD;
+    const netCapital         = totalCostWithGains;
+
+    // Determine start candle index
+    let startIdx;
+    if (startDate) {
+      startIdx = findCandleByDate(spyCandles, startDate);
+    } else {
+      const explicitDates = holdings.map(h => h.d).filter(Boolean);
+      const earliestDate  = explicitDates.length
+        ? explicitDates.reduce((a, b) => a < b ? a : b) : null;
+      if (earliestDate) {
+        startIdx = findCandleByDate(spyCandles, earliestDate);
+      } else {
+        const spyStartIndices = holdings.map(h => {
+          const pIdx = estimatePurchaseIdx(tickerCandles[h.t], h.c);
+          const tLen = tickerCandles[h.t].length;
+          if (!tLen) return 0;
+          return Math.round((pIdx / tLen) * spyLen);
+        });
+        startIdx = Math.min(...spyStartIndices, spyLen - 1);
+      }
+    }
+
+    const spyPriceAtStart = spyCandles[startIdx]?.close ?? spyCandles[0]?.close ?? 0;
+    const spyShares       = spyPriceAtStart > 0 ? netCapital / spyPriceAtStart : 0;
+
+    // Build chart points from startIdx to end
+    const chartPoints = [];
+    for (let i = startIdx; i < spyLen; i++) {
+      chartPoints.push({
+        date:      spyCandles[i].date,
+        label:     spyCandles[i].label,
+        portfolio: portValAt(i),
+        spy:       spyShares * spyCandles[i].close,
+      });
+    }
+
+    // Append live "today" point when today is after the last weekly candle
+    const liveSpyPrice   = livePrices['SPY'] ?? null;
+    const today          = new Date().toISOString().slice(0, 10);
+    const todayLabel     = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const lastCandleDate = spyCandles[spyLen - 1]?.date ?? '';
+    if (portNow > 0 && liveSpyPrice && today > lastCandleDate) {
+      chartPoints.push({ date: today, label: todayLabel, portfolio: portNow, spy: spyShares * liveSpyPrice });
+    }
+
+    // Pin last point to live price so chart endpoint matches stat cards
+    if (portNow > 0 && chartPoints.length > 0) {
+      chartPoints[chartPoints.length - 1].portfolio = portNow;
+    }
+
+    const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
+    const portReturn   = totalCostWithGains > 0 ? ((portNow - totalCostWithGains) / totalCostWithGains) * 100 : null;
+
+    // Normalize to % return (both lines start at 0%)
+    const portBase = netCapital;
+    const spyBase  = chartPoints[0]?.spy ?? netCapital;
+    let chartData  = portBase > 0 && spyBase > 0
+      ? chartPoints.map(p => ({
+          date:      p.date,
+          label:     p.label,
+          portfolio: (p.portfolio / portBase - 1) * 100,
+          spy:       (p.spy       / spyBase  - 1) * 100,
+        }))
+      : [];
+
+    // Shift so both lines start exactly at 0% on the start date
+    if (chartData.length > 0 && chartData[0].portfolio != null) {
+      const portOffset = chartData[0].portfolio;
+      const spyOffset  = chartData[0].spy;
+      chartData = chartData.map(p => ({
+        ...p,
+        portfolio: p.portfolio - portOffset,
+        spy:       p.spy       - spyOffset,
+      }));
+    }
+
+    // Pin last chart point to portReturn so line endpoint matches legend
+    if (chartData.length > 0 && portReturn != null) {
+      chartData[chartData.length - 1] = {
+        ...chartData[chartData.length - 1],
+        portfolio: portReturn,
+      };
+    }
+
+    // EUR/USD series for the EUR chart (Phase 9B)
+    const eurStartIdx  = Math.min(startIdx, eurCandles.length - 1);
+    const eurData      = eurCandles.slice(eurStartIdx).map(c => ({ date: c.date, label: c.label, rate: c.close }));
+    const eurStart     = eurCandles[eurStartIdx]?.close ?? null;
+    const eurNow       = eurCandles[eurCandles.length - 1]?.close ?? null;
+    const eurChangePct = eurStart && eurNow ? ((eurNow - eurStart) / eurStart) * 100 : null;
+    let currencyImpact = null;
+    if (eurStart && eurNow && eurStart > 0 && eurNow > 0) {
+      currencyImpact = portNow * (1 / eurNow - 1 / eurStart);
+    }
+
+    // Portfolio beta — market-cap weighted (Phase 9B)
+    let totalMktCap = 0, weightedBeta = 0;
+    valArr.forEach(v => {
+      if (v.beta != null && v.marketCap != null && v.marketCap > 0) {
+        totalMktCap  += v.marketCap;
+        weightedBeta += v.beta * v.marketCap;
+      }
+    });
+    const portfolioBeta = totalMktCap > 0 ? weightedBeta / totalMktCap : null;
+
+    const vsSpyAmt  = spyMirrorNow != null ? portNow - spyMirrorNow : null;
+    const spyStart  = chartPoints[0]?.spy ?? netCapital;
+    const spyReturn = spyStart > 0 && spyMirrorNow != null ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
+    const vsSpyPct  = portReturn != null && spyReturn != null ? portReturn - spyReturn : null;
+
+    // TWR — chains sub-period returns across deposit dates (requires realizedData, wired in 9C)
+    let twr = null;
+    const twrDeposits = (realizedData?.deposits ?? [])
+      .filter(d => d.date && d.amountEur > 0)
+      .sort((a, b) => a.date < b.date ? -1 : 1)
+      .map(d => ({ amountUSD: d.amountEur * eurUsd, idx: findCandleByDate(spyCandles, d.date) }))
+      .filter(d => d.idx > startIdx && d.idx < spyLen - 1);
+
+    if (twrDeposits.length > 0) {
+      let twrProduct = 1;
+      let vStart = portValAt(startIdx);
+      for (const dep of twrDeposits) {
+        const vEnd = portValAt(dep.idx);
+        if (vStart > 0) twrProduct *= vEnd / vStart;
+        vStart = vEnd + dep.amountUSD;
+      }
+      if (vStart > 0) twrProduct *= portNow / vStart;
+      twr = (twrProduct - 1) * 100;
+    }
+
+    return {
+      chartData,
+      eurData,
+      stats: {
+        portNow, spyMirrorNow, vsSpyAmt, vsSpyPct, portReturn, spyReturn,
+        twr, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact,
+        totalCostBasis, adjustedCostBasis, startingCashUSD, netCapital,
+        realizedGainsUSD, hasRealizedData: realizedData != null,
+      },
+    };
+  }, [rawData, holdings, startDate, realizedData, startingCash, cashCurrency]);
+
+  /* ── Date handlers ───────────────────────────────────────────────────────── */
+  function handleDateSave() {
+    if (!dateInput) return;
+    setStartDate(dateInput);
+    localStorage.setItem('stockdash_start_date', dateInput);
+    setShowDatePicker(false);
+  }
+
+  function handleDateClear() {
+    setStartDate(null);
+    localStorage.removeItem('stockdash_start_date');
+    setDateInput(estimatedDate);
+    setShowDatePicker(false);
+  }
+
+  const s = stats;
+
+  /* ── Render ──────────────────────────────────────────────────────────────── */
+  return (
+    <div style={{
+      padding: '18px 20px',
+      paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 14,
+    }}>
+
+      {/* ── Page heading — outside SignupGate (logged-out users see context) ── */}
+      <div style={{ marginBottom: 2 }}>
+        <div style={{
+          fontSize: 11, fontWeight: 700, letterSpacing: '.08em',
+          textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4,
+        }}>
+          Portfolio
+        </div>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+          Performance
+        </h1>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '6px 0 0', maxWidth: 600 }}>
+          Track your portfolio return vs. SPY, EUR/USD impact, and realized P&amp;L.
+        </p>
+      </div>
+
+      {/* ── SignupGate — all data + interactive content is auth-gated ────────── */}
+      <SignupGate
+        title="Performance"
+        description="Sign up to track your portfolio return vs. SPY, analyze EUR/USD currency impact, and calculate realized P&L on closed positions."
+      >
+        {holdings === null ? (
+          /* Holdings not yet resolved */
+          <div className="chart-placeholder">Loading portfolio…</div>
+        ) : !holdings.length ? (
+          /* No holdings configured */
+          <DemoPrompt message="No portfolio configured. Add holdings to track your performance." />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {/* ── Header: date pill + date picker toggle + starting cash ──────── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                Since:{' '}
+                <strong style={{ color: 'var(--text-primary)' }}>
+                  {startDate ?? (estimatedDate ? `~${estimatedDate} (estimated)` : '—')}
+                </strong>
+              </div>
+              <button
+                onClick={() => setShowDatePicker(v => !v)}
+                style={{
+                  background: 'none', border: 'none', padding: '2px 6px',
+                  cursor: 'pointer', fontSize: 12, color: 'var(--accent)',
+                  borderRadius: 4, textDecoration: 'underline', lineHeight: 1,
+                }}
+              >
+                {showDatePicker ? 'Cancel' : 'Set start date'}
+              </button>
+              {startDate && !showDatePicker && (
+                <button
+                  onClick={handleDateClear}
+                  style={{
+                    background: 'none', border: 'none', padding: '2px 6px',
+                    cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)',
+                    borderRadius: 4, lineHeight: 1,
+                  }}
+                >
+                  Reset to estimated
+                </button>
+              )}
+
+              {/* Starting cash input + EUR/USD toggle */}
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}
+                title="Enter your cash balance at the start date to subtract it from cost basis for accurate P&L calculations"
+              >
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Starting cash:</span>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <span style={{
+                    position: 'absolute', left: 8, fontSize: 12,
+                    color: 'var(--text-secondary)', pointerEvents: 'none',
+                  }}>
+                    {cashCurrency === 'EUR' ? '€' : '$'}
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={startingCash || ''}
+                    placeholder="0.00"
+                    onChange={e => {
+                      const v = parseFloat(e.target.value) || 0;
+                      setStartingCash(v);
+                      if (v > 0) localStorage.setItem('starting_cash_eur', String(v));
+                      else localStorage.removeItem('starting_cash_eur');
+                    }}
+                    style={{
+                      background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+                      borderRadius: 6, padding: '4px 8px 4px 22px', fontSize: 12,
+                      color: 'var(--text-primary)', outline: 'none', width: 100,
+                    }}
+                  />
+                </div>
+                {['EUR', 'USD'].map(ccy => (
+                  <button
+                    key={ccy}
+                    onClick={() => {
+                      setCashCurrency(ccy);
+                      localStorage.setItem('starting_cash_currency', ccy);
+                    }}
+                    style={{
+                      background: 'none',
+                      border: `1px solid ${cashCurrency === ccy ? '#22d3ee' : 'var(--border-color)'}`,
+                      borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer',
+                      color: cashCurrency === ccy ? '#22d3ee' : 'var(--text-muted)',
+                      fontWeight: cashCurrency === ccy ? 600 : 400,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {ccy === 'EUR' ? '€' : '$'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Inline date picker popover ──────────────────────────────────── */}
+            {showDatePicker && (
+              <div style={{
+                background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+                borderRadius: 8, padding: '14px 20px',
+                display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+              }}>
+                <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Start date:</label>
+                <input
+                  type="date"
+                  value={dateInput}
+                  onChange={e => setDateInput(e.target.value)}
+                  style={{
+                    background: 'var(--bg-primary)', border: '1px solid var(--border-color)',
+                    borderRadius: 6, padding: '6px 10px', fontSize: 13,
+                    color: 'var(--text-primary)', outline: 'none',
+                  }}
+                />
+                <button
+                  onClick={handleDateSave}
+                  style={{
+                    background: 'var(--accent)', color: '#fff', border: 'none',
+                    borderRadius: 6, padding: '6px 14px', fontSize: 13,
+                    cursor: 'pointer', fontWeight: 600,
+                  }}
+                >
+                  Apply
+                </button>
+                {estimatedDate && (
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    Estimated: {estimatedDate}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* ── 4 Stat Cards ─────────────────────────────────────────────────
+                TWR card omitted when null (Choice A — V1 parity, wired in 9C)  */}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <StatCard
+                label="Portfolio Value"
+                value={s ? `$${fmt(s.portNow)}` : '…'}
+                sub={
+                  s == null ? null :
+                  s.startingCashUSD > 0 && s.realizedGainsUSD > 0
+                    ? `$${fmt(s.totalCostBasis)} − ${cashCurrency === 'EUR' ? '€' : '$'}${fmt(startingCash)} cash = $${fmt(s.adjustedCostBasis)} + $${fmt(s.realizedGainsUSD, 0)} reinvested = $${fmt(s.netCapital, 0)}`
+                    : s.startingCashUSD > 0
+                    ? `$${fmt(s.totalCostBasis)} − ${cashCurrency === 'EUR' ? '€' : '$'}${fmt(startingCash)} cash = $${fmt(s.adjustedCostBasis)}`
+                    : `Cost basis: $${fmt(s.totalCostBasis)}`
+                }
+                valueColor={s && s.portNow >= s.adjustedCostBasis ? 'var(--positive)' : s ? 'var(--negative)' : undefined}
+              />
+              <StatCard
+                label="SPY Mirror"
+                value={s ? `$${fmt(s.spyMirrorNow)}` : '…'}
+                sub={
+                  s == null ? null :
+                  s.hasRealizedData && s.realizedGainsUSD > 0
+                    ? `Based on $${fmt(s.adjustedCostBasis, 0)} net capital + $${fmt(s.realizedGainsUSD, 0)} reinvested gains · SPY ${fmtD(s.spyReturn, 1)}`
+                    : s.hasRealizedData
+                    ? `Based on $${fmt(s.netCapital, 0)} net capital deployed · SPY ${fmtD(s.spyReturn, 1)}`
+                    : s.spyReturn != null ? `SPY return: ${fmtD(s.spyReturn, 1)}` : null
+                }
+              />
+              <StatCard
+                label="vs SPY"
+                value={s?.vsSpyPct == null ? '—' : (s.vsSpyPct >= 0 ? '+' : '') + s.vsSpyPct.toFixed(1) + '%'}
+                sub={s?.portReturn != null && s?.spyReturn != null ? `Portfolio ${fmtD(s.portReturn, 1)} · SPY ${fmtD(s.spyReturn, 1)}` : null}
+                valueColor={s ? clr(s.vsSpyPct) : undefined}
+              />
+              {s?.twr != null && (
+                <StatCard
+                  label="TWR (adj.)"
+                  value={(s.twr >= 0 ? '+' : '') + s.twr.toFixed(1) + '%'}
+                  sub="Time-weighted return — removes deposit timing effect"
+                  valueColor={clr(s.twr)}
+                />
+              )}
+            </div>
+
+            {/* ── Phase 9B: Portfolio vs SPY AreaChart ─────────────────────── */}
+            {/* ── Phase 9B: Metric cards (Beta, EUR/USD Rate, Currency Impact, vs SPY, Realized P&L) */}
+            {/* ── Phase 9C: EUR/USD AreaChart ──────────────────────────────── */}
+            {/* ── Phase 9C: Deposits / Dividends / Fees stat cards ─────────── */}
+            {/* ── Phase 9C: TransactionUpload (onResults → setRealizedData) ── */}
+
+            {/* ── Disclaimer ───────────────────────────────────────────────── */}
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, borderTop: '1px solid var(--border-color)', paddingTop: 16 }}>
+              {startDate
+                ? 'Start date is user-configured. '
+                : 'Purchase dates are estimated by matching your average cost basis to historical weekly closing prices. '}
+              SPY mirror assumes your total cost basis was invested in SPY at the start date.
+              Currency impact reflects the USD/EUR exchange-rate effect on your portfolio value since the start date.
+              Past performance is not indicative of future results. Data provided for informational purposes only.
+            </div>
+
+          </div>
+        )}
+      </SignupGate>
+
+    </div>
+  );
+}
