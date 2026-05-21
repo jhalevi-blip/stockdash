@@ -12,8 +12,9 @@ export const ROUTES = {
   researchPage: '/research',
   valuation:    '/valuation',
   earnings:     '/earnings',
-  analyst:      '/analyst-ratings',
-  shorts:       '/analyst',
+  analyst:          '/analyst-ratings',
+  shorts:           '/analyst',
+  ratingsAndShorts: '/ratings-and-shorts-v2',
   blog:         '/blog',
   stock:        (t) => `/research?ticker=${t}`,
   researchFor:  (t) => `/research?ticker=${t}`,
@@ -38,8 +39,7 @@ export const NAV_ITEMS = [
   { id: 'research',       label: 'Financial Filings', emoji: '📑', href: ROUTES.research },
   { id: 'valuation',      label: 'Valuation',         emoji: '📐', href: ROUTES.valuation },
   { id: 'earnings',    label: 'Earnings',        emoji: '📅', href: ROUTES.earnings },
-  { id: 'analyst',     label: 'Analyst Ratings', emoji: '🎯', href: ROUTES.analyst },
-  { id: 'shorts',      label: 'Short Interest',  emoji: '📉', href: ROUTES.shorts },
+  { id: 'ratingsAndShorts', label: 'Analyst & Shorts', emoji: '🎯', href: ROUTES.ratingsAndShorts },
   { id: 'blog',        label: 'Blog',            emoji: '📝', href: ROUTES.blog },
 ];
 
