@@ -12,13 +12,13 @@ export async function GET(request) {
   if (!key) return Response.json({ error: 'Missing API key' }, { status: 500 });
 
   const fmpKey = process.env.FMP_API_KEY;
-  trackFinnhub(holdings.length * 2); // metric + quote per ticker
+  trackFinnhub(holdings.length * 3); // metric + quote + profile2 per ticker
   if (fmpKey) trackFMP(holdings.length).catch(() => {}); // 1 call per ticker
 
   const results = await Promise.all(
     holdings.map(async h => {
       try {
-        const [metricRes, quoteRes, analystRes] = await Promise.all([
+        const [metricRes, quoteRes, analystRes, profileRes] = await Promise.all([
           fetch(
             `https://finnhub.io/api/v1/stock/metric?symbol=${h.t}&metric=all&token=${key}`,
             { next: { revalidate: 3600 } }
@@ -33,6 +33,10 @@ export async function GET(request) {
                 { next: { revalidate: 86400 } }
               )
             : Promise.resolve(null),
+          fetch(
+            `https://finnhub.io/api/v1/stock/profile2?symbol=${h.t}&token=${key}`,
+            { next: { revalidate: 86400 } }
+          ),
         ]);
 
         const finnhubData = await metricRes.json();
@@ -40,6 +44,8 @@ export async function GET(request) {
 
         const quoteData = await quoteRes.json();
         const currentPrice = quoteData?.c ?? null;
+
+        const profileData = await profileRes.json();
 
         let forwardPE = null;
 
@@ -65,7 +71,7 @@ export async function GET(request) {
 
         return {
           ticker: h.t,
-          name:   h.n,
+          name:   profileData?.name || h.t,
           peRatio:     m?.peBasicExclExtraTTM                  ?? null,
           forwardPE,
           pbRatio:     m?.pbAnnual                             ?? null,
