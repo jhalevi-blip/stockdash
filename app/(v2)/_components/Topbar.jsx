@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
 import Dot from './Dot';
-import { PORTFOLIO } from '@/app/(v2)/dashboard-v2/_lib/mockData';
+import { PORTFOLIO } from '@/app/(v2)/dashboard/_lib/mockData';
 
 const RECENT_KEY = 'recent_research_tickers';
 const MAX_RECENT = 5;

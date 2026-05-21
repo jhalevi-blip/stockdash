@@ -2295,7 +2295,7 @@ function ResearchPageInner() {
 
       {/* Breadcrumbs */}
       <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-        <a href="/dashboard-v2" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Dashboard</a>
+        <a href="/dashboard" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Dashboard</a>
         <span>›</span><span>Research</span><span>›</span>
         <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{ticker}</span>
       </div>

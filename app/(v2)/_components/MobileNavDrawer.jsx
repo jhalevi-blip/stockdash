@@ -45,12 +45,12 @@ export default function MobileNavDrawer() {
         <div style={{ display: 'flex', flexDirection: 'column', padding: '10px 8px', gap: 1 }}>
           {NAV_ITEMS.map(item => {
             const isActive = item.id === 'dashboard'
-              ? pathname === '/dashboard-v2'
+              ? pathname === '/dashboard'
               : pathname === item.href || pathname.startsWith(item.href + '/');
             return (
               <Link
                 key={item.id}
-                href={item.id === 'dashboard' ? '/dashboard-v2' : item.href}
+                href={item.id === 'dashboard' ? '/dashboard' : item.href}
                 onClick={close}
                 style={{
                   display: 'flex',

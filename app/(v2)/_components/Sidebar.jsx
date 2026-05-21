@@ -25,12 +25,12 @@ export default function Sidebar() {
       </div>
       <nav style={{ display: 'flex', flexDirection: 'column', padding: '10px 8px', gap: 1 }}>
         {NAV_ITEMS.map(item => {
-          // /dashboard-v2 should be the active item when we're on /dashboard-v2 itself
+          // /dashboard should be the active item when we're on /dashboard itself
           const isActive = item.id === 'dashboard'
-            ? pathname === '/dashboard-v2'
+            ? pathname === '/dashboard'
             : pathname === item.href || pathname.startsWith(item.href + '/');
           return (
-            <Link key={item.id} href={item.id === 'dashboard' ? '/dashboard-v2' : item.href} style={{
+            <Link key={item.id} href={item.id === 'dashboard' ? '/dashboard' : item.href} style={{
               display: 'flex',
               alignItems: 'center',
               gap: 10,

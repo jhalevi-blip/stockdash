@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import Card from '@/app/(v2)/_components/Card';
 import HeroValue from './_components/HeroValue';
@@ -41,6 +42,7 @@ const FALLBACK_PALETTE = ['#58a6ff', '#22d3ee', '#3fb950', '#d97706', '#f0b429',
 // initialSummary locks the component into display-only mode: no API
 // calls, no buttons, no localStorage reads. See Phase D investigation.
 export default function DashboardV2Page() {
+  const router = useRouter();
   const [range,   setRange]  = useState('1M');
   const [sectors, setSectors] = useState({});
 
@@ -298,7 +300,7 @@ export default function DashboardV2Page() {
       <div className="dv2-holdings-grid">
         <Card title="Holdings" eyebrow="Live">
           {/* Use real enriched rows when available; fall back to mock for demo/anonymous visitors */}
-          <HoldingsTable rows={enrichedRows.length > 0 ? enrichedRows : HOLDINGS} />
+          <HoldingsTable rows={enrichedRows.length > 0 ? enrichedRows : HOLDINGS} onRowClick={(r) => router.push(`/research?ticker=${r.ticker}`)} />
         </Card>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
           <Card title="Allocation by sector" eyebrow="Composition">
