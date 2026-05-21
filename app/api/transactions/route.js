@@ -189,11 +189,11 @@ async function parseDeGiroRekeningoverzicht(workbook, filename) {
     const date      = datumCol   !== -1 ? parseDate(row[datumCol]) : null;
     if (amount == null || mutatie !== 'EUR') continue;
 
-    if (omschrLow.includes('ideal') || omschrLow.includes('storting') || omschrLow.includes('giro deposit')) {
+    if (omschrLow === 'ideal deposit') {
       if (amount > 0) deposits.push({ date, amountEur: amount });
-    } else if (omschrLow.includes('flatex') || omschrLow.includes('interest') || omschrLow.includes('dividend') || omschrLow.includes('rente')) {
+    } else if (omschrLow === 'flatex interest income') {
       if (amount > 0) dividends.push({ date, amountEur: amount });
-    } else if (omschrLow.includes('service fee') || omschrLow.includes('verbindingskosten') || omschrLow.includes('aansluitingskosten')) {
+    } else if (omschrLow.startsWith('degiro aansluitingskosten') || omschrLow.startsWith('degiro verbindingskosten') || omschrLow === 'service fee') {
       if (amount < 0) fees.push({ date, amountEur: Math.abs(amount) });
     }
   }
