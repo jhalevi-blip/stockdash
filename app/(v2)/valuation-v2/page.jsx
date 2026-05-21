@@ -45,18 +45,36 @@ export default function ValuationV2Page() {
   const [sortKey, setSortKey] = useState('peRatio');
   const [sortAsc, setSortAsc] = useState(true);
 
-  /* ─── Data fetch (identical logic to V1) ───────────────────────────── */
+  /* ─── Data fetch ────────────────────────────────────────────────────── */
   useEffect(() => {
     try {
       const stored   = localStorage.getItem('stockdash_holdings');
       const holdings = stored ? JSON.parse(stored) : [];
+
+      // Build ticker→name map from localStorage. Skip entries where the
+      // stored name is missing or identical to the ticker (no useful data).
+      const nameMap = new Map(
+        holdings
+          .filter(h => h.n && h.n !== h.t)
+          .map(h => [h.t, h.n])
+      );
+
       let ts = holdings.map(h => h.t);
       if (!ts.length && localStorage.getItem('stockdash_demo') === 'true') ts = getDemoTickers();
       const tickers = ts.join(',');
       if (!tickers) { setLoading(false); return; }
       fetch(`/api/valuation?tickers=${tickers}`)
         .then(r => r.json())
-        .then(d => setData(Array.isArray(d) ? d : []))
+        .then(d => {
+          if (!Array.isArray(d)) { setData([]); return; }
+          // Overlay real company names from localStorage onto the API rows.
+          // API always returns name=ticker (parseTickers fallback); nameMap
+          // carries the actual name stored at portfolio-save time.
+          setData(d.map(row => ({
+            ...row,
+            name: nameMap.get(row.ticker) ?? row.name,
+          })));
+        })
         .finally(() => setLoading(false));
     } catch { setLoading(false); }
   }, []);
