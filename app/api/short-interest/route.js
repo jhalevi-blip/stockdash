@@ -128,9 +128,17 @@ export async function GET(request) {
   const results = await Promise.all(
     holdings.map(async h => {
       let targets = null;
+      // Fetch company name in parallel with the target chain
+      const profilePromise = finnhubKey
+        ? fetch(
+            `https://finnhub.io/api/v1/stock/profile2?symbol=${h.t}&token=${finnhubKey}`,
+            { next: { revalidate: 86400 } }
+          ).then(r => r.json()).catch(() => null)
+        : Promise.resolve(null);
+
       // Try Finnhub first (free, no quota cost)
       if (finnhubKey) {
-        trackFinnhub(1);
+        trackFinnhub(2);
         targets = await fetchFinnhub(h.t, finnhubKey);
       }
       // Fall back to FMP if Finnhub returned empty
@@ -140,9 +148,10 @@ export async function GET(request) {
       }
       if (!targets) targets = await fetchYahoo(h.t, yahooAuth);
 
+      const profileData = await profilePromise;
       return {
         ticker: h.t,
-        name:   h.n,
+        name:   profileData?.name || h.t,
         ...(targets || {}),
       };
     })
