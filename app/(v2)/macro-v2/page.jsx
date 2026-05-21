@@ -15,12 +15,17 @@ function fgColor(score) {
   return '#3fb950';
 }
 
-/* ─── Plain KPI item (no card chrome — section Card provides the shell) ─── */
-function KpiItem({ label, value, changePct, change, prefix = '$', suffix = '', valueColor }) {
+/* ─── KPI item ──────────────────────────────────────────────────────────── */
+function KpiItem({ label, value, changePct, change, prefix = '$', suffix = '', valueColor, borderColor }) {
   const isPos    = changePct >= 0;
   const chgColor = changePct == null ? 'var(--text-muted)' : isPos ? 'var(--positive)' : 'var(--negative)';
   return (
-    <div>
+    <div style={{
+      background: 'var(--bg-card)',
+      border: `1px solid ${borderColor ?? 'var(--border-color)'}`,
+      borderRadius: 8,
+      padding: '16px 20px',
+    }}>
       <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
         {label}
       </div>
@@ -44,7 +49,12 @@ function KpiItem({ label, value, changePct, change, prefix = '$', suffix = '', v
 /* ─── Yield item (label + pct value, no change row) ────────────────────── */
 function YieldItem({ label, value }) {
   return (
-    <div>
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-color)',
+      borderRadius: 8,
+      padding: '16px 20px',
+    }}>
       <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
         {label}
       </div>
@@ -61,7 +71,12 @@ function FearGreedItem({ fearGreed }) {
   const rating     = fearGreed?.rating ?? null;
   const scoreColor = fgColor(score);
   return (
-    <div>
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-color)',
+      borderRadius: 8,
+      padding: '16px 20px',
+    }}>
       <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
         CNN Fear &amp; Greed
       </div>
@@ -104,8 +119,8 @@ export default function MacroV2Page() {
   const dxy       = data?.commodities?.dxy;
   const fearGreed = data?.fearGreed;
 
-  // VIX value color: red above 25, amber above 18, default otherwise
-  const vixValueColor = vix?.price > 25 ? '#dc2626' : vix?.price > 18 ? '#d97706' : undefined;
+  // VIX color (border + text): red above 25, amber above 18, default otherwise
+  const vixColor = vix?.price > 25 ? '#dc2626' : vix?.price > 18 ? '#d97706' : undefined;
 
   // Yield curve spread — only when both tenors are available
   const hasSpread  = t?.year2 != null && t?.year10 != null;
@@ -153,19 +168,19 @@ export default function MacroV2Page() {
       {!loading && (
         <>
           {/* Market Indices */}
-          <Card eyebrow="Markets" title="Indices">
+          <Card eyebrow="Markets" title="Indices" padding="12px">
             <div className="dv2-macro-kpis">
               <KpiItem label="S&P 500"        value={spy?.price} changePct={spy?.changesPercentage} change={spy?.change} />
               <KpiItem label="NASDAQ"         value={qqq?.price} changePct={qqq?.changesPercentage} change={qqq?.change} />
               <KpiItem label="Dow Jones"      value={dia?.price} changePct={dia?.changesPercentage} change={dia?.change} />
               <KpiItem label="VIX Fear Index" value={vix?.price} changePct={vix?.changesPercentage} change={vix?.change}
-                prefix="" valueColor={vixValueColor} />
+                prefix="" valueColor={vixColor} borderColor={vixColor} />
               <FearGreedItem fearGreed={fearGreed} />
             </div>
           </Card>
 
           {/* Commodities & FX */}
-          <Card eyebrow="Markets" title="Commodities & FX">
+          <Card eyebrow="Markets" title="Commodities & FX" padding="12px">
             <div className="dv2-macro-kpis">
               <KpiItem label="Gold (oz)"        value={gold?.price} changePct={gold?.changesPercentage} change={gold?.change} />
               <KpiItem label="WTI Crude Oil"    value={oil?.price}  changePct={oil?.changesPercentage}  change={oil?.change} />
@@ -175,7 +190,7 @@ export default function MacroV2Page() {
 
           {/* Treasury Yields */}
           {t && (
-            <Card eyebrow="Rates" title="Treasury yields" footer={spreadFooter}>
+            <Card eyebrow="Rates" title="Treasury yields" footer={spreadFooter} padding="12px">
               <div className="dv2-macro-yields">
                 <YieldItem label="1 Month" value={t.month1} />
                 <YieldItem label="3 Month" value={t.month3} />
