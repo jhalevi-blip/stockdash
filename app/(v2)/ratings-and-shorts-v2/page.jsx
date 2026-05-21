@@ -71,14 +71,14 @@ export default function RatingsAndShortsV2Page() {
       const enriched = (Array.isArray(analyst) ? analyst : []).map(r => {
         const price = pricesMap[r.ticker] ?? null;
         const si    = shortsMap[r.ticker] ?? {};
-        const upside = price != null && r.lastQuarterTarget != null
+        const upside = price != null && r.lastQuarterTarget
           ? (r.lastQuarterTarget - price) / price * 100 : null;
         const shortPct = si.shortPercentOfFloat != null ? si.shortPercentOfFloat * 100 : null;
         return {
           ticker:            r.ticker,
           name:              r.name ?? r.ticker,
           price,
-          lastQuarterTarget: r.lastQuarterTarget ?? null,
+          lastQuarterTarget: r.lastQuarterTarget || null,
           upside,
           shortPct,
           shortRatio:        si.shortRatio ?? null,
