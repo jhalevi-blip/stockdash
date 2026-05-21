@@ -6,7 +6,7 @@ import DemoBanner from './DemoBanner';
 import UsageBanner from './UsageBanner';
 import DemoTour from './DemoTour';
 
-const AUTH_PATHS = ['/sign-up', '/sign-in', '/', '/blog', '/dashboard-v2', '/correlations', '/research'];
+const AUTH_PATHS = ['/sign-up', '/sign-in', '/', '/blog', '/dashboard-v2', '/correlations', '/research', '/valuation-v2'];
 
 export default function AppShell() {
   const path = usePathname();

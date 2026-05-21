@@ -460,3 +460,21 @@ body:has(.app-sidebar) { padding-left: 200px; }
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Valuation table: horizontal scroll + sticky ticker column on mobile */
+.dv2-valuation-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 0 0 8px 8px;
+}
+@media (max-width: 768px) {
+  .dv2-valuation-scroll th:first-child,
+  .dv2-valuation-scroll td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+  }
+  .dv2-valuation-scroll th:first-child { background: var(--bg-secondary); }
+  .dv2-valuation-scroll td:first-child { background: var(--bg-card); }
+  .dv2-valuation-scroll tr:hover td:first-child { background: var(--bg-hover); }
+}
