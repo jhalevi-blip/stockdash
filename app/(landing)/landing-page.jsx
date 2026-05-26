@@ -1,7 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import Logo from "@/components/Logo";
-import { SignInButton } from "@clerk/nextjs";
+import { SignInButton, useUser } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { startDemo } from "@/lib/startDemo";
 import { track } from "@/lib/posthog";
@@ -11,6 +11,8 @@ import DTCapabilityStrip from "./_components/DTCapabilityStrip";
 import DTTrustStrip from "./_components/DTTrustStrip";
 
 export default function LandingPage() {
+  const { isLoaded, isSignedIn } = useUser();
+
   useEffect(() => {
     track('landing_view', { attribution: getAttribution() });
   }, []);
@@ -25,18 +27,30 @@ export default function LandingPage() {
         <Logo />
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <a href="/blog" style={{ color: "#8b949e", fontSize: 13, fontWeight: 500, textDecoration: "none", marginRight: 8 }}>Blog</a>
-          <SignInButton mode="modal" forceRedirectUrl="/dashboard" appearance={{ baseTheme: dark }}>
-            <button style={{
-              background: "none", border: "1px solid #30363d", borderRadius: 6,
-              color: "#e6edf3", fontSize: 13, fontWeight: 600, padding: "5px 14px",
-              cursor: "pointer", fontFamily: "inherit",
-            }}>Sign In</button>
-          </SignInButton>
-          <a href="/sign-up" style={{
-            background: "#3b82f6", border: "1px solid #3b82f6", borderRadius: 6,
-            color: "#fff", fontSize: 13, fontWeight: 600, padding: "5px 14px",
-            textDecoration: "none", display: "inline-block",
-          }}>Sign Up</a>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", visibility: isLoaded ? "visible" : "hidden" }}>
+            {isSignedIn ? (
+              <a href="/dashboard" style={{
+                background: "none", border: "1px solid #30363d", borderRadius: 6,
+                color: "#e6edf3", fontSize: 13, fontWeight: 600, padding: "5px 14px",
+                textDecoration: "none", display: "inline-block",
+              }}>Open Dashboard</a>
+            ) : (
+              <>
+                <SignInButton mode="modal" forceRedirectUrl="/dashboard" appearance={{ baseTheme: dark }}>
+                  <button style={{
+                    background: "none", border: "1px solid #30363d", borderRadius: 6,
+                    color: "#e6edf3", fontSize: 13, fontWeight: 600, padding: "5px 14px",
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}>Sign In</button>
+                </SignInButton>
+                <a href="/sign-up" style={{
+                  background: "#3b82f6", border: "1px solid #3b82f6", borderRadius: 6,
+                  color: "#fff", fontSize: 13, fontWeight: 600, padding: "5px 14px",
+                  textDecoration: "none", display: "inline-block",
+                }}>Sign Up</a>
+              </>
+            )}
+          </div>
         </div>
       </nav>
 
@@ -69,14 +83,16 @@ export default function LandingPage() {
         }}>
           Your portfolio, fully researched.
         </h2>
-        <a href="/sign-up" style={{
-          display: "inline-block", padding: "13px 32px", borderRadius: 10,
-          background: "#3b82f6", color: "#fff", textDecoration: "none",
-          fontWeight: 700, fontSize: 15, fontFamily: "inherit",
-          boxShadow: "0 0 28px rgba(59,130,246,0.3)",
-        }}>
-          Get Started — It's Free
-        </a>
+        <div style={{ display: "inline-block", visibility: isLoaded ? "visible" : "hidden" }}>
+          <a href={isSignedIn ? "/dashboard" : "/sign-up"} style={{
+            display: "inline-block", padding: "13px 32px", borderRadius: 10,
+            background: "#3b82f6", color: "#fff", textDecoration: "none",
+            fontWeight: 700, fontSize: 15, fontFamily: "inherit",
+            boxShadow: "0 0 28px rgba(59,130,246,0.3)",
+          }}>
+            {isSignedIn ? "Open Your Dashboard →" : "Get Started — It's Free"}
+          </a>
+        </div>
         <div style={{ marginTop: 12 }}>
           <button
             onClick={() => startDemo("/dashboard")}

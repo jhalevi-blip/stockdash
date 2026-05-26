@@ -1,7 +1,9 @@
 'use client';
-import { SignUpButton } from '@clerk/nextjs';
+import { SignUpButton, useUser } from '@clerk/nextjs';
 
 export default function DTStickyCTA() {
+  const { isLoaded, isSignedIn } = useUser();
+
   return (
     <div style={{
       width: '100%',
@@ -24,22 +26,43 @@ export default function DTStickyCTA() {
       </div>
 
       {/* Right — CTA button */}
-      <SignUpButton mode="modal">
-        <button style={{
-          fontSize: 13, fontWeight: 700,
-          padding: '8px 18px',
-          borderRadius: 'var(--radius)',
-          background: 'var(--accent-cta)',
-          color: '#fff',
-          boxShadow: '0 0 24px rgba(59,130,246,0.35)',
-          border: '1px solid var(--accent-cta)',
-          whiteSpace: 'nowrap',
-          cursor: 'pointer',
-          fontFamily: 'inherit',
-        }}>
-          Sign up free →
-        </button>
-      </SignUpButton>
+      <div style={{ visibility: isLoaded ? 'visible' : 'hidden', flexShrink: 0 }}>
+        {isSignedIn ? (
+          <a href="/dashboard" style={{
+            display: 'inline-block',
+            fontSize: 13, fontWeight: 700,
+            padding: '8px 18px',
+            borderRadius: 'var(--radius)',
+            background: 'var(--accent-cta)',
+            color: '#fff',
+            boxShadow: '0 0 24px rgba(59,130,246,0.35)',
+            border: '1px solid var(--accent-cta)',
+            whiteSpace: 'nowrap',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            textDecoration: 'none',
+          }}>
+            Open Dashboard →
+          </a>
+        ) : (
+          <SignUpButton mode="modal" forceRedirectUrl="/dashboard">
+            <button style={{
+              fontSize: 13, fontWeight: 700,
+              padding: '8px 18px',
+              borderRadius: 'var(--radius)',
+              background: 'var(--accent-cta)',
+              color: '#fff',
+              boxShadow: '0 0 24px rgba(59,130,246,0.35)',
+              border: '1px solid var(--accent-cta)',
+              whiteSpace: 'nowrap',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}>
+              Sign up free →
+            </button>
+          </SignUpButton>
+        )}
+      </div>
     </div>
   );
 }
