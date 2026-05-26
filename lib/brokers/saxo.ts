@@ -2,8 +2,9 @@ import * as XLSX from 'xlsx';
 import type { BrokerTrade, SkipSummary } from './types';
 
 // Matches: "Koop 30 @ 29.05 USD" | "Verkoop -1000 @ 6.67 USD" | "Expiry -4 @ 0.00 USD"
+// Currency code is optional — some Saxo exports omit it; fall back to Instrumentvaluta column.
 const ACTIES_RE =
-  /^(Koop|Verkoop|Expiry)\s+(-?\d+(?:\.\d+)?)\s*@\s*(-?\d+(?:\.\d+)?)\s*([A-Z]{3})$/;
+  /^(Koop|Verkoop|Expiry)\s+(-?\d+(?:\.\d+)?)\s*@\s*(-?\d+(?:\.\d+)?)(?:\s+([A-Z]{3}))?$/;
 
 /** Convert an Excel serial date number to an ISO date string (YYYY-MM-DD). */
 function excelSerialToISO(serial: number): string {
@@ -61,6 +62,7 @@ export function parseSaxo(wb: XLSX.WorkBook): {
   const actiesCol  = col('acties');
   const symboolCol = col('instrumentsymbool');
   const datumCol   = col('transactiedatum');
+  const valutaCol  = col('instrumentvaluta');
 
   const trades: BrokerTrade[] = [];
   const skip: SkipSummary = {
@@ -92,16 +94,22 @@ export function parseSaxo(wb: XLSX.WorkBook): {
     const match = ACTIES_RE.exec(actiesRaw);
     if (!match) { skip.parseErrors!++; continue; }
 
-    const [, verb, sharesStr, priceStr, currency] = match;
+    const [, verb, sharesStr, priceStr, ccyFromActies] = match;
 
     // Skip options expiry rows
     if (verb === 'Expiry') { skip.expirySkipped!++; continue; }
 
+    // Currency: prefer trailing code in Acties, fall back to Instrumentvaluta column.
+    // If neither is populated, the row is uninterpretable — skip with a parse error.
+    const currency = ccyFromActies || (valutaCol >= 0 ? String(row[valutaCol] ?? '').trim() : '');
+    if (!currency) { skip.parseErrors!++; continue; }
+
     const sharesRaw = parseFloat(sharesStr);
     const price     = parseFloat(priceStr);
     const action: 'buy' | 'sell' = verb === 'Koop' ? 'buy' : 'sell';
-    // Preserve sign from file: Koop = positive, Verkoop = negative already
-    const shares = sharesRaw;
+    // abs() so both "Verkoop 25 @ ..." and "Verkoop -25 @ ..." produce a positive
+    // share count. Direction is carried by action (Koop/Verkoop), not the sign.
+    const shares = Math.abs(sharesRaw);
 
     // Strip exchange suffix: "CELH:xnas" → "CELH"
     const ticker = symbool.split(':')[0].toUpperCase();
