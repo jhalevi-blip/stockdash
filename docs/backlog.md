@@ -12,6 +12,53 @@ _Last updated: 2026-05-01_
 
 ---
 
+## Critical bugs to investigate
+
+**Saxo G.2 parser — minus-sign Verkoop format silently dropped (HIGH PRIORITY)**
+
+Discovered May 26 2026 during portfolio audit. Saxo records sell trades in two inconsistent formats in the `Acties` column:
+- `Verkoop 100 @ 490.00` (no minus sign on shares)
+- `Verkoop -25 @ 168.01 USD` (negative shares prefix)
+
+The Saxo G.2 parser uses a regex like `(Koop|Verkoop)\s+([\d.]+)\s+@\s+([\d.]+)` which requires `[\d.]+` for shares. This silently fails to match the negative-prefix format, dropping those sale rows from FIFO processing.
+
+Impact: holdings are over-counted on any ticker where Saxo logged a sale with the minus-sign format. Closed positions appear as still-held. ACP calculations are wrong. The Portfolio AI Summary in production runs on these inflated holdings, producing factually wrong analysis (confirmed: in one test case, a user's actual 21.5% AMD weight was reported as 45.7%).
+
+Fix: change the regex to allow optional negative sign — `(-?[\d.]+)` — and take `abs()` of the parsed value. The sign comes from the side (Koop/Verkoop), not the share count.
+
+Action items:
+1. Patch the regex in the Saxo G.2 parser
+2. Re-run G.2 unit tests
+3. Add a test case for the negative-prefix format so this can't regress
+4. Decide: backfill — re-run the parser on previously uploaded Saxo data for affected users? Or just fix going forward?
+
+In one Saxo export, 41 Verkoop rows across 15 tickers were silently dropped: AMD, ABX, SOFI, RIG, INOD, ANET, NKE, NVTS, WHD, HCC, OP, CDNS, TSLA, PLTR, SRPT.
+
+---
+
+**Cash position currency selector ignored — displays as USD regardless of selection (HIGH PRIORITY)**
+
+Discovered May 26 2026. The Edit Portfolio modal has a EUR/USD selector next to the cash position field. The selection is purely cosmetic on input — the cash value is stored as a raw number with no currency metadata, and the dashboard displays it as USD always (Cash $42,160 even when EUR was selected).
+
+Impact:
+- Total Portfolio Value is wrong by the EUR→USD FX gap (e.g., €42,160 displayed and counted as $42,160 instead of ≈ $47,640 at ~1.13)
+- AI Portfolio Summary runs on a total that under-counts EUR cash holdings
+- Sector weights, P&L %, and concentration ratios all use the wrong denominator
+
+Decided approach: proper multi-currency cash support (multiple cash buckets stored per currency, displayed in native currency with running USD-equivalent totals). Deferred to a dedicated session — too large for tail-end debugging.
+
+Scope of proper fix:
+1. Schema migration: cash field → structured per-currency buckets
+2. Edit form UX: support adding multiple cash entries with currency selectors
+3. Display: cash card shows each bucket in native currency + total USD-equivalent
+4. Total portfolio value: sum stocks_USD + sum(cash_currency × FX_rate)
+5. AI summary prompt: include the multi-currency picture
+6. Migration of existing user cash fields from scalar to structured
+
+Interim alternative considered but not chosen: "pragmatic fix" honoring the EUR/USD selector without supporting multiple buckets. Rejected because Jonathan's own portfolio is multi-currency and the proper fix is inevitable.
+
+---
+
 ## Now (this week)
 
 - [ ] **Audit pass** — production smoke test, FMP/Anthropic usage check, Search Console indexing, PostHog D1/D7, backlog hygiene, code health, dev environment.
@@ -107,3 +154,9 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 ## Key learnings & debugging principles
 
 **Device/context-specific bug debugging:** When a bug appears on one device/browser/context but not another (e.g., works on desktop but not mobile, works for one user but not another), test private/incognito mode FIRST before diagnosing code, CSS, or touch events. If the bug disappears in private mode, the cause is session/state (cookies, persistent auth, localStorage) — do not modify code, investigate state. If the bug persists in private mode, it's a code problem — proceed with code diagnosis. This 30-second test isolates state-vs-code in one step. Reference: May 26 2026 iOS Safari CTA bug — persistent Clerk session caused `mode="modal"` buttons to silently no-op for signed-in users on mobile. Private-mode test confirmed the cause was state, not code, saving hours of misdirected CSS diagnosis.
+
+**Data-anomaly source-of-truth rule:** When Jonathan flags that a NUMBER looks wrong — share count, holding weight, ACP, portfolio %, balance, return — treat it as a signal of an upstream data or parser bug, NOT user miscounting. Audit the data pipeline before re-explaining the number to him. The visual-anomaly principle generalizes to data anomalies: if his real-world view disagrees with a number derived from data we processed, the parser, regex, or aggregation logic is the most likely failure point.
+
+Reference: May 26 2026 portfolio audit. Jonathan said he had 359 AMD shares after a sale; the analysis computed 459. Initial response was to argue and propose explanations for why he might be wrong. The honest path was to audit the parser, which revealed Saxo's inconsistent Verkoop formatting. 41 sell rows across 15 tickers were missing from holdings calculations. Without Jonathan pushing back, this parser bug — also affecting StockDashes production — would have stayed live, and a blog post built on the wrong AI analysis would have shipped with factually incorrect numbers.
+
+Operational consequence: if a user says "this number is wrong," the first move is audit, not argue.
