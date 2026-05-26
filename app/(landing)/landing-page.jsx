@@ -83,7 +83,7 @@ export default function LandingPage() {
         }}>
           Your portfolio, fully researched.
         </h2>
-        <div style={{ display: "inline-block", visibility: isLoaded ? "visible" : "hidden" }}>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", visibility: isLoaded ? "visible" : "hidden" }}>
           <a href={isSignedIn ? "/dashboard" : "/sign-up"} style={{
             display: "inline-block", padding: "13px 32px", borderRadius: 10,
             background: "#3b82f6", color: "#fff", textDecoration: "none",
@@ -92,18 +92,19 @@ export default function LandingPage() {
           }}>
             {isSignedIn ? "Open Your Dashboard →" : "Get Started — It's Free"}
           </a>
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <button
-            onClick={() => startDemo("/dashboard")}
-            style={{
-              background: "none", border: "none", cursor: "pointer",
-              color: "rgba(230,237,243,0.4)", fontSize: 13, fontFamily: "inherit",
-              textDecoration: "underline", padding: 0,
-            }}
-          >
-            or try the demo
-          </button>
+          {!isSignedIn && (
+            <button
+              onClick={() => startDemo("/dashboard")}
+              style={{
+                padding: "13px 32px", borderRadius: 10,
+                background: "transparent", border: "1px solid #30363d",
+                color: "#e6edf3", fontWeight: 700, fontSize: 15, fontFamily: "inherit",
+                cursor: "pointer",
+              }}
+            >
+              Try the Demo
+            </button>
+          )}
         </div>
         <p style={{ color: "rgba(230,237,243,0.25)", fontSize: 12, marginTop: 14 }}>
           No credit card · No ads · Your data stays on your device
