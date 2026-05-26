@@ -59,6 +59,43 @@ Interim alternative considered but not chosen: "pragmatic fix" honoring the EUR/
 
 ---
 
+**Edit Portfolio modal — single-file upload only (FEATURE)**
+
+The Edit Portfolio modal (PortfolioModal.jsx → UploadPanel) currently accepts one file at a time. The /performance page already supports multi-file batch upload via app/(v2)/performance/page.jsx (TransactionUpload component) — selects multiple files, sends as FormData batch to /api/transactions, server deduplicates by Order ID, runs FIFO, returns unified result.
+
+Replicating the /performance pattern in the Edit Portfolio modal doesn't translate cleanly because the modal holds holdings (ticker + shares + avg cost), not raw transactions. There are no Order IDs to dedup on. If two files both contain AAPL, the current "append" mode produces two AAPL rows in the grid, not one summed position.
+
+Three approaches considered:
+- A: Add `multiple` to the input, parse sequentially, no aggregation. Duplicate tickers appear as separate rows. Simplest, fragile UX.
+- B: Client-side ticker merge — sum shares, weighted-average ACP. No backend changes. Loses lot-level history.
+- C: Collect all files first, parse all, merge at the end, then confirm. Same UX as /performance but client-side. Matches user mental model. Requires UploadPanel refactor to accept a file list rather than processing immediately on pick.
+
+Recommended: C. Deferred to a dedicated session — not a tail-end fix.
+
+User-visible symptom: someone with positions across two brokers (e.g., Saxo + DeGiro, Jonathan's actual setup) cannot upload both at once in the Edit Portfolio modal. They have to upload one, save, re-open, switch to append mode, upload the second.
+
+---
+
+**Performance page — recent broker transactions not appearing after re-upload (HIGH PRIORITY)**
+
+Discovered May 26 2026. After pushing the Saxo parser fix (commit 3852fa1) which corrected handling of "Verkoop 100 @ 490.00" (missing trailing currency code), the /performance page still shows stale partial exit data for AMD: 100 shares sold / 259 remaining, instead of the corrected 200 sold / 159 remaining that the fixed parser should produce.
+
+Possible causes:
+1. localStorage cache: the performance page reads from cached parsed results and doesn't re-parse on file re-upload. Cached state from a buggy-parser run persists.
+2. Server-side cache: /api/transactions caches by file hash and returns the same result for the same file even after the parser code changed.
+3. The deploy hadn't propagated when Jonathan re-uploaded.
+4. The file wasn't re-uploaded after the fix (user issue, not a bug).
+
+Investigation steps:
+- Check whether app/(v2)/performance/page.jsx reads from localStorage and skips parsing when present
+- Check /api/transactions/route.js for any file-hash or content-hash caching
+- Add a "force re-parse" or "clear cache" affordance if caching is the cause
+- Verify the Saxo parser fix actually produces the expected output on Jonathan's file (parse the file in isolation against current main, confirm output)
+
+User-visible symptom: parser bugs cannot be verified-fixed by re-upload — the page keeps showing the old data even after correct code ships.
+
+---
+
 ## Now (this week)
 
 - [ ] **Audit pass** — production smoke test, FMP/Anthropic usage check, Search Console indexing, PostHog D1/D7, backlog hygiene, code health, dev environment.
