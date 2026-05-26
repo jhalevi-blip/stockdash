@@ -101,3 +101,9 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 **Local dev: /api/portfolio returns 500**
 - Likely cause: RLS policy on `portfolios` table doesn't accept Clerk Development user ID format.
 - Workaround: test authenticated routes by shipping to a feature branch and checking on the Vercel preview deployment.
+
+---
+
+## Key learnings & debugging principles
+
+**Device/context-specific bug debugging:** When a bug appears on one device/browser/context but not another (e.g., works on desktop but not mobile, works for one user but not another), test private/incognito mode FIRST before diagnosing code, CSS, or touch events. If the bug disappears in private mode, the cause is session/state (cookies, persistent auth, localStorage) — do not modify code, investigate state. If the bug persists in private mode, it's a code problem — proceed with code diagnosis. This 30-second test isolates state-vs-code in one step. Reference: May 26 2026 iOS Safari CTA bug — persistent Clerk session caused `mode="modal"` buttons to silently no-op for signed-in users on mobile. Private-mode test confirmed the cause was state, not code, saving hours of misdirected CSS diagnosis.
