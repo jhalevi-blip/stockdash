@@ -1,9 +1,9 @@
 export default function DTAISummary({ summary }) {
   if (!summary) return null;
 
-  const POS = '#4ade80';
+  const POS = '#16a34a';
   const AMB = '#d29922';
-  const NEG = '#f87171';
+  const NEG = '#dc2626';
 
   const ratingColor = summary.rating >= 7 ? POS : summary.rating >= 5 ? AMB : NEG;
 

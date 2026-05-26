@@ -1,6 +1,6 @@
 export default function DTMidCards({ stats }) {
-  const POS = '#4ade80';
-  const NEG = '#f87171';
+  const POS = '#16a34a';
+  const NEG = '#dc2626';
   const SP500_DAILY = 0.91;
 
   const best  = [...stats.rows].sort((a, b) => b.change - a.change)[0];

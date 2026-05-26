@@ -21,8 +21,8 @@ export default function DTStockIntel({ intel, selectedTicker, row }) {
   const entry = intel[selectedTicker];
   if (!entry || !row) return null;
 
-  const POS = '#4ade80';
-  const NEG = '#f87171';
+  const POS = '#16a34a';
+  const NEG = '#dc2626';
 
   const fmtUSD = (n, dp = 2) =>
     '$' + n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });

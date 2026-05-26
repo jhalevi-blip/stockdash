@@ -2,8 +2,8 @@ import { SAMPLE_TOP_STATS } from '@/lib/dTerminalSampleData';
 
 export default function DTSummaryStrip({ stats }) {
   const totalPct = (stats.totalPL / stats.totalCost) * 100;
-  const POS = '#4ade80';
-  const NEG = '#f87171';
+  const POS = '#16a34a';
+  const NEG = '#dc2626';
 
   const fmtUSD = (n, dp = 2) =>
     '$' + n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });

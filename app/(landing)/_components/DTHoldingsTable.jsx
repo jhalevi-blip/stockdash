@@ -38,10 +38,10 @@ export default function DTHoldingsTable({ holdings, selectedTicker, onSelect }) 
                 <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>{h.shares}</td>
                 <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>${(h.costBasis / h.shares).toFixed(2)}</td>
                 <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>${h.price.toFixed(2)}</td>
-                <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums', color: h.change >= 0 ? 'var(--positive-bright)' : 'var(--negative-soft)' }}>
+                <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums', color: h.change >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
                   {h.change >= 0 ? '+' : ''}{h.change.toFixed(2)}%
                 </td>
-                <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums', color: h.pl >= 0 ? 'var(--positive-bright)' : 'var(--negative-soft)' }}>
+                <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums', color: h.pl >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
                   {h.pl >= 0 ? '+' : ''}${h.pl.toLocaleString('en-US')}
                 </td>
                 <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>{h.weight}</td>
