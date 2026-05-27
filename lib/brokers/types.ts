@@ -46,3 +46,13 @@ export interface SkipSummary {
   corporateActionsHeld?: number;
   corporateActionsHeldTypes?: string[];
 }
+
+export type FileIntent = 'transactions' | 'holdings';
+
+export interface DetectResult {
+  format: BrokerFormat;
+  intent: FileIntent;
+  /** certain = named broker (always transactions); inferred = column heuristic matched;
+   *  ambiguous = heuristic inconclusive, UI should prompt user */
+  intentConfidence: 'certain' | 'inferred' | 'ambiguous';
+}
