@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import type { BrokerFormat } from './types';
+import type { BrokerFormat, DetectResult } from './types';
 
 /** Extract lowercased, trimmed headers from a sheet's first non-empty row. */
 function getSheetHeaders(sheet: XLSX.WorkSheet, maxRows = 10): string[] {
@@ -15,7 +15,8 @@ function getSheetHeaders(sheet: XLSX.WorkSheet, maxRows = 10): string[] {
   return [];
 }
 
-export function detectBrokerFormat(wb: XLSX.WorkBook): BrokerFormat {
+/** Private: resolve the BrokerFormat from a workbook. Used by both exports. */
+function resolveFormat(wb: XLSX.WorkBook): BrokerFormat {
   // ── Trading 212: check every sheet for the T212 header signature ─────────
   // T212 is CSV → SheetJS parses it as a single sheet with a generic name
   // (e.g. "Sheet1"). Check before the "Transacties" lookup so a Saxo/DeGiro
@@ -93,4 +94,57 @@ export function detectBrokerFormat(wb: XLSX.WorkBook): BrokerFormat {
   if (has('isin') && has('aantal') && has('product')) return 'degiro';
 
   return 'generic';
+}
+
+/**
+ * Returns the BrokerFormat for a workbook.
+ * Existing call sites (UploadPanel, etc.) are unaffected.
+ */
+export function detectBrokerFormat(wb: XLSX.WorkBook): BrokerFormat {
+  return resolveFormat(wb);
+}
+
+/**
+ * Returns a DetectResult with format, intent ('transactions' | 'holdings'),
+ * and intentConfidence ('certain' | 'inferred' | 'ambiguous').
+ *
+ * Named broker formats are always 'transactions' with 'certain' confidence.
+ * Generic files use column-cluster heuristics to infer intent.
+ */
+export function detectFile(wb: XLSX.WorkBook): DetectResult {
+  const format = resolveFormat(wb);
+
+  if (format !== 'generic') {
+    return { format, intent: 'transactions', intentConfidence: 'certain' };
+  }
+
+  // ── Generic file: run column-cluster heuristic on the first sheet ────────
+  const firstSheet = wb.Sheets[wb.SheetNames[0]];
+  const headers = firstSheet ? getSheetHeaders(firstSheet) : [];
+
+  // Partial substring match (case already lowercased by getSheetHeaders)
+  const any = (terms: string[]) =>
+    terms.some((term) => headers.some((h) => h.includes(term)));
+
+  const hasA = any(['date', 'datum', 'transactiedatum', 'trade date']);
+  const hasB = any(['action', 'type', 'acties', 'buy/sell', 'side']);
+  const hasC = any(['quantity', 'shares', 'aantal', 'qty', 'units']);
+
+  // ≥2 of 3 transaction clusters present → transaction history
+  if ([hasA, hasB, hasC].filter(Boolean).length >= 2) {
+    return { format: 'generic', intent: 'transactions', intentConfidence: 'inferred' };
+  }
+
+  // No action cluster, but has ticker + shares + cost → holdings snapshot
+  if (!hasB) {
+    const hasTicker = any(['ticker', 'symbol', 'instrument']);
+    const hasShares = any(['shares', 'quantity', 'aantal']);
+    const hasCost   = any(['cost', 'price', 'koers']);
+    if (hasTicker && hasShares && hasCost) {
+      return { format: 'generic', intent: 'holdings', intentConfidence: 'inferred' };
+    }
+  }
+
+  // Inconclusive — default to transactions (safer: most uploads are broker exports)
+  return { format: 'generic', intent: 'transactions', intentConfidence: 'ambiguous' };
 }
