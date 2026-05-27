@@ -21,15 +21,10 @@ function isRateLimited(ip) {
   return entry.count > MAX_REQUESTS;
 }
 
-// Only the portfolio write endpoint requires a signed-in user.
-// All page routes are public — pages handle their own auth state via useUser()/auth().
-const isProtectedRoute = createRouteMatcher(['/api/portfolio']);
-
-const clerkHandler = clerkMiddleware((auth, req) => {
-  if (isProtectedRoute(req)) {
-    auth.protect();
-  }
-});
+// All routes handle their own auth via auth() in the route handler.
+// No middleware-level protection — avoids HTML redirect responses that break
+// client-side fetch() callers expecting JSON.
+const clerkHandler = clerkMiddleware(() => {});
 
 export default async function middleware(req, ev) {
   if (req.nextUrl.pathname.startsWith('/api/')) {

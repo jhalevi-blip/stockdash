@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
+import { useUser } from '@clerk/nextjs';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
@@ -9,6 +10,7 @@ import DemoPrompt from '@/components/DemoPrompt';
 import { WELCOME_TICKERS } from '@/lib/startDemo';
 import TransactionUpload from '@/components/TransactionUpload';
 import InfoTooltip from '@/components/InfoTooltip';
+import { saveUserHoldings } from '@/lib/holdingsStorage';
 
 /* ─── Formatters ─────────────────────────────────────────────────────────── */
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
@@ -142,6 +144,7 @@ function MetricCard({ label, value, sub, valueColor }) {
 
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 export default function PerformanceV2Page() {
+  const { user } = useUser();
   // ── All 11 state slots declared now (9B/9C consume remaining fields) ──────
   const [holdings,       setHoldings]       = useState(null);
   const [rawData,        setRawData]        = useState(null);
@@ -195,6 +198,7 @@ export default function PerformanceV2Page() {
         const data = await res.json();
         if (data.signedIn && data.holdings?.length) {
           setHoldings(data.holdings);
+          saveUserHoldings(user?.id, data.holdings);
           return;
         }
       } catch {}
