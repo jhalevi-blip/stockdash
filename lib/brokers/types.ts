@@ -25,6 +25,7 @@ export interface SkipSummary {
   tickerTooLong?: number;
   invalidShares?: number;
   invalidCost?: number;
+  columnMappingFailed?: boolean;
   // Broker-specific
   optionsSkipped?: number;
   expirySkipped?: number;
