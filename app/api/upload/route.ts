@@ -430,6 +430,8 @@ export async function POST(request: Request) {
         _debug:                _debugDegiro ?? null,
         _debugTrades:          { ticker: _debugTicker, perBroker: _debugPerBroker },
         _debugMergedAvgCostEcho,
+        // Temporary: dump every holding ticker so we can confirm which 14 (or 12) survive FIFO.
+        _debugHoldingsTickers: allHoldings.map((h) => `${h.t} (${h.s}sh @ ${h.c} ${h.currency} [${h.broker}])`),
       },
       { headers: { 'Cache-Control': 'private, no-store' } }
     );
