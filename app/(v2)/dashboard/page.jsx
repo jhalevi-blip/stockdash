@@ -46,18 +46,13 @@ export default function DashboardV2Page() {
   const [range,   setRange]  = useState('1M');
   const [sectors, setSectors] = useState({});
 
-  // Real holdings — Supabase-authoritative, listens to portfolio-saved event
-  const { holdings } = useHoldings();
+  // Real holdings + cash — Supabase-authoritative, listens to portfolio-saved event
+  const { holdings, cash: cashData } = useHoldings();
   const [prices,   setPrices]   = useState({});
   const [history,  setHistory]  = useState(null); // [{ date, value }] — full 1-year daily series
-  const [cash,     setCash]     = useState(0);    // cash balance in USD from /api/portfolio
+  // Raw amount from Supabase (no currency conversion — pre-existing display behaviour preserved)
+  const cash = cashData?.amount ?? 0;
   const { isLoaded, isSignedIn } = useUser();
-
-  // Cash: read from localStorage once on mount
-  useEffect(() => {
-    const cashAmt = parseFloat(localStorage.getItem('stockdash_cash_amount') || '0') || 0;
-    setCash(cashAmt);
-  }, []);
 
   // Prices: re-fetch whenever holdings change (useHoldings updates trigger this)
   useEffect(() => {
