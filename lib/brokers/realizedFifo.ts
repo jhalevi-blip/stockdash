@@ -31,7 +31,14 @@ export function calcFIFO(trades: BrokerTrade[]): FIFOResult[] {
   const results: FIFOResult[] = [];
 
   for (const [symbol, txs] of Object.entries(bySymbol)) {
-    txs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // Same tiebreaker as aggregateFIFO: buys before sells on the same day.
+    txs.sort((a, b) => {
+      const da = new Date(a.date).getTime(), db = new Date(b.date).getTime();
+      if (da !== db) return da - db;
+      if (a.action === 'buy'  && b.action === 'sell') return -1;
+      if (a.action === 'sell' && b.action === 'buy')  return  1;
+      return 0;
+    });
 
     const lots: Array<{ shares: number; costPerShare: number }> = [];
     let totalBoughtEur = 0, totalSoldEur = 0, realizedPnl = 0;

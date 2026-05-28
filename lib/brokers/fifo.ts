@@ -27,10 +27,16 @@ export function aggregateFIFO(
   const sellsWithoutBuysTickers: string[] = [];
 
   for (const [ticker, tickerTrades] of byTicker) {
-    // Sort chronologically so FIFO consumes oldest lots first
-    const sorted = [...tickerTrades].sort((a, b) =>
-      a.date < b.date ? -1 : a.date > b.date ? 1 : 0
-    );
+    // Sort chronologically so FIFO consumes oldest lots first.
+    // Same-day tiebreaker: buys before sells — ensures a same-day buy is
+    // available as a lot before the same-day sell tries to consume it.
+    // Uses action (not shares sign) because Saxo always emits positive shares.
+    const sorted = [...tickerTrades].sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      if (a.action === 'buy'  && b.action === 'sell') return -1;
+      if (a.action === 'sell' && b.action === 'buy')  return  1;
+      return 0;
+    });
 
     const lots: Lot[] = [];
     let hadBuys = false;
