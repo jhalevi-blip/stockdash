@@ -7,29 +7,16 @@ import {
 } from 'recharts';
 import SignupGate from '@/components/SignupGate';
 import DemoPrompt from '@/components/DemoPrompt';
-import { WELCOME_TICKERS } from '@/lib/startDemo';
-import TransactionUpload from '@/components/TransactionUpload';
+import UnifiedUpload from '@/components/UnifiedUpload';
+import { useHoldings } from '@/lib/useHoldings';
 import InfoTooltip from '@/components/InfoTooltip';
-import { saveUserHoldings } from '@/lib/holdingsStorage';
 
 /* ─── Formatters ─────────────────────────────────────────────────────────── */
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
 const clr  = (n) => n == null ? 'var(--text-secondary)' : n >= 0 ? 'var(--positive)' : 'var(--negative)';
 
-const { tickers: DEMO_FALLBACK, shares: DEMO_SHARES } = WELCOME_TICKERS;
-
 /* ─── Helpers (verbatim from V1) ─────────────────────────────────────────── */
-function getLocalHoldings() {
-  try {
-    // TODO: reads stockdash_holdings without ownership check — a polluted browser
-    // may show stale data here. Track: consolidate all unscoped cache reads behind
-    // a single ownership-aware getter (dual-table consolidation pass).
-    const stored = localStorage.getItem('stockdash_holdings');
-    return stored ? JSON.parse(stored) : [];
-  } catch { return []; }
-}
-
 function estimatePurchaseIdx(candles, avgCost) {
   if (!candles?.length || avgCost == null || avgCost <= 0) return 0;
   let best = 0, bestDiff = Infinity;
@@ -144,9 +131,9 @@ function MetricCard({ label, value, sub, valueColor }) {
 
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 export default function PerformanceV2Page() {
-  const { user } = useUser();
+  const { user, isLoaded, isSignedIn } = useUser();
+  const { holdings } = useHoldings();
   // ── All 11 state slots declared now (9B/9C consume remaining fields) ──────
-  const [holdings,       setHoldings]       = useState(null);
   const [rawData,        setRawData]        = useState(null);
   const [dataLoading,    setDataLoading]    = useState(false);
   const [error,          setError]          = useState(null);
@@ -158,54 +145,24 @@ export default function PerformanceV2Page() {
   const [startingCash,   setStartingCash]   = useState(0);
   const [cashCurrency,   setCashCurrency]   = useState('EUR'); // 'EUR' | 'USD'
 
-  /* ── Load holdings + saved user preferences from localStorage ───────────── */
+  /* ── Restore persisted date/cash preferences from localStorage ──────────── */
   useEffect(() => {
-    async function loadHoldings() {
-      // Restore persisted date/cash prefs (keys preserved verbatim from V1)
-      const saved = localStorage.getItem('stockdash_start_date');
-      if (saved) setStartDate(saved);
-      const savedCash = localStorage.getItem('starting_cash_eur');
-      if (savedCash) setStartingCash(parseFloat(savedCash) || 0);
-      const savedCashCcy = localStorage.getItem('starting_cash_currency');
-      if (savedCashCcy === 'EUR' || savedCashCcy === 'USD') setCashCurrency(savedCashCcy);
-
-      const isDemo = localStorage.getItem('stockdash_demo') === 'true';
-      if (isDemo) {
-        try {
-          const res  = await fetch('/api/most-traded');
-          const data = await res.json();
-          if (Array.isArray(data) && data.length) {
-            setHoldings(data.slice(0, 5).map((e, i) => ({
-              t: e.symbol, s: DEMO_SHARES[i], c: e.price ?? 0,
-            })));
-            return;
-          }
-        } catch {}
-        try {
-          const res    = await fetch(`/api/prices?tickers=${DEMO_FALLBACK.join(',')}`);
-          const prices = await res.json();
-          const pm = {};
-          if (Array.isArray(prices)) prices.forEach(p => { pm[p.ticker] = p.price ?? 0; });
-          setHoldings(DEMO_FALLBACK.map((t, i) => ({ t, s: DEMO_SHARES[i], c: pm[t] ?? 0 })));
-          return;
-        } catch {}
-        setHoldings(DEMO_FALLBACK.map((t, i) => ({ t, s: DEMO_SHARES[i], c: 0 })));
-        return;
-      }
-
-      try {
-        const res  = await fetch('/api/portfolio');
-        const data = await res.json();
-        if (data.signedIn && data.holdings?.length) {
-          setHoldings(data.holdings);
-          saveUserHoldings(user?.id, data.holdings);
-          return;
-        }
-      } catch {}
-      setHoldings(getLocalHoldings());
-    }
-    loadHoldings();
+    const saved = localStorage.getItem('stockdash_start_date');
+    if (saved) setStartDate(saved);
+    const savedCash = localStorage.getItem('starting_cash_eur');
+    if (savedCash) setStartingCash(parseFloat(savedCash) || 0);
+    const savedCashCcy = localStorage.getItem('starting_cash_currency');
+    if (savedCashCcy === 'EUR' || savedCashCcy === 'USD') setCashCurrency(savedCashCcy);
   }, []);
+
+  /* ── Restore scoped realized P&L from localStorage ───────────────────────── */
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user?.id) return;
+    try {
+      const stored = localStorage.getItem(`realized_pnl_${user.id}`);
+      if (stored) setRealizedData(JSON.parse(stored));
+    } catch {}
+  }, [isLoaded, isSignedIn, user?.id]);
 
   /* ── Fetch raw candle + valuation data once holdings are known ───────────── */
   useEffect(() => {
@@ -777,17 +734,18 @@ export default function PerformanceV2Page() {
                 valueColor={s ? clr(s.vsSpyPct) : undefined}
               />
               {realizedData && (() => {
-                const { positions = [], totalPnl } = realizedData;
-                const best  = positions.length ? positions.reduce((a, b) => b.pnl > a.pnl ? b : a) : null;
-                const worst = positions.length ? positions.reduce((a, b) => b.pnl < a.pnl ? b : a) : null;
+                const { positions = [], partialPositions = [], totalPnl } = realizedData;
+                const allRealized = [...positions, ...partialPositions];
+                const best  = allRealized.length ? allRealized.reduce((a, b) => b.pnl > a.pnl ? b : a) : null;
+                const worst = allRealized.length ? allRealized.reduce((a, b) => b.pnl < a.pnl ? b : a) : null;
                 return (
                   <MetricCard
                     label="Realized P&L"
                     value={totalPnl == null ? '—' : (totalPnl >= 0 ? '+€' : '-€') + fmt(Math.abs(totalPnl))}
                     sub={
-                      positions.length
-                        ? `${positions.length} closed · best: ${best?.symbol ?? '—'} worst: ${worst?.symbol ?? '—'}`
-                        : 'No closed positions'
+                      allRealized.length
+                        ? `${allRealized.length} realized · best: ${best?.symbol ?? '—'} worst: ${worst?.symbol ?? '—'}`
+                        : 'No realized positions'
                     }
                     valueColor={clr(totalPnl)}
                   />
@@ -862,9 +820,15 @@ export default function PerformanceV2Page() {
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
                 Upload your broker transaction export to calculate realized P&amp;L on closed positions using FIFO.
               </div>
-              <TransactionUpload
+              <UnifiedUpload
                 startDate={startDate ?? dateInput}
-                onResults={(data) => { setRealizedData(data ?? null); }}
+                onTransactions={(data) => {
+                  setRealizedData(data ?? null);
+                  if (data && user?.id) {
+                    localStorage.setItem(`realized_pnl_${user.id}`, JSON.stringify(data));
+                    localStorage.removeItem('realized_pnl');
+                  }
+                }}
               />
             </div>
 
