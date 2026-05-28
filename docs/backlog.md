@@ -59,6 +59,19 @@ Interim alternative considered but not chosen: "pragmatic fix" honoring the EUR/
 
 ---
 
+**Save without Import silently saves stale state (BUG — UX trap)**
+
+Discovered 2026-05-28. In PortfolioModal, after files are parsed the summary shows "12 positions ready" with an Import button. If the user clicks Save Portfolio before clicking Import, Save persists the previous editable-rows state (e.g. the old saved portfolio), not the parsed upload. The parsed data is displayed but never applied. This caused the polluted-row-persistence incident on 2026-05-28 where Jonathan saved old/wrong data believing the upload had been applied.
+
+Fix options (choose one):
+- **Option 1 — Auto-apply (cleanest UX):** when upload completes successfully, immediately replace editable rows — no Import click needed. Save always reflects what's displayed. Risk: accidental overwrite if user opened upload by mistake.
+- **Option 2 — Block Save (safest):** disable Save Portfolio button while an upload is pending apply. Tooltip on hover: "Import 12 positions first." No ambiguity about state.
+- **Option 3 — Confirm on conflict (most explicit):** if Save is clicked with a pending unapplied upload, modal prompts: "You have 12 uploaded positions not yet imported. Save current rows (discards upload) or Import first?" Adds friction but makes the two-state situation legible.
+
+Recommended: Option 2. Minimal code change (add a `hasUnimportedUpload` flag to PortfolioModal, disable Save when true), zero ambiguity, no accidental-overwrite risk.
+
+---
+
 **Edit Portfolio modal — single-file upload only (FEATURE)**
 
 The Edit Portfolio modal (PortfolioModal.jsx → UploadPanel) currently accepts one file at a time. The /performance page already supports multi-file batch upload via app/(v2)/performance/page.jsx (TransactionUpload component) — selects multiple files, sends as FormData batch to /api/transactions, server deduplicates by Order ID, runs FIFO, returns unified result.
