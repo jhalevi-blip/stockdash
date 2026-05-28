@@ -117,7 +117,11 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
   }
 
   // ── Pass 2: batch-resolve all ISINs via shared resolver ───────────────────
+  // eslint-disable-next-line no-console
+  console.log('[degiro] groups:', groups.size, 'tradeIsins:', [...tradeIsins]);
   const isinMap = await resolveBatchIsins([...tradeIsins]);
+  // eslint-disable-next-line no-console
+  console.log('[degiro] isinMap size:', isinMap.size, 'sample:', [...isinMap.entries()].slice(0, 3));
 
   // ── Pass 3: process each Order Id group → trades + per-order fees ─────────
   const trades:          BrokerTrade[] = [];
@@ -179,6 +183,8 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
     }
 
     if (!isin || !isinMap.has(isin)) {
+      // eslint-disable-next-line no-console
+      console.log('[degiro] dropped, isin:', isin, 'inMap:', isinMap.has(isin));
       if (isin && !seenUnresolved.has(isin)) {
         unresolvedIsins.push(isin);
         seenUnresolved.add(isin);
@@ -200,6 +206,9 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
       action: action!,
     });
   }
+
+  // eslint-disable-next-line no-console
+  console.log('[degiro] trades built:', trades.length, 'unresolvedIsins:', unresolvedIsins.length);
 
   // ── Pass 4: no-Order-Id rows → deposits, dividends, account-level fees ────
   // These Omschrijving patterns are matched against values observed in real
