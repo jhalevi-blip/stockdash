@@ -344,10 +344,13 @@ export async function POST(request: Request) {
     );
     const positions        = allPositions.filter((p) => p.status === 'closed');
     const partialPositions = allPositions.filter((p) => p.status === 'partial');
-    const totalPnl         = Math.round(positions.reduce((s, p) => s + p.pnl, 0) * 100) / 100;
+    const totalPnl         = Math.round(allPositions.reduce((s, p) => s + p.pnl, 0) * 100) / 100;
 
+    // Stage 2 TODO: positionsSinceStart filters on firstBuy >= startDate, which excludes
+    // positions bought before the window but sold within it — realized P&L IN the window
+    // gets dropped. The filter should arguably key on lastSell (realization date) instead.
     const positionsSinceStart = reqStartDate
-      ? positions.filter((p) => p.firstBuy != null && p.firstBuy >= reqStartDate)
+      ? allPositions.filter((p) => p.firstBuy != null && p.firstBuy >= reqStartDate)
       : null;
     const totalPnlSinceStart  = positionsSinceStart != null
       ? Math.round(positionsSinceStart.reduce((s, p) => s + p.pnl, 0) * 100) / 100

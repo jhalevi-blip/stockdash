@@ -128,8 +128,9 @@ export default function UnifiedUpload({ onHoldings, onTransactions, startDate, o
           txCount, files: fileStats = [], holdings = [] } = results ?? {};
   const hasHoldings = holdings.length > 0;
   const hasPnL      = txCount > 0;
-  const best  = positions.length ? positions.reduce((a, b) => b.pnl > a.pnl ? b : a) : null;
-  const worst = positions.length ? positions.reduce((a, b) => b.pnl < a.pnl ? b : a) : null;
+  const allRealized = [...positions, ...partialPositions];
+  const best  = allRealized.length ? allRealized.reduce((a, b) => b.pnl > a.pnl ? b : a) : null;
+  const worst = allRealized.length ? allRealized.reduce((a, b) => b.pnl < a.pnl ? b : a) : null;
 
   const cardStyle = {
     background: 'var(--bg-card)', border: '1px solid var(--border-color)',
@@ -336,7 +337,7 @@ export default function UnifiedUpload({ onHoldings, onTransactions, startDate, o
                   </div>
                 )}
                 <div style={{ fontSize: 12, color: '#8b949e', marginTop: 4 }}>
-                  {positions.length} closed · {txCount} transactions
+                  {positions.length + partialPositions.length} realized positions · {txCount} transactions
                 </div>
               </div>
               {best && (
