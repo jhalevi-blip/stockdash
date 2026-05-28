@@ -78,7 +78,13 @@ function resolveFormat(wb: XLSX.WorkBook): BrokerFormat {
     }
   }
 
-  // ── Saxo / DeGiro: Dutch Excel with a "Transacties" sheet ────────────────
+  // ── Saxo / DeGiro: Dutch Excel ────────────────────────────────────────────
+  // DeGiro account statement — check before the Transacties gate so it isn't
+  // short-circuited by the missing-Transacties-sheet early return below.
+  if (wb.SheetNames.some((n) => n.trim().toLowerCase() === 'rekeningoverzicht')) {
+    return 'degiro';
+  }
+
   const transactiesName = wb.SheetNames.find(
     (n) => n.trim().toLowerCase() === 'transacties'
   );
