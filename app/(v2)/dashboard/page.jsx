@@ -17,7 +17,7 @@ import InsiderActivity from './_components/InsiderActivity';
 import QuickJumpTiles from './_components/QuickJumpTiles';
 import { PORTFOLIO, HOLDINGS, AI_SUMMARY, PORTFOLIO_SPARK, ALLOCATION } from './_lib/mockData';
 import { fmtCurrency } from '@/app/(v2)/_lib/format';
-import { loadUserHoldings, getCacheOwner } from '@/lib/holdingsStorage';
+import { useHoldings } from '@/lib/useHoldings';
 
 const SECTOR_COLORS = {
   'Technology':             '#58a6ff',
@@ -46,68 +46,37 @@ export default function DashboardV2Page() {
   const [range,   setRange]  = useState('1M');
   const [sectors, setSectors] = useState({});
 
-  // Real holdings state — loaded from localStorage/API + enriched with live prices
-  const [holdings, setHoldings] = useState([]);
+  // Real holdings — Supabase-authoritative, listens to portfolio-saved event
+  const { holdings } = useHoldings();
   const [prices,   setPrices]   = useState({});
   const [history,  setHistory]  = useState(null); // [{ date, value }] — full 1-year daily series
   const [cash,     setCash]     = useState(0);    // cash balance in USD from /api/portfolio
-  const { user, isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn } = useUser();
 
+  // Cash: read from localStorage once on mount
   useEffect(() => {
-    if (!isLoaded) return;
+    const cashAmt = parseFloat(localStorage.getItem('stockdash_cash_amount') || '0') || 0;
+    setCash(cashAmt);
+  }, []);
 
-    const userId = user?.id ?? null;
-
-    function getLocalShared() {
-      try {
-        const s = localStorage.getItem('stockdash_holdings');
-        return s ? JSON.parse(s) : [];
-      } catch { return []; }
-    }
-
-    (async () => {
-      try {
-        const cashAmt = parseFloat(localStorage.getItem('stockdash_cash_amount') || '0') || 0;
-        setCash(cashAmt);
-
-        let h = [];
-
-        if (isSignedIn && userId) {
-          // Signed-in: prefer user-scoped local cache, fall back to server
-          const localAtLoad  = loadUserHoldings(userId) ?? [];
-          const localIsValid = localAtLoad.length > 0 && getCacheOwner() === userId;
-          if (localIsValid) {
-            h = localAtLoad;
-          } else {
-            try {
-              const data = await fetch('/api/portfolio').then(r => r.json());
-              if (data.signedIn && data.holdings?.length) h = data.holdings;
-            } catch {}
-          }
-        } else {
-          // Anonymous: check shared localStorage cache (set by manual entry or demo)
-          const local = getLocalShared();
-          if (local.length) h = local;
-        }
-
-        setHoldings(h);
-        if (!h.length) return;
-
-        const tickers = h.map(x => x.t).join(',');
-        const priceArr = await fetch(`/api/prices?tickers=${tickers}`)
-          .then(r => r.json())
-          .catch(() => []);
+  // Prices: re-fetch whenever holdings change (useHoldings updates trigger this)
+  useEffect(() => {
+    if (!holdings?.length) return;
+    const tickers = holdings.map(x => x.t).join(',');
+    fetch(`/api/prices?tickers=${tickers}`)
+      .then(r => r.json())
+      .catch(() => [])
+      .then(priceArr => {
         const priceMap = {};
         if (Array.isArray(priceArr)) priceArr.forEach(p => { priceMap[p.ticker] = p; });
         setPrices(priceMap);
-      } catch {}
-    })();
-  }, [isLoaded, isSignedIn, user?.id]);
+      });
+  }, [holdings]);
 
   // Fetch 1-year daily prices for all held tickers and compute portfolio value per day.
-  // Runs after holdings are known. Skips if holdings is empty (mock/demo case).
+  // Runs after holdings are known. Skips if holdings is empty/null (mock/demo case).
   useEffect(() => {
-    if (!holdings.length) return;
+    if (!holdings?.length) return;
 
     const tickers = [...new Set(holdings.map(h => h.t))];
 
@@ -153,7 +122,7 @@ export default function DashboardV2Page() {
   // Fetch sector classification for each held ticker from /api/sectors.
   // Runs after holdings are known; 24h CDN cache on the route.
   useEffect(() => {
-    if (!holdings.length) return;
+    if (!holdings?.length) return;
     const tickers = [...new Set(holdings.map(h => h.t))].join(',');
     fetch(`/api/sectors?tickers=${tickers}`)
       .then(r => r.json())
@@ -179,7 +148,7 @@ export default function DashboardV2Page() {
   // Compute enriched rows in the shape HoldingsTable expects.
   // Weight requires a two-pass: compute totalMktValue first, then assign weights.
   const enrichedRows = (() => {
-    if (!holdings.length) return [];
+    if (!holdings?.length) return [];
     const rows = holdings.map(h => {
       const q         = prices[h.t] ?? {};
       const price     = q.price  ?? 0;
