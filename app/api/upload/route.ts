@@ -276,6 +276,39 @@ export async function POST(request: Request) {
       ? Math.round(positionsSinceStart.reduce((s, p) => s + p.pnl, 0) * 100) / 100
       : null;
 
+    // ── Temporary diagnostic: FIFO lot trace for a single ticker ─────────────
+    // Hardcoded to AMD for the current cost-basis verification pass.
+    // Remove before Stage 1 cleanup.
+    const _debugTicker = 'AMD';
+    const _debugSortedTrades = allTrades
+      .filter((t) => t.ticker === _debugTicker)
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+    const _survivingLots: { shares: number; price: number; currency: string; date: string }[] = [];
+
+    for (const t of _debugSortedTrades) {
+      const absShares = Math.abs(t.shares);
+      if (t.action === 'buy') {
+        _survivingLots.push({ shares: absShares, price: t.price, currency: t.currency, date: t.date });
+      } else {
+        let remaining = absShares;
+        while (remaining > 0 && _survivingLots.length > 0) {
+          const lot = _survivingLots[0];
+          if (lot.shares <= remaining) {
+            remaining -= lot.shares;
+            _survivingLots.shift();
+          } else {
+            lot.shares -= remaining;
+            remaining = 0;
+          }
+        }
+      }
+    }
+
+    const _debugNetShares = _survivingLots.reduce((s, l) => s + l.shares, 0);
+    const _debugTotalCost = _survivingLots.reduce((s, l) => s + l.shares * l.price, 0);
+    const _debugAvgCost   = _debugNetShares > 0 ? _debugTotalCost / _debugNetShares : 0;
+
     return Response.json(
       {
         // Realized P&L — mirrors /api/transactions response shape
@@ -307,7 +340,19 @@ export async function POST(request: Request) {
         totalFees:      Math.round(allFees.reduce((s, d)      => s + d.amountEur, 0) * 100) / 100,
 
         // Temporary diagnostic — remove before Stage 1 cleanup.
-        _debug: _debugDegiro ?? null,
+        _debug:        _debugDegiro ?? null,
+        _debugTrades: {
+          ticker: _debugTicker,
+          trades: _debugSortedTrades.map((t) => ({
+            date:     t.date,
+            shares:   t.shares,
+            price:    t.price,
+            currency: t.currency,
+            action:   t.action,
+          })),
+        },
+        _debugLots:    _survivingLots,
+        _debugAvgCost: Math.round(_debugAvgCost * 1e6) / 1e6,
       },
       { headers: { 'Cache-Control': 'private, no-store' } }
     );
