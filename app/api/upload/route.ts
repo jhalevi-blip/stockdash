@@ -109,14 +109,13 @@ export async function POST(request: Request) {
       return Response.json({ error: 'No files provided' }, { status: 400 });
     }
 
-    const allTrades:          BrokerTrade[]                        = [];
+    const allTradesByBroker:  Map<BrokerFormat, BrokerTrade[]>      = new Map();
     const allDeposits:        { date: string; amountEur: number }[] = [];
     const allDividends:       { date: string; amountEur: number }[] = [];
     const allFees:            { date: string; amountEur: number }[] = [];
     let   _debugDegiro:       unknown                               = undefined;
     // Holdings snapshots (generic intent files) are pushed during the loop.
-    // Broker open positions are derived after the loop via a single cross-broker
-    // aggregateFIFO — see comment below.
+    // Broker open positions are derived after the loop via per-broker aggregateFIFO.
     const allHoldings:        NormalizedPosition[] = [];
     const allUnresolvedIsins: string[]             = [];
     const fileStats:          FileStat[]           = [];
@@ -198,14 +197,13 @@ export async function POST(request: Request) {
           return Response.json({ error: `${file.name}: ${msg}` }, { status: 400 });
         }
 
-        // Per-file aggregateFIFO for skip diagnostics only (netZero, sellsWithoutBuys).
-        // Do NOT push positions to allHoldings here — the cross-broker pass after the
-        // loop merges all trades together so a ticker held across multiple brokers
-        // (e.g. Saxo + DeGiro both holding AMD) produces one position, not two.
-        const { netZeroTickers, sellsWithoutBuysTickers } =
-          aggregateFIFO(trades, format as BrokerFormat);
-        allTrades.push(...trades);
+        // Accumulate trades per broker — FIFO runs per-broker after the loop
+        // so Saxo sells never consume DeGiro lots for the same ticker.
+        const brokerKey = format as BrokerFormat;
+        if (!allTradesByBroker.has(brokerKey)) allTradesByBroker.set(brokerKey, []);
+        allTradesByBroker.get(brokerKey)!.push(...trades);
 
+        // Diagnostic placeholders — backfilled with whole-broker FIFO results after loop.
         fileStats.push({
           name:             file.name,
           txCount:          trades.length,
@@ -214,9 +212,9 @@ export async function POST(request: Request) {
           intentConfidence: 'certain',
           skipped: {
             ...skipped,
-            netZero:                netZeroTickers.length,
-            sellsWithoutBuys:       sellsWithoutBuysTickers.length,
-            sellsWithoutBuysTickers,
+            netZero:                 0,
+            sellsWithoutBuys:        0,
+            sellsWithoutBuysTickers: [],
           },
         });
 
@@ -251,20 +249,73 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── Cross-broker open position merge ──────────────────────────────────
-    // Single aggregateFIFO pass across all merged trades so positions in the same
-    // ticker across different brokers are correctly netted into one entry.
-    // broker: 'generic' is used as the merged-output sentinel — BrokerFormat has no
-    // 'multi' value, and the alternative (per-position broker provenance) would require
-    // extending NormalizedPosition. 'generic' is the correct read: the combined result
-    // does not belong to any single broker.
-    if (allTrades.length > 0) {
-      const { positions: openPositions } = aggregateFIFO(allTrades, 'generic');
-      allHoldings.push(...openPositions);
+    // ── Per-broker FIFO ───────────────────────────────────────────────────────
+    // Run aggregateFIFO independently per broker so sells at one broker never
+    // consume lots from another.  After all brokers are processed, merge
+    // positions by (ticker, currency):
+    //   • same currency across brokers → weighted-average cost, one row
+    //   • different currencies         → separate rows (can't net across FX)
+
+    type PerBrokerPos = {
+      broker: BrokerFormat; ticker: string; shares: number;
+      avgCost: number; currency: string; date: string;
+    };
+    const perBrokerPositions: PerBrokerPos[] = [];
+    const allRealizedTrades:  BrokerTrade[]  = [];
+    const brokerDiagnostics = new Map<
+      BrokerFormat,
+      { netZeroTickers: string[]; sellsWithoutBuysTickers: string[] }
+    >();
+
+    for (const [broker, brokerTrades] of allTradesByBroker) {
+      const { positions: brokerPos, netZeroTickers, sellsWithoutBuysTickers } =
+        aggregateFIFO(brokerTrades, broker);
+      brokerDiagnostics.set(broker, { netZeroTickers, sellsWithoutBuysTickers });
+      for (const p of brokerPos) {
+        perBrokerPositions.push({
+          broker, ticker: p.t, shares: p.s, avgCost: p.c, currency: p.currency, date: p.d ?? '',
+        });
+      }
+      allRealizedTrades.push(...brokerTrades);
+    }
+
+    // Backfill fileStats with whole-broker FIFO diagnostics (per-broker pass
+    // sees all files for that broker together, so multi-file false-flags are gone).
+    for (const stat of fileStats) {
+      const diag = brokerDiagnostics.get(stat.format as BrokerFormat);
+      if (diag) {
+        stat.skipped.netZero                 = diag.netZeroTickers.length;
+        stat.skipped.sellsWithoutBuys        = diag.sellsWithoutBuysTickers.length;
+        stat.skipped.sellsWithoutBuysTickers = diag.sellsWithoutBuysTickers;
+      }
+    }
+
+    // Merge per-broker positions by (ticker, currency) into allHoldings
+    const tickerCurrencyMap = new Map<string, PerBrokerPos[]>();
+    for (const p of perBrokerPositions) {
+      const key = `${p.ticker}__${p.currency}`;
+      if (!tickerCurrencyMap.has(key)) tickerCurrencyMap.set(key, []);
+      tickerCurrencyMap.get(key)!.push(p);
+    }
+
+    for (const group of tickerCurrencyMap.values()) {
+      const totalShares = group.reduce((s, p) => s + p.shares, 0);
+      const totalCost   = group.reduce((s, p) => s + p.shares * p.avgCost, 0);
+      const avgCost     = totalShares > 0 ? totalCost / totalShares : 0;
+      const earliest    = group.map((p) => p.date).filter(Boolean).sort()[0] ?? '';
+      allHoldings.push({
+        t:        group[0].ticker,
+        s:        Math.round(totalShares * 1e8) / 1e8,
+        c:        Math.round(avgCost     * 1e6) / 1e6,
+        d:        earliest || undefined,
+        currency: group[0].currency,
+        // Single broker → preserve provenance; multi-broker merge → 'generic'
+        broker:   group.length === 1 ? group[0].broker : 'generic',
+      });
     }
 
     // ── Realized P&L (across all transaction files) ───────────────────────
-    const allPositions     = calcFIFO(allTrades);
+    const allPositions     = calcFIFO(allRealizedTrades);
     const positions        = allPositions.filter((p) => p.status === 'closed');
     const partialPositions = allPositions.filter((p) => p.status === 'partial');
     const totalPnl         = Math.round(positions.reduce((s, p) => s + p.pnl, 0) * 100) / 100;
@@ -276,38 +327,45 @@ export async function POST(request: Request) {
       ? Math.round(positionsSinceStart.reduce((s, p) => s + p.pnl, 0) * 100) / 100
       : null;
 
-    // ── Temporary diagnostic: FIFO lot trace for a single ticker ─────────────
-    // Hardcoded to AMD for the current cost-basis verification pass.
+    // ── Temporary diagnostic: per-broker FIFO lot trace for AMD ──────────────
     // Remove before Stage 1 cleanup.
     const _debugTicker = 'AMD';
-    const _debugSortedTrades = allTrades
-      .filter((t) => t.ticker === _debugTicker)
-      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    const _debugPerBroker: Record<string, {
+      trades: unknown[]; lots: unknown[]; avgCost: number;
+    }> = {};
 
-    const _survivingLots: { shares: number; price: number; currency: string; date: string }[] = [];
+    for (const [broker, brokerTrades] of allTradesByBroker) {
+      const amdTrades = brokerTrades
+        .filter((t) => t.ticker === _debugTicker)
+        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+      if (amdTrades.length === 0) continue;
 
-    for (const t of _debugSortedTrades) {
-      const absShares = Math.abs(t.shares);
-      if (t.action === 'buy') {
-        _survivingLots.push({ shares: absShares, price: t.price, currency: t.currency, date: t.date });
-      } else {
-        let remaining = absShares;
-        while (remaining > 0 && _survivingLots.length > 0) {
-          const lot = _survivingLots[0];
-          if (lot.shares <= remaining) {
-            remaining -= lot.shares;
-            _survivingLots.shift();
-          } else {
-            lot.shares -= remaining;
-            remaining = 0;
+      const survivingLots: { shares: number; price: number; currency: string; date: string }[] = [];
+      for (const t of amdTrades) {
+        const absShares = Math.abs(t.shares);
+        if (t.action === 'buy') {
+          survivingLots.push({ shares: absShares, price: t.price, currency: t.currency, date: t.date });
+        } else {
+          let remaining = absShares;
+          while (remaining > 0 && survivingLots.length > 0) {
+            const lot = survivingLots[0];
+            if (lot.shares <= remaining) { remaining -= lot.shares; survivingLots.shift(); }
+            else { lot.shares -= remaining; remaining = 0; }
           }
         }
       }
+      const netShares = survivingLots.reduce((s, l) => s + l.shares, 0);
+      const totalCost = survivingLots.reduce((s, l) => s + l.shares * l.price, 0);
+      _debugPerBroker[broker] = {
+        trades:  amdTrades.map((t) => ({ date: t.date, shares: t.shares, price: t.price, currency: t.currency, action: t.action })),
+        lots:    survivingLots,
+        avgCost: netShares > 0 ? Math.round((totalCost / netShares) * 1e6) / 1e6 : 0,
+      };
     }
 
-    const _debugNetShares = _survivingLots.reduce((s, l) => s + l.shares, 0);
-    const _debugTotalCost = _survivingLots.reduce((s, l) => s + l.shares * l.price, 0);
-    const _debugAvgCost   = _debugNetShares > 0 ? _debugTotalCost / _debugNetShares : 0;
+    // Merged AMD avg cost echo — sourced from the allHoldings merge above.
+    const _mergedAmdPos          = allHoldings.find((h) => h.t === _debugTicker);
+    const _debugMergedAvgCostEcho = _mergedAmdPos?.c ?? null;
 
     return Response.json(
       {
@@ -316,7 +374,7 @@ export async function POST(request: Request) {
         partialPositions,
         totalPnl,
         totalPnlSinceStart,
-        txCount: allTrades.length,
+        txCount: [...allTradesByBroker.values()].reduce((s, t) => s + t.length, 0),
         files:   fileStats,
 
         // Open holdings derived from transaction parsers (cross-broker aggregateFIFO)
@@ -340,19 +398,9 @@ export async function POST(request: Request) {
         totalFees:      Math.round(allFees.reduce((s, d)      => s + d.amountEur, 0) * 100) / 100,
 
         // Temporary diagnostic — remove before Stage 1 cleanup.
-        _debug:        _debugDegiro ?? null,
-        _debugTrades: {
-          ticker: _debugTicker,
-          trades: _debugSortedTrades.map((t) => ({
-            date:     t.date,
-            shares:   t.shares,
-            price:    t.price,
-            currency: t.currency,
-            action:   t.action,
-          })),
-        },
-        _debugLots:    _survivingLots,
-        _debugAvgCost: Math.round(_debugAvgCost * 1e6) / 1e6,
+        _debug:                _debugDegiro ?? null,
+        _debugTrades:          { ticker: _debugTicker, perBroker: _debugPerBroker },
+        _debugMergedAvgCostEcho,
       },
       { headers: { 'Cache-Control': 'private, no-store' } }
     );
