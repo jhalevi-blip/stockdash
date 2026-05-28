@@ -100,6 +100,7 @@ User-visible symptom: parser bugs cannot be verified-fixed by re-upload — the 
 
 - [ ] **Audit pass** — production smoke test, FMP/Anthropic usage check, Search Console indexing, PostHog D1/D7, backlog hygiene, code health, dev environment.
 - [ ] **SEO post: "How Much of Your Portfolio Should Be in One Stock?"** — concentration deep-dive; pairs with Post #2 on correlation; ~2000 words; ship by 2026-05-05.
+- [ ] **Option-guard mechanism unverified (observability)** — QBTS/15F27P2 and SOFI/21F28C15 leaked into holdings before commits 11db31c (Unicode-slash regex) and 14967f8 (same-day FIFO sort), then disappeared after both shipped — but we never proved which fix (or what combination) actually catches them. The Saxo file's option rows use ASCII U+002F, so the original `includes('/')` guard should have worked but didn't. Could regress on a different broker file. To verify: on the next upload, capture `_debugHoldingsTickers` (deployed at 549563b) from `/api/upload`'s Network response and confirm no `/`-containing tickers reach holdings. If options reappear, the diagnostic narrows the cause. Low priority — modal review surfaces any leak before save — but worth resolving for peace of mind. Cleanup note: the temporary `_debugHoldingsTickers` field (549563b) must be removed from `/api/upload`'s response in the Stage 1 cleanup commit alongside the other `_debug*` fields.
 
 ---
 
