@@ -2,7 +2,7 @@
 import { useState, useRef } from 'react';
 import { track } from '@/lib/posthog';
 import { getAttribution } from '@/lib/attribution';
-import UploadPanel from './UploadPanel';
+import UnifiedUpload from './UnifiedUpload';
 
 // ── TickerInput ────────────────────────────────────────────────────────────────
 function TickerInput({ value, onChange, onSelect, inputStyle }) {
@@ -262,32 +262,21 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
           </div>
 
           {uploadOpen && (
-            <UploadPanel
+            <UnifiedUpload
               onClose={() => setUploadOpen(false)}
-              onImport={(importedRows, mode, skipped) => {
-                if (!Array.isArray(importedRows) || importedRows.length === 0) {
+              onHoldings={(holdings, mode) => {
+                if (!Array.isArray(holdings) || holdings.length === 0) {
                   setUploadOpen(false);
                   return;
                 }
+                const project = h => ({ t: h.t ?? '', s: h.s ?? 0, c: h.c ?? 0, d: h.d ?? '' });
                 setRows(prev => {
                   if (mode === 'append') {
-                    return [...importedRows, ...prev.filter(r => r.t || r.s || r.c)];
+                    return [...holdings.map(project), ...prev.filter(r => r.t || r.s || r.c)];
                   }
-                  return importedRows;
+                  return holdings.map(project);
                 });
                 setUploadOpen(false);
-                const totalSkipped = skipped
-                  ? (skipped.missingTicker ?? 0) + (skipped.tickerTooLong ?? 0) + (skipped.invalidShares ?? 0) + (skipped.invalidCost ?? 0)
-                  : 0;
-                if (totalSkipped > 0) {
-                  const reasons = [
-                    skipped.missingTicker  && `${skipped.missingTicker} missing ticker`,
-                    skipped.tickerTooLong  && `${skipped.tickerTooLong} ticker too long`,
-                    skipped.invalidShares  && `${skipped.invalidShares} invalid shares`,
-                    skipped.invalidCost    && `${skipped.invalidCost} invalid cost`,
-                  ].filter(Boolean).join(', ');
-                  setError(`Imported ${importedRows.length} row${importedRows.length !== 1 ? 's' : ''}. Skipped ${totalSkipped}: ${reasons}.`);
-                }
               }}
             />
           )}
