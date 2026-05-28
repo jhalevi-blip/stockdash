@@ -9,6 +9,7 @@ import { parseRabobank } from '@/lib/brokers/rabobank';
 import { parseSchwab } from '@/lib/brokers/schwab';
 import { aggregateFIFO } from '@/lib/brokers/fifo';
 import { calcFIFO } from '@/lib/brokers/realizedFifo';
+import type { FIFOResult } from '@/lib/brokers/realizedFifo';
 import type { BrokerTrade, BrokerFormat, NormalizedPosition, SkipSummary } from '@/lib/brokers/types';
 
 export const runtime = 'nodejs';
@@ -260,8 +261,8 @@ export async function POST(request: Request) {
       broker: BrokerFormat; ticker: string; shares: number;
       avgCost: number; currency: string; date: string;
     };
-    const perBrokerPositions: PerBrokerPos[] = [];
-    const allRealizedTrades:  BrokerTrade[]  = [];
+    const perBrokerPositions: PerBrokerPos[]  = [];
+    const allBrokerFifoResults: FIFOResult[]   = [];
     const brokerDiagnostics = new Map<
       BrokerFormat,
       { netZeroTickers: string[]; sellsWithoutBuysTickers: string[] }
@@ -276,7 +277,7 @@ export async function POST(request: Request) {
           broker, ticker: p.t, shares: p.s, avgCost: p.c, currency: p.currency, date: p.d ?? '',
         });
       }
-      allRealizedTrades.push(...brokerTrades);
+      allBrokerFifoResults.push(...calcFIFO(brokerTrades));
     }
 
     // Backfill fileStats with whole-broker FIFO diagnostics (per-broker pass
@@ -314,8 +315,33 @@ export async function POST(request: Request) {
       });
     }
 
-    // ── Realized P&L (across all transaction files) ───────────────────────
-    const allPositions     = calcFIFO(allRealizedTrades);
+    // ── Realized P&L — merge per-broker calcFIFO results by symbol ───────────
+    // Each broker's calcFIFO result is independent (sells matched against that
+    // broker's own lots only). Merge by symbol: sum numeric fields, min firstBuy,
+    // max lastSell, derive status from merged remainingShares.
+    // A ticker sold at only one broker contributes that broker's result only.
+    const fifoBySymbol = new Map<string, FIFOResult>();
+    for (const r of allBrokerFifoResults) {
+      const existing = fifoBySymbol.get(r.symbol);
+      if (!existing) {
+        fifoBySymbol.set(r.symbol, { ...r });
+        continue;
+      }
+      existing.closedShares    += r.closedShares;
+      existing.totalBoughtEur  += r.totalBoughtEur;
+      existing.totalSoldEur    += r.totalSoldEur;
+      existing.pnl             += r.pnl;
+      existing.remainingShares += r.remainingShares;
+      existing.openLots        += r.openLots;
+      if (r.firstBuy && (!existing.firstBuy || r.firstBuy < existing.firstBuy))
+        existing.firstBuy = r.firstBuy;
+      if (r.lastSell && (!existing.lastSell || r.lastSell > existing.lastSell))
+        existing.lastSell = r.lastSell;
+      existing.status = existing.remainingShares > 0.001 ? 'partial' : 'closed';
+    }
+    const allPositions     = [...fifoBySymbol.values()].sort(
+      (a, b) => Math.abs(b.pnl) - Math.abs(a.pnl)
+    );
     const positions        = allPositions.filter((p) => p.status === 'closed');
     const partialPositions = allPositions.filter((p) => p.status === 'partial');
     const totalPnl         = Math.round(positions.reduce((s, p) => s + p.pnl, 0) * 100) / 100;
