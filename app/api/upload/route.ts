@@ -113,6 +113,7 @@ export async function POST(request: Request) {
     const allDeposits:        { date: string; amountEur: number }[] = [];
     const allDividends:       { date: string; amountEur: number }[] = [];
     const allFees:            { date: string; amountEur: number }[] = [];
+    let   _debugDegiro:       unknown                               = undefined;
     // Holdings snapshots (generic intent files) are pushed during the loop.
     // Broker open positions are derived after the loop via a single cross-broker
     // aggregateFIFO — see comment below.
@@ -158,6 +159,7 @@ export async function POST(request: Request) {
               allDeposits.push(...r.deposits);
               allDividends.push(...r.dividends);
               allFees.push(...r.fees);
+              if (r._debug) _debugDegiro = r._debug;
               break;
             }
             case 'trading212': {
@@ -303,6 +305,9 @@ export async function POST(request: Request) {
         totalDeposited: Math.round(allDeposits.reduce((s, d)  => s + d.amountEur, 0) * 100) / 100,
         totalDividends: Math.round(allDividends.reduce((s, d) => s + d.amountEur, 0) * 100) / 100,
         totalFees:      Math.round(allFees.reduce((s, d)      => s + d.amountEur, 0) * 100) / 100,
+
+        // Temporary diagnostic — remove before Stage 1 cleanup.
+        _debug: _debugDegiro ?? null,
       },
       { headers: { 'Cache-Control': 'private, no-store' } }
     );

@@ -16,6 +16,16 @@ export interface DeGiroParseResult {
   deposits:        CashEntry[];
   dividends:       CashEntry[];
   fees:            CashEntry[];
+  /** Temporary diagnostic field — remove before Stage 1 cleanup. */
+  _debug?: {
+    groupCount:           number;
+    tradeIsins:           string[];
+    isinMapSize:          number;
+    isinMapSample:        [string, string][];
+    tradesBuilt:          number;
+    unresolvedCount:      number;
+    droppedForUnresolved: number;
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -117,11 +127,7 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
   }
 
   // ── Pass 2: batch-resolve all ISINs via shared resolver ───────────────────
-  // eslint-disable-next-line no-console
-  console.log('[degiro] groups:', groups.size, 'tradeIsins:', [...tradeIsins]);
   const isinMap = await resolveBatchIsins([...tradeIsins]);
-  // eslint-disable-next-line no-console
-  console.log('[degiro] isinMap size:', isinMap.size, 'sample:', [...isinMap.entries()].slice(0, 3));
 
   // ── Pass 3: process each Order Id group → trades + per-order fees ─────────
   const trades:          BrokerTrade[] = [];
@@ -129,6 +135,7 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
   const unresolvedIsins: string[]      = [];
   const seenUnresolved   = new Set<string>();
   const skip: SkipSummary = { parseErrors: 0 };
+  let droppedForUnresolved = 0;
 
   for (const [, rows] of groups) {
     let action:      'buy' | 'sell' | null = null;
@@ -183,8 +190,7 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
     }
 
     if (!isin || !isinMap.has(isin)) {
-      // eslint-disable-next-line no-console
-      console.log('[degiro] dropped, isin:', isin, 'inMap:', isinMap.has(isin));
+      droppedForUnresolved++;
       if (isin && !seenUnresolved.has(isin)) {
         unresolvedIsins.push(isin);
         seenUnresolved.add(isin);
@@ -206,9 +212,6 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
       action: action!,
     });
   }
-
-  // eslint-disable-next-line no-console
-  console.log('[degiro] trades built:', trades.length, 'unresolvedIsins:', unresolvedIsins.length);
 
   // ── Pass 4: no-Order-Id rows → deposits, dividends, account-level fees ────
   // These Omschrijving patterns are matched against values observed in real
@@ -245,7 +248,23 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
     }
   }
 
-  return { trades, skipSummary: skip, unresolvedIsins, deposits, dividends, fees };
+  return {
+    trades,
+    skipSummary:     skip,
+    unresolvedIsins,
+    deposits,
+    dividends,
+    fees,
+    _debug: {
+      groupCount:           groups.size,
+      tradeIsins:           [...tradeIsins],
+      isinMapSize:          isinMap.size,
+      isinMapSample:        [...isinMap.entries()].slice(0, 5) as [string, string][],
+      tradesBuilt:          trades.length,
+      unresolvedCount:      unresolvedIsins.length,
+      droppedForUnresolved,
+    },
+  };
 }
 
 // ── Transacties parser (unchanged logic, extended return shape) ───────────────
