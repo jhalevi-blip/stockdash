@@ -261,7 +261,21 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
             </div>
           </div>
 
-          {uploadOpen && (
+          {/* Column headers — desktop only, hidden while upload panel is open */}
+          {!uploadOpen && (
+            <div className="pm-col-headers" style={{ display: 'grid', gridTemplateColumns: COLS, gap: 12, paddingBottom: 10, borderBottom: '1px solid var(--border-color)' }}>
+              {['Ticker', 'Shares', 'Avg Cost (USD)', 'Date Bought (optional)', ''].map((h, i) => (
+                <div key={i} style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {h}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Upload panel — takes over the body when open ── */}
+        {uploadOpen && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 36px 16px' }}>
             <UnifiedUpload
               onClose={() => setUploadOpen(false)}
               onHoldings={(holdings, mode) => {
@@ -279,19 +293,11 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
                 setUploadOpen(false);
               }}
             />
-          )}
-
-          {/* Column headers — desktop only */}
-          <div className="pm-col-headers" style={{ display: 'grid', gridTemplateColumns: COLS, gap: 12, paddingBottom: 10, borderBottom: '1px solid var(--border-color)' }}>
-            {['Ticker', 'Shares', 'Avg Cost (USD)', 'Date Bought (optional)', ''].map((h, i) => (
-              <div key={i} style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                {h}
-              </div>
-            ))}
           </div>
-        </div>
+        )}
 
         {/* ── Scrollable list ── */}
+        {!uploadOpen && (
         <div className="pm-list" style={{ flex: 1, overflowY: 'auto', padding: '12px 36px 0' }}>
 
           {/* Add stock — top, mobile only */}
@@ -411,6 +417,7 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
             {addStockBtn()}
           </div>
         </div>
+        )}
 
         {/* ── Footer ── */}
         <div className="pm-footer" style={{
