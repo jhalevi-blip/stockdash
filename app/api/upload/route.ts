@@ -109,7 +109,10 @@ export async function POST(request: Request) {
       return Response.json({ error: 'No files provided' }, { status: 400 });
     }
 
-    const allTrades:          BrokerTrade[]       = [];
+    const allTrades:          BrokerTrade[]                        = [];
+    const allDeposits:        { date: string; amountEur: number }[] = [];
+    const allDividends:       { date: string; amountEur: number }[] = [];
+    const allFees:            { date: string; amountEur: number }[] = [];
     // Holdings snapshots (generic intent files) are pushed during the loop.
     // Broker open positions are derived after the loop via a single cross-broker
     // aggregateFIFO — see comment below.
@@ -152,6 +155,9 @@ export async function POST(request: Request) {
               const r = await parseDeGiro(wb);
               trades = r.trades; skipped = r.skipSummary;
               allUnresolvedIsins.push(...r.unresolvedIsins);
+              allDeposits.push(...r.deposits);
+              allDividends.push(...r.dividends);
+              allFees.push(...r.fees);
               break;
             }
             case 'trading212': {
@@ -286,17 +292,17 @@ export async function POST(request: Request) {
         // ISIN resolution failures across all parsers that use OpenFIGI
         unresolvedIsins: [...new Set(allUnresolvedIsins)],
 
-        // TODO Gap C: deposit/dividend/fee tracking not yet implemented.
-        // Stage 2 will port extraction logic from /api/transactions/route.js
-        // into the lib/brokers parsers and aggregate them here.
-        cashFlows:      [],   // TODO Gap C — needed for capitalAtStart calculation
-        capitalAtStart: null, // TODO Gap C — derived from cashFlows in old route
-        deposits:       [],   // TODO Gap C
-        dividends:      [],   // TODO Gap C
-        fees:           [],   // TODO Gap C
-        totalDeposited: 0,    // TODO Gap C
-        totalDividends: 0,    // TODO Gap C
-        totalFees:      0,    // TODO Gap C
+        // Gap C: deposits/dividends/fees now wired for DeGiro Rekeningoverzicht.
+        // Saxo and other parsers do not yet extract cash flows — they contribute 0.
+        // cashFlows/capitalAtStart remain deferred (Stage 2 — requires deposit timing logic).
+        cashFlows:      [],   // TODO Stage 2 — needed for capitalAtStart calculation
+        capitalAtStart: null, // TODO Stage 2 — derived from cashFlows
+        deposits:       allDeposits,
+        dividends:      allDividends,
+        fees:           allFees,
+        totalDeposited: Math.round(allDeposits.reduce((s, d)  => s + d.amountEur, 0) * 100) / 100,
+        totalDividends: Math.round(allDividends.reduce((s, d) => s + d.amountEur, 0) * 100) / 100,
+        totalFees:      Math.round(allFees.reduce((s, d)      => s + d.amountEur, 0) * 100) / 100,
       },
       { headers: { 'Cache-Control': 'private, no-store' } }
     );
