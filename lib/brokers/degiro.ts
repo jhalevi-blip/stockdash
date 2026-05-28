@@ -200,7 +200,7 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
 
     const ticker   = isinMap.get(isin)!;
     // OpenFIGI may return option ticker symbols (e.g. 'QBTS/15F27P2') for option ISINs.
-    if (ticker.includes('/')) { skip.optionsSkipped = (skip.optionsSkipped ?? 0) + 1; continue; }
+    if (/[/\u2215\uFF0F]/.test(ticker)) { skip.optionsSkipped = (skip.optionsSkipped ?? 0) + 1; continue; }
     const avgPrice = totalValue / totalShares;
     // BrokerTrade.shares convention: positive = buy, negative = sell
     const signedShares = action === 'sell' ? -totalShares : totalShares;
@@ -339,7 +339,7 @@ async function parseTransacties(wb: XLSX.WorkBook): Promise<DeGiroParseResult> {
 
     const ticker = isinMap.get(isin)!;
     // OpenFIGI may return option ticker symbols for option ISINs.
-    if (ticker.includes('/')) { skip.optionsSkipped = (skip.optionsSkipped ?? 0) + 1; continue; }
+    if (/[/\u2215\uFF0F]/.test(ticker)) { skip.optionsSkipped = (skip.optionsSkipped ?? 0) + 1; continue; }
 
     // Aantal (shares) — signed: negative = sell
     const aantalRaw = row[aantalCol];

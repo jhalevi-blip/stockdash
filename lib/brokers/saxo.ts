@@ -87,8 +87,9 @@ export function parseSaxo(wb: XLSX.WorkBook): {
 
     const symbool = String(row[symboolCol] ?? '').trim();
 
-    // Skip options rows — instrument symbol contains '/'
-    if (symbool.includes('/')) { skip.optionsSkipped!++; continue; }
+    // Skip options rows — symbol contains '/' (ASCII U+002F) or Unicode slash variants
+    // (∕ U+2215 division slash, ／ U+FF0F fullwidth solidus) used in some Saxo XLSX exports.
+    if (/[/\u2215\uFF0F]/.test(symbool)) { skip.optionsSkipped!++; continue; }
 
     const actiesRaw = String(row[actiesCol] ?? '').trim();
     const match = ACTIES_RE.exec(actiesRaw);
@@ -113,9 +114,9 @@ export function parseSaxo(wb: XLSX.WorkBook): {
 
     // Strip exchange suffix: "CELH:xnas" → "CELH"
     const ticker = symbool.split(':')[0].toUpperCase();
-    // Post-extraction defence: catches Unicode slash variants (∕ U+2215, ／ U+FF0F)
-    // that bypass the symbool.includes('/') primary guard above.
-    if (ticker.includes('/')) { skip.optionsSkipped!++; continue; }
+    // Post-extraction defence: same regex catches any variant that slipped past the
+    // primary guard (e.g. if the ':' split introduced a slash in an unexpected position).
+    if (/[/\u2215\uFF0F]/.test(ticker)) { skip.optionsSkipped!++; continue; }
 
     const date = datumCol >= 0 ? parseDate(row[datumCol]) : '';
 

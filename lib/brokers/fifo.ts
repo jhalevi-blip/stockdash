@@ -83,9 +83,10 @@ export function aggregateFIFO(
       continue;
     }
 
-    // Fix A: option symbols (e.g. 'QBTS/15F27P2') — equity tickers never contain '/'.
+    // Fix A: option symbols (e.g. 'QBTS/15F27P2') — equity tickers never contain any slash.
+    // Covers ASCII U+002F, division slash U+2215, fullwidth solidus U+FF0F (seen in Saxo XLSX).
     // Definitive holdings-level guard; parser-level guards in saxo/degiro are defence-in-depth.
-    if (ticker.includes('/')) continue;
+    if (/[/\u2215\uFF0F]/.test(ticker)) continue;
     // Fix B: explicit non-positive guard. Catches phantom shorts (negative netShares
     // from unmatched pre-window sells, e.g. AVGO -27). Zero already caught above by <= 1e-9.
     if (!(netShares > 0)) continue;
