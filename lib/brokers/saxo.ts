@@ -113,6 +113,9 @@ export function parseSaxo(wb: XLSX.WorkBook): {
 
     // Strip exchange suffix: "CELH:xnas" → "CELH"
     const ticker = symbool.split(':')[0].toUpperCase();
+    // Post-extraction defence: catches Unicode slash variants (∕ U+2215, ／ U+FF0F)
+    // that bypass the symbool.includes('/') primary guard above.
+    if (ticker.includes('/')) { skip.optionsSkipped!++; continue; }
 
     const date = datumCol >= 0 ? parseDate(row[datumCol]) : '';
 

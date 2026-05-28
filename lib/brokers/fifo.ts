@@ -83,6 +83,13 @@ export function aggregateFIFO(
       continue;
     }
 
+    // Fix A: option symbols (e.g. 'QBTS/15F27P2') — equity tickers never contain '/'.
+    // Definitive holdings-level guard; parser-level guards in saxo/degiro are defence-in-depth.
+    if (ticker.includes('/')) continue;
+    // Fix B: explicit non-positive guard. Catches phantom shorts (negative netShares
+    // from unmatched pre-window sells, e.g. AVGO -27). Zero already caught above by <= 1e-9.
+    if (!(netShares > 0)) continue;
+
     // Weighted average cost of remaining lots
     const totalCost = lots.reduce((sum, l) => sum + l.shares * l.price, 0);
     const avgCost   = totalCost / netShares;
