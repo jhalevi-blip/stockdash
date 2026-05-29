@@ -266,16 +266,10 @@ export default function DashboardV2Page() {
     return <div style={centeredBox}>Loading your portfolio…</div>;
   }
 
-  if (isSignedIn && holdings.length === 0) {
-    return (
-      <div style={centeredBox}>
-        <div>No holdings yet — add your portfolio to get started.</div>
-      </div>
-    );
-  }
-
-  // Anonymous users (isSignedIn === false) fall through to the existing render
-  // with mock data, which is the intentional demo experience.
+  // Signed-in user with zero holdings — let them see the sample/mock dashboard
+  // (realPortfolioStats is null → hero = PORTFOLIO, tables fall back to HOLDINGS etc.)
+  // with a prominent banner explaining it's sample data.
+  const isSampleView = isLoaded && isSignedIn && !error && Array.isArray(holdings) && holdings.length === 0;
 
   return (
     <div style={{
@@ -285,6 +279,34 @@ export default function DashboardV2Page() {
       gap: 14,
       paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)',
     }}>
+      {/* Sample-data banner — signed-in users with no holdings only */}
+      {isSampleView && (
+        <div style={{
+          background: 'rgba(34,211,238,0.06)',
+          border: '1px solid rgba(34,211,238,0.25)',
+          borderRadius: 8,
+          padding: '14px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          flexWrap: 'wrap',
+        }}>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            <strong style={{ color: 'var(--text-primary)' }}>Sample portfolio</strong>
+            {' — this isn\u2019t your data yet. Add your portfolio to track your real holdings.'}
+          </div>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-portfolio-editor'))}
+            style={{
+              background: '#2563eb', border: 'none', borderRadius: 6,
+              color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              padding: '9px 20px', whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >Add your portfolio</button>
+        </div>
+      )}
+
       {/* 1. Hero strip */}
       <Card padding="18px 20px">
         <HeroValue range={range} onRange={setRange} sparkData={sparkData} data={hero} />

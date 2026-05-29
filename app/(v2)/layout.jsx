@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import Sidebar from './_components/Sidebar';
 import Topbar from './_components/Topbar';
@@ -55,6 +55,13 @@ export default function DashboardV2Layout({ children }) {
     }
     setModalOpen(false);
   }
+
+  // Allow child pages (e.g. dashboard empty state) to open the editor via event
+  useEffect(() => {
+    function onOpenEditor() { openModal(); }
+    window.addEventListener('open-portfolio-editor', onOpenEditor);
+    return () => window.removeEventListener('open-portfolio-editor', onOpenEditor);
+  }, [user?.id]);
 
   function handleCommand(cmd) {
     if (cmd === 'editPortfolio') openModal();
