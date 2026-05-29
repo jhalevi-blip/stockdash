@@ -116,8 +116,9 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
   const [error,        setError]        = useState('');
   const [cashAmount,   setCashAmount]   = useState(cash?.amount   ?? 0);
   const [cashCurrency, setCashCurrency] = useState(cash?.currency ?? 'USD');
-  const [uploadOpen,    setUploadOpen]    = useState(false);
-  const [uploadPending, setUploadPending] = useState(false);
+  const [uploadOpen,      setUploadOpen]      = useState(false);
+  const [uploadPending,   setUploadPending]   = useState(false);
+  const [pendingRealized, setPendingRealized] = useState(null);
   const sharesRefs = useRef([]); // desktop: auto-focus after autocomplete selection
 
   const handleSave = async () => {
@@ -133,6 +134,14 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
     setSaving(true); setError('');
     try {
       await onSave(parsed, cashData);
+      if (pendingRealized) {
+        fetch('/api/realized-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transactions: pendingRealized }),
+        }).catch(() => {});
+        setPendingRealized(null);
+      }
       if (holdingsCountBefore === 0 && parsed.length > 0) {
         track('first_ticker_added', { ticker_count: parsed.length, attribution: getAttribution() });
       }
@@ -280,6 +289,7 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
             <UnifiedUpload
               onClose={() => setUploadOpen(false)}
               onPendingChange={setUploadPending}
+              onTransactions={(tx) => setPendingRealized(tx)}
               onHoldings={(holdings, mode) => {
                 if (!Array.isArray(holdings) || holdings.length === 0) {
                   setUploadOpen(false);
