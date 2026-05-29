@@ -47,7 +47,7 @@ export default function DashboardV2Page() {
   const [sectors, setSectors] = useState({});
 
   // Real holdings + cash — Supabase-authoritative, listens to portfolio-saved event
-  const { holdings, cash: cashData } = useHoldings();
+  const { holdings, cash: cashData, error, refresh } = useHoldings();
   const [prices,   setPrices]   = useState({});
   const [history,  setHistory]  = useState(null); // [{ date, value }] — full 1-year daily series
   // Raw amount from Supabase (no currency conversion — pre-existing display behaviour preserved)
@@ -236,6 +236,46 @@ export default function DashboardV2Page() {
     totalPnlPct: PORTFOLIO.unrealizedPct,
     cash: PORTFOLIO.cash,
   };
+
+  // ── Signed-in early-return guards (all hooks called above this line) ────────
+  const centeredBox = {
+    minHeight: '60vh', display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', gap: 12,
+    color: 'var(--text-secondary)', fontSize: 14, padding: 40,
+  };
+  const retryBtn = {
+    background: '#2563eb', border: 'none', borderRadius: 6,
+    color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+    padding: '9px 20px',
+  };
+
+  if (!isLoaded) {
+    return <div style={centeredBox}>Loading…</div>;
+  }
+
+  if (isSignedIn && error) {
+    return (
+      <div style={centeredBox}>
+        <div>We couldn't load your portfolio.</div>
+        <button onClick={refresh} style={retryBtn}>Retry</button>
+      </div>
+    );
+  }
+
+  if (isSignedIn && holdings === null) {
+    return <div style={centeredBox}>Loading your portfolio…</div>;
+  }
+
+  if (isSignedIn && holdings.length === 0) {
+    return (
+      <div style={centeredBox}>
+        <div>No holdings yet — add your portfolio to get started.</div>
+      </div>
+    );
+  }
+
+  // Anonymous users (isSignedIn === false) fall through to the existing render
+  // with mock data, which is the intentional demo experience.
 
   return (
     <div style={{

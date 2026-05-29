@@ -132,7 +132,7 @@ function MetricCard({ label, value, sub, valueColor }) {
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 export default function PerformanceV2Page() {
   const { user, isLoaded, isSignedIn } = useUser();
-  const { holdings } = useHoldings();
+  const { holdings, error: holdingsError, refresh: holdingsRefresh } = useHoldings();
   // ── All 11 state slots declared now (9B/9C consume remaining fields) ──────
   const [rawData,        setRawData]        = useState(null);
   const [dataLoading,    setDataLoading]    = useState(false);
@@ -465,7 +465,21 @@ export default function PerformanceV2Page() {
         title="Performance"
         description="Sign up to track your portfolio return vs. SPY, analyze EUR/USD currency impact, and calculate realized P&L on closed positions."
       >
-        {holdings === null ? (
+        {holdingsError ? (
+          /* Fetch failed — show error + retry */
+          <div style={{
+            minHeight: 200, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 12,
+            color: 'var(--text-secondary)', fontSize: 14,
+          }}>
+            <div>We couldn't load your portfolio.</div>
+            <button onClick={holdingsRefresh} style={{
+              background: '#2563eb', border: 'none', borderRadius: 6,
+              color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              padding: '9px 20px',
+            }}>Retry</button>
+          </div>
+        ) : holdings === null ? (
           /* Holdings not yet resolved */
           <div className="chart-placeholder">Loading portfolio…</div>
         ) : !holdings.length ? (
