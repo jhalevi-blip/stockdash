@@ -155,13 +155,40 @@ export default function PerformanceV2Page() {
     if (savedCashCcy === 'EUR' || savedCashCcy === 'USD') setCashCurrency(savedCashCcy);
   }, []);
 
-  /* ── Restore scoped realized P&L from localStorage ───────────────────────── */
+  /* ── Load realized P&L from Supabase (migrate localStorage on first load) ── */
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user?.id) return;
-    try {
-      const stored = localStorage.getItem(`realized_pnl_${user.id}`);
-      if (stored) setRealizedData(JSON.parse(stored));
-    } catch {}
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res  = await fetch('/api/realized-data');
+        const json = await res.json();
+        if (cancelled) return;
+
+        if (res.ok && json.transactions) {
+          setRealizedData(json.transactions);
+        } else {
+          // Server empty — one-time migration from localStorage
+          const raw = localStorage.getItem(`realized_pnl_${user.id}`)
+                   ?? localStorage.getItem('realized_pnl');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (!cancelled) setRealizedData(parsed);
+            // Persist to server so future loads come from Supabase
+            fetch('/api/realized-data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ transactions: parsed }),
+            }).catch(() => {});
+          }
+        }
+      } catch {
+        // Silent degradation — page shows the upload prompt when realizedData is null
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [isLoaded, isSignedIn, user?.id]);
 
   /* ── Fetch raw candle + valuation data once holdings are known ───────────── */
@@ -838,9 +865,12 @@ export default function PerformanceV2Page() {
                 startDate={startDate ?? dateInput}
                 onTransactions={(data) => {
                   setRealizedData(data ?? null);
-                  if (data && user?.id) {
-                    localStorage.setItem(`realized_pnl_${user.id}`, JSON.stringify(data));
-                    localStorage.removeItem('realized_pnl');
+                  if (data) {
+                    fetch('/api/realized-data', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ transactions: data }),
+                    }).catch(() => {});
                   }
                 }}
               />
