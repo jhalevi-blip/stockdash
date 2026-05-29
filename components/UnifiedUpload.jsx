@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 const fmt    = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
 const clr    = (n) => n == null ? '#8b949e' : n >= 0 ? '#3fb950' : '#f85149';
@@ -44,7 +44,7 @@ function SkipLines({ skipped }) {
   );
 }
 
-export default function UnifiedUpload({ onHoldings, onTransactions, startDate, onClose }) {
+export default function UnifiedUpload({ onHoldings, onTransactions, startDate, onClose, onPendingChange }) {
   const [fileList,   setFileList]   = useState([]);
   const [dragOver,   setDragOver]   = useState(false);
   const [loading,    setLoading]    = useState(false);
@@ -128,6 +128,12 @@ export default function UnifiedUpload({ onHoldings, onTransactions, startDate, o
           txCount, files: fileStats = [], holdings = [] } = results ?? {};
   const hasHoldings = holdings.length > 0;
   const hasPnL      = txCount > 0;
+
+  useEffect(() => {
+    onPendingChange?.(!!results && (hasHoldings || hasPnL));
+    return () => onPendingChange?.(false);
+  }, [results, hasHoldings, hasPnL]);
+
   const allRealized = [...positions, ...partialPositions];
   const best  = allRealized.length ? allRealized.reduce((a, b) => b.pnl > a.pnl ? b : a) : null;
   const worst = allRealized.length ? allRealized.reduce((a, b) => b.pnl < a.pnl ? b : a) : null;
@@ -426,7 +432,13 @@ export default function UnifiedUpload({ onHoldings, onTransactions, startDate, o
 
           {/* ── Import button ───────────────────────────────────────────── */}
           {(hasHoldings || hasPnL) && (
-            <div style={{ marginTop: 18, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <div style={{
+              position: 'sticky', bottom: 0, zIndex: 2,
+              background: 'var(--bg-card)',
+              borderTop: '1px solid var(--border-color)',
+              paddingTop: 12, paddingBottom: 12,
+              marginTop: 18, display: 'flex', justifyContent: 'flex-end', gap: 10,
+            }}>
               {onClose && (
                 <button onClick={onClose} style={{
                   background: 'transparent', border: '1px solid var(--border-color)',

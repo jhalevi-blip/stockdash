@@ -116,7 +116,8 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
   const [error,        setError]        = useState('');
   const [cashAmount,   setCashAmount]   = useState(cash?.amount   ?? 0);
   const [cashCurrency, setCashCurrency] = useState(cash?.currency ?? 'USD');
-  const [uploadOpen,   setUploadOpen]   = useState(false);
+  const [uploadOpen,    setUploadOpen]    = useState(false);
+  const [uploadPending, setUploadPending] = useState(false);
   const sharesRefs = useRef([]); // desktop: auto-focus after autocomplete selection
 
   const handleSave = async () => {
@@ -278,6 +279,7 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
           <div style={{ flex: 1, overflowY: 'auto', padding: '0 36px 16px' }}>
             <UnifiedUpload
               onClose={() => setUploadOpen(false)}
+              onPendingChange={setUploadPending}
               onHoldings={(holdings, mode) => {
                 if (!Array.isArray(holdings) || holdings.length === 0) {
                   setUploadOpen(false);
@@ -428,6 +430,11 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
           {error && (
             <div style={{ color: 'var(--negative)', fontSize: 13, marginBottom: 12 }}>{error}</div>
           )}
+          {uploadPending && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textAlign: 'right' }}>
+              Import your uploaded positions first — or cancel the upload — to continue.
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <button
               onClick={onClose}
@@ -439,13 +446,13 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
             >Cancel</button>
             <button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || uploadPending}
               className="pm-action-btn"
               style={{
                 background: '#2563eb', border: 'none', borderRadius: 6,
                 color: '#fff', fontSize: 13, fontWeight: 600,
-                cursor: saving ? 'not-allowed' : 'pointer',
-                padding: '9px 24px', opacity: saving ? 0.7 : 1,
+                cursor: saving || uploadPending ? 'not-allowed' : 'pointer',
+                padding: '9px 24px', opacity: saving || uploadPending ? 0.7 : 1,
               }}
             >{saving ? 'Saving…' : 'Save Portfolio'}</button>
           </div>
