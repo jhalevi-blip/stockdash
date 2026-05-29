@@ -51,7 +51,8 @@ export default function DashboardV2Page() {
   const [prices,   setPrices]   = useState({});
   const [history,  setHistory]  = useState(null); // [{ date, value }] — full 1-year daily series
   // Raw amount from Supabase (no currency conversion — pre-existing display behaviour preserved)
-  const cash = cashData?.amount ?? 0;
+  const cash         = cashData?.amount   ?? 0;
+  const cashCurrency = cashData?.currency ?? 'USD';
   const { isLoaded, isSignedIn } = useUser();
 
   // Prices: re-fetch whenever holdings change (useHoldings updates trigger this)
@@ -210,7 +211,7 @@ export default function DashboardV2Page() {
     const dayChangePct  = prevValue > 0 ? (dayChange / prevValue) * 100 : 0;
     return {
       totalValue, totalCost, unrealized, unrealizedPct, dayChange, dayChangePct,
-      cash, positions: enrichedRows.length,
+      cash, cashCurrency, positions: enrichedRows.length,
       asOf: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }),
     };
   })();
@@ -254,7 +255,7 @@ export default function DashboardV2Page() {
         <MetricChip label="Today's P&L"  value={fmtCurrency(hero.dayChange, 0)}  change={hero.dayChangePct} />
         <MetricChip label="Unrealized"   value={fmtCurrency(hero.unrealized, 0)} change={hero.unrealizedPct} />
         <MetricChip label="Positions"    value={String(hero.positions)} />
-        <MetricChip label="Cash"         value={fmtCurrency(hero.cash, 0)} />
+        <MetricChip label="Cash"         value={fmtCurrency(hero.cash, 0, hero.cashCurrency)} />
       </div>
 
       {/* 3. Macro strip */}

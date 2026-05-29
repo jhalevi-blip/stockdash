@@ -99,7 +99,7 @@ export default function HeroValue({ range = '1M', onRange, sparkData, data = POR
           ({fmtPct(data.unrealizedPct, 1)})
         </span>
         <span>·</span>
-        <span>Cash {fmtCurrency(data.cash, 0)}</span>
+        <span>Cash {fmtCurrency(data.cash, 0, data.cashCurrency)}</span>
       </div>
       <div style={{ marginTop: 8, width: '100%', height: 140 }}>
         <ResponsiveContainer width="100%" height="100%">

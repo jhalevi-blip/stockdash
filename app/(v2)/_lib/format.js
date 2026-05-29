@@ -1,7 +1,9 @@
 // Number formatters for the v2 dashboard. Pure functions, no deps.
 
-export const fmtCurrency = (n, d = 2) =>
-  '$' + Number(n).toLocaleString('en-US', {
+const CURRENCY_SYMBOL = { USD: '$', EUR: '€', GBP: '£' };
+
+export const fmtCurrency = (n, d = 2, currency = 'USD') =>
+  (CURRENCY_SYMBOL[currency] ?? '$') + Number(n).toLocaleString('en-US', {
     minimumFractionDigits: d,
     maximumFractionDigits: d,
   });
