@@ -393,7 +393,7 @@ export default function DashboardV2Page() {
       {/* 2. KPI chips */}
       <div className="dv2-kpi-grid">
         <MetricChip label="Today's P&L"  value={fmtCurrency(hero.dayChange, 0, hero.displayCurrency)}  change={hero.dayChangePct} />
-        <MetricChip label="Total P&L"    value={fmtSigned(hero.totalPnl ?? hero.unrealized, 0, hero.displayCurrency)} />
+        <MetricChip label="Total P&L"    value={fmtSigned(hero.totalPnl ?? hero.unrealized, 0, hero.displayCurrency)} valueColor={(hero.totalPnl ?? hero.unrealized) >= 0 ? 'var(--positive)' : 'var(--negative)'} />
         <MetricChip label="Positions"    value={String(hero.positions)} />
         <MetricChip label="Cash"         value={fmtCurrency(hero.cash, 0, hero.cashCurrency)} />
       </div>
