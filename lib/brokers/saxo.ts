@@ -50,12 +50,13 @@ export function parseSaxo(wb: XLSX.WorkBook): {
   deposits: CashEntry[];
   dividends: CashEntry[];
   fees: CashEntry[];
+  cashEvents: CashEntry[];
 } {
   const sheetName = wb.SheetNames.find(
     (n) => n.trim().toLowerCase() === 'transacties'
   );
   if (!sheetName) {
-    return { trades: [], skipSummary: { parseErrors: 1 }, deposits: [], dividends: [], fees: [] };
+    return { trades: [], skipSummary: { parseErrors: 1 }, deposits: [], dividends: [], fees: [], cashEvents: [] };
   }
 
   const sheet = wb.Sheets[sheetName];
@@ -96,6 +97,11 @@ export function parseSaxo(wb: XLSX.WorkBook): {
   const deposits:  CashEntry[] = [];
   const dividends: CashEntry[] = [];
   const fees:      CashEntry[] = [];
+  // Raw signed cash track — every row's EUR cash impact (deposits +, buys −,
+  // sells +, fees −, dividends +, option premium), captured before any skip so
+  // the client can reconstruct the cash balance as of any date. Boekingsbedrag
+  // is the account-currency signed booking amount (EUR for the audited export).
+  const cashEvents: CashEntry[] = [];
   const skip: SkipSummary = {
     optionsSkipped:       0,
     expirySkipped:        0,
@@ -108,6 +114,14 @@ export function parseSaxo(wb: XLSX.WorkBook): {
     const row = rows[ri];
     // Skip blank rows
     if (!row.some((c) => String(c).trim() !== '')) continue;
+
+    // Raw cash track — record the signed EUR cash impact of every row up front,
+    // before any type/option/parse skip drops it. Only rows with a numeric
+    // Boekingsbedrag contribute (parseNum returns null for blank/non-numeric).
+    const cashImpact = boekingsbedragCol >= 0 ? parseNum(row[boekingsbedragCol]) : null;
+    if (cashImpact != null) {
+      cashEvents.push({ date: datumCol >= 0 ? parseDate(row[datumCol]) : '', amountEur: cashImpact });
+    }
 
     const rowType = String(row[typeCol] ?? '').trim().toLowerCase();
 
@@ -194,5 +208,5 @@ export function parseSaxo(wb: XLSX.WorkBook): {
     trades.push({ ticker, shares, price, currency, date, action });
   }
 
-  return { trades, skipSummary: skip, deposits, dividends, fees };
+  return { trades, skipSummary: skip, deposits, dividends, fees, cashEvents };
 }

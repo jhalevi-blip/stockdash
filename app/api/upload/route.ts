@@ -114,6 +114,9 @@ export async function POST(request: Request) {
     const allDeposits:        { date: string; amountEur: number }[] = [];
     const allDividends:       { date: string; amountEur: number }[] = [];
     const allFees:            { date: string; amountEur: number }[] = [];
+    // Raw signed EUR cash track across brokers (Saxo + DeGiro EUR legs) — paired
+    // with tradeLegs below so the client can reconstruct cash as of any date.
+    const allCashEvents:      { date: string; amountEur: number }[] = [];
     let   _debugDegiro:       unknown                               = undefined;
     // Holdings snapshots (generic intent files) are pushed during the loop.
     // Broker open positions are derived after the loop via per-broker aggregateFIFO.
@@ -153,6 +156,7 @@ export async function POST(request: Request) {
               allDeposits.push(...r.deposits);
               allDividends.push(...r.dividends);
               allFees.push(...r.fees);
+              allCashEvents.push(...r.cashEvents);
               break;
             }
             case 'degiro': {
@@ -162,6 +166,7 @@ export async function POST(request: Request) {
               allDeposits.push(...r.deposits);
               allDividends.push(...r.dividends);
               allFees.push(...r.fees);
+              allCashEvents.push(...r.cashEvents);
               if (r._debug) _debugDegiro = r._debug;
               break;
             }
@@ -399,6 +404,17 @@ export async function POST(request: Request) {
     const _mergedAmdPos          = allHoldings.find((h) => h.t === _debugTicker);
     const _debugMergedAvgCostEcho = _mergedAmdPos?.c ?? null;
 
+    // Dated equity trade legs across all brokers — { t, d, s } with s signed by
+    // action (+ buy, − sell), so the client can reconstruct share counts as of any
+    // date. Sign is derived from action, not the raw shares field, because parsers
+    // differ (Saxo stores positive shares; DeGiro stores signed shares). Options
+    // and expiries were already excluded at parse time.
+    const tradeLegs = [...allTradesByBroker.values()].flat().map((t) => ({
+      t: t.ticker,
+      d: t.date,
+      s: t.action === 'sell' ? -Math.abs(t.shares) : Math.abs(t.shares),
+    }));
+
     return Response.json(
       {
         // Realized P&L — mirrors /api/transactions response shape
@@ -429,6 +445,12 @@ export async function POST(request: Request) {
         totalDeposited: Math.round(allDeposits.reduce((s, d)  => s + d.amountEur, 0) * 100) / 100,
         totalDividends: Math.round(allDividends.reduce((s, d) => s + d.amountEur, 0) * 100) / 100,
         totalFees:      Math.round(allFees.reduce((s, d)      => s + d.amountEur, 0) * 100) / 100,
+
+        // Stage 1 (server data only): dated equity trade legs + raw signed EUR cash
+        // track. Persisted by /api/realized-data so the client can later reconstruct
+        // holdings + cash as of any start date. No valuation here.
+        tradeLegs,
+        cashEvents:     allCashEvents,
 
         // Temporary diagnostic — remove before Stage 1 cleanup.
         _debug:                _debugDegiro ?? null,

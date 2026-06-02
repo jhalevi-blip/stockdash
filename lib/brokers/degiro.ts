@@ -16,6 +16,9 @@ export interface DeGiroParseResult {
   deposits:        CashEntry[];
   dividends:       CashEntry[];
   fees:            CashEntry[];
+  /** Raw signed EUR cash track — every EUR-denominated row's cash impact, for
+   *  client-side cash reconstruction. Non-EUR legs excluded (deferred to PRIO 2). */
+  cashEvents:      CashEntry[];
   /** Temporary diagnostic field — remove before Stage 1 cleanup. */
   _debug?: {
     groupCount:           number;
@@ -86,7 +89,7 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
   if (raw.length < 2) {
     return {
       trades: [], skipSummary: {}, unresolvedIsins: [],
-      deposits: [], dividends: [], fees: [],
+      deposits: [], dividends: [], fees: [], cashEvents: [],
     };
   }
 
@@ -105,10 +108,21 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
   const groups      = new Map<string, unknown[][]>();
   const noOrderRows: unknown[][] = [];
   const tradeIsins  = new Set<string>();
+  // Raw EUR cash track — signed amount of every EUR-denominated row, captured for
+  // client-side cash reconstruction (independent of the order-id bucketing below).
+  const cashEvents: CashEntry[] = [];
 
   for (const row of dataRows) {
     const r = row as unknown[];
     if (!r.some((v) => v !== '')) continue; // skip fully blank rows
+
+    // Record the signed EUR cash impact of this row. Only EUR-denominated legs
+    // contribute; non-EUR legs are skipped — multi-currency cash deferred to PRIO 2.
+    const mutatie = mutatieCol >= 0 ? String(r[mutatieCol] ?? '').trim().toUpperCase() : '';
+    if (mutatie === 'EUR' && amountCol >= 0) {
+      const amt = parseNum(r[amountCol]);
+      if (amt != null) cashEvents.push({ date: datumCol >= 0 ? parseDate(r[datumCol]) : '', amountEur: amt });
+    }
 
     const orderId = orderIdCol >= 0 ? String(r[orderIdCol] ?? '').trim() : '';
     const omschr  = omschrCol  >= 0 ? String(r[omschrCol]  ?? '').trim() : '';
@@ -257,6 +271,7 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
     deposits,
     dividends,
     fees,
+    cashEvents,
     _debug: {
       groupCount:           groups.size,
       tradeIsins:           [...tradeIsins],
@@ -375,6 +390,7 @@ async function parseTransacties(wb: XLSX.WorkBook): Promise<DeGiroParseResult> {
     deposits:        [],
     dividends:       [],
     fees:            [],
+    cashEvents:      [],
   };
 }
 
@@ -400,5 +416,6 @@ export async function parseDeGiro(wb: XLSX.WorkBook): Promise<DeGiroParseResult>
     deposits:        [],
     dividends:       [],
     fees:            [],
+    cashEvents:      [],
   };
 }
