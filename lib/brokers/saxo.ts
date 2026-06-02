@@ -206,7 +206,12 @@ export function parseSaxo(wb: XLSX.WorkBook): {
 
     const date = datumCol >= 0 ? parseDate(row[datumCol]) : '';
 
-    trades.push({ ticker, shares, price, currency, date, action });
+    // Saxo books every row in EUR (Boekingsbedrag), already read above as cashImpact.
+    // Attach its absolute value as the exact per-trade EUR cash value.
+    trades.push({
+      ticker, shares, price, currency, date, action,
+      amountEur: cashImpact != null ? Math.abs(cashImpact) : undefined,
+    });
   }
 
   // Current cash = Σ of every cashEvent's signed Boekingsbedrag (all EUR account

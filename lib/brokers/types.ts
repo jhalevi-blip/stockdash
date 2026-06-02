@@ -8,6 +8,10 @@ export interface BrokerTrade {
   currency: string;
   date: string; // ISO YYYY-MM-DD, empty string if unknown
   action: 'buy' | 'sell';
+  /** Absolute EUR cash value of the trade (unsigned). Set by Saxo (Boekingsbedrag)
+   *  and DeGiro (native value ÷ FX). Undefined for brokers that don't provide it —
+   *  calcFIFO then falls back to native price × shares. */
+  amountEur?: number;
 }
 
 export interface NormalizedPosition {

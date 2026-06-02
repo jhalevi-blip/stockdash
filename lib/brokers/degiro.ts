@@ -188,12 +188,19 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
     let date         = '';
     let isin         = '';
     let hasTrade     = false;
+    let orderFx: number | null = null; // first non-null FX in the order's rows (native→EUR)
 
     for (const r of rows) {
       const row     = r as unknown[];
       const omschr  = omschrCol  >= 0 ? String(row[omschrCol]  ?? '').trim() : '';
       const mutatie = mutatieCol >= 0 ? String(row[mutatieCol] ?? '').trim().toUpperCase() : '';
       const amount  = amountCol  >= 0 ? parseNum(row[amountCol]) : null;
+
+      // Capture the order's FX rate (first non-zero value seen across its rows).
+      if (orderFx == null && fxCol >= 0) {
+        const fxVal = parseNum(row[fxCol]);
+        if (fxVal != null && fxVal !== 0) orderFx = fxVal;
+      }
 
       // Fee rows nested inside the order group (DEGIRO Transactiekosten)
       if (omschr.toLowerCase().includes('transactiekosten')) {
@@ -248,6 +255,15 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
     // BrokerTrade.shares convention: positive = buy, negative = sell
     const signedShares = action === 'sell' ? -totalShares : totalShares;
 
+    // EUR cash value of the trade: native value when EUR-denominated, else native ÷ FX.
+    // Non-EUR with no FX → undefined (calcFIFO falls back to native price).
+    let amountEur: number | undefined;
+    if (currency === 'EUR') {
+      amountEur = Math.abs(totalValue);
+    } else if (orderFx != null) {
+      amountEur = Math.abs(totalValue) / orderFx;
+    }
+
     trades.push({
       ticker,
       shares:   Math.round(signedShares * 1e8) / 1e8,
@@ -255,6 +271,7 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
       currency,
       date,
       action: action!,
+      amountEur,
     });
   }
 

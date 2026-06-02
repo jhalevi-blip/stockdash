@@ -46,24 +46,31 @@ export function calcFIFO(trades: BrokerTrade[]): FIFOResult[] {
 
     for (const tx of txs) {
       const shares = Math.abs(tx.shares);
-      const price  = Math.abs(tx.price ?? 0);
+      // EUR per share: prefer the trade's absolute EUR cash value (Saxo Boekingsbedrag,
+      // DeGiro native ÷ FX); fall back to native price so other brokers are unchanged.
+      const eurPerShare = (tx.amountEur != null && shares > 0)
+        ? tx.amountEur / shares
+        : Math.abs(tx.price ?? 0);
 
       if (tx.action === 'buy') {
-        lots.push({ shares, costPerShare: price });
-        totalBoughtEur += shares * price;
+        lots.push({ shares, costPerShare: eurPerShare });
         if (!firstBuy) firstBuy = tx.date || null;
       } else if (tx.action === 'sell') {
         lastSell = tx.date || null;
-        totalSoldEur += shares * price;
         let remaining = shares;
 
+        // Accumulate proceeds AND cost ONLY for shares matched against a buy lot.
+        // Orphan (unmatched) sell shares — e.g. a pre-window or split-inflated sell
+        // with no buy — contribute nothing to proceeds, cost, or pnl.
         while (remaining > 1e-9 && lots.length > 0) {
           const lot    = lots[0];
           const filled = Math.min(lot.shares, remaining);
-          realizedPnl  += filled * (price - lot.costPerShare);
-          closedShares += filled;
-          lot.shares   -= filled;
-          remaining    -= filled;
+          totalSoldEur   += filled * eurPerShare;
+          totalBoughtEur += filled * lot.costPerShare;
+          realizedPnl    += filled * (eurPerShare - lot.costPerShare);
+          closedShares   += filled;
+          lot.shares     -= filled;
+          remaining      -= filled;
           if (lot.shares < 1e-9) lots.shift();
         }
       }
