@@ -16,7 +16,7 @@ import NewsFeed from './_components/NewsFeed';
 import InsiderActivity from './_components/InsiderActivity';
 import QuickJumpTiles from './_components/QuickJumpTiles';
 import { PORTFOLIO, HOLDINGS, AI_SUMMARY, PORTFOLIO_SPARK, ALLOCATION } from './_lib/mockData';
-import { fmtCurrency } from '@/app/(v2)/_lib/format';
+import { fmtCurrency, fmtSigned } from '@/app/(v2)/_lib/format';
 import { useHoldings } from '@/lib/useHoldings';
 
 const SECTOR_COLORS = {
@@ -53,10 +53,13 @@ export default function DashboardV2Page() {
   // Live EUR/USD (USD per EUR, ≈1.16). null until loaded → aggregates show a brief
   // loading state rather than flashing USD figures as if they were EUR. USD→EUR = ÷ eurUsd.
   const [eurUsd,   setEurUsd]   = useState(null);
+  // Realized P&L (EUR) from /api/realized-data. null = not yet resolved; resolves to
+  // a number on both success and error (so the hero gate never stalls on it).
+  const [realizedEur, setRealizedEur] = useState(null);
   // Raw amount from Supabase (no currency conversion — pre-existing display behaviour preserved)
   const cash         = cashData?.amount   ?? 0;
   const cashCurrency = cashData?.currency ?? 'USD';
-  const { isLoaded, isSignedIn } = useUser();
+  const { user, isLoaded, isSignedIn } = useUser();
 
   // Prices: re-fetch whenever holdings change (useHoldings updates trigger this)
   useEffect(() => {
@@ -85,6 +88,20 @@ export default function DashboardV2Page() {
         if (last != null && last > 0) setEurUsd(last);
       });
   }, []);
+
+  // Realized P&L (EUR) — mirrors the performance page's /api/realized-data fetch.
+  // totalPnl is already EUR (do NOT multiply by FX). Resolves to a number on both
+  // success and error so the hero gate never stalls. Anonymous users skip (→ stays 0).
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!isSignedIn || !user?.id) { setRealizedEur(0); return; }
+    let cancelled = false;
+    fetch('/api/realized-data')
+      .then(r => r.json())
+      .then(json => { if (!cancelled) setRealizedEur(json?.transactions?.totalPnl ?? 0); })
+      .catch(() => { if (!cancelled) setRealizedEur(0); });
+    return () => { cancelled = true; };
+  }, [isLoaded, isSignedIn, user?.id]);
 
   // Fetch 1-year daily prices for all held tickers and compute portfolio value per day.
   // Runs after holdings are known. Skips if holdings is empty/null (mock/demo case).
@@ -248,6 +265,9 @@ export default function DashboardV2Page() {
       totalCost:      totalCostEur,
       unrealized:     positionsValue - totalCostEur,
       unrealizedPct,
+      // Total P&L = unrealized (EUR) + realized (EUR, already converted). Realized is 0
+      // until the fetch resolves; the hero gate holds the render until then.
+      totalPnl:       (positionsValue - totalCostEur) + (realizedEur ?? 0),
       dayChange:      eurUsd ? dayChangeUsd / eurUsd : dayChangeUsd,
       dayChangePct,
       cash, cashCurrency, positions: enrichedRows.length,
@@ -259,10 +279,11 @@ export default function DashboardV2Page() {
   // hero: real stats when signed in with holdings, mock otherwise
   const hero = realPortfolioStats ?? PORTFOLIO;
 
-  // Hold the hero (which shows EUR aggregates) until the FX rate has loaded, so we
-  // never flash USD magnitudes before converting. Only applies to real holdings;
-  // the mock/sample hero (PORTFOLIO, USD) renders immediately.
-  const heroFxPending = isSignedIn && Array.isArray(holdings) && holdings.length > 0 && eurUsd == null;
+  // Hold the hero (which shows EUR aggregates) until the FX rate AND realized P&L have
+  // loaded, so we never flash USD magnitudes or an €81k→€118k jump. Only applies to real
+  // holdings; the mock/sample hero (PORTFOLIO, USD) renders immediately. realizedEur
+  // resolves to a number on success and error, so this never stalls.
+  const heroFxPending = isSignedIn && Array.isArray(holdings) && holdings.length > 0 && (eurUsd == null || realizedEur === null);
 
   // Map enrichedRows to the shape PortfolioAISummary expects (matches /dashboard row keys).
   const aiRows = enrichedRows.map(r => ({
@@ -372,7 +393,7 @@ export default function DashboardV2Page() {
       {/* 2. KPI chips */}
       <div className="dv2-kpi-grid">
         <MetricChip label="Today's P&L"  value={fmtCurrency(hero.dayChange, 0, hero.displayCurrency)}  change={hero.dayChangePct} />
-        <MetricChip label="Unrealized"   value={fmtCurrency(hero.unrealized, 0, hero.displayCurrency)} change={hero.unrealizedPct} />
+        <MetricChip label="Total P&L"    value={fmtSigned(hero.totalPnl ?? hero.unrealized, 0, hero.displayCurrency)} />
         <MetricChip label="Positions"    value={String(hero.positions)} />
         <MetricChip label="Cash"         value={fmtCurrency(hero.cash, 0, hero.cashCurrency)} />
       </div>

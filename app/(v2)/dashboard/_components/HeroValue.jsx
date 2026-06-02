@@ -95,11 +95,10 @@ export default function HeroValue({ range = '1M', onRange, sparkData, data = POR
         <span>Cost {fmtCurrency(data.totalCost, 0, data.displayCurrency)}</span>
         <span>·</span>
         <span>
-          Unrealized{' '}
-          <span style={{ color: data.unrealized >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
-            {fmtSigned(data.unrealized, 0, data.displayCurrency)}
-          </span>{' '}
-          ({fmtPct(data.unrealizedPct, 1)})
+          Total P&amp;L{' '}
+          <span style={{ color: (data.totalPnl ?? data.unrealized) >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
+            {fmtSigned(data.totalPnl ?? data.unrealized, 0, data.displayCurrency)}
+          </span>
         </span>
         <span>·</span>
         <span>Cash {fmtCurrency(data.cash, 0, data.cashCurrency)}</span>
