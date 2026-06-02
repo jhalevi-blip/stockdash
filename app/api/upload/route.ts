@@ -150,6 +150,9 @@ export async function POST(request: Request) {
             case 'saxo': {
               const r = parseSaxo(wb);
               trades = r.trades; skipped = r.skipSummary;
+              allDeposits.push(...r.deposits);
+              allDividends.push(...r.dividends);
+              allFees.push(...r.fees);
               break;
             }
             case 'degiro': {
@@ -414,8 +417,9 @@ export async function POST(request: Request) {
         // ISIN resolution failures across all parsers that use OpenFIGI
         unresolvedIsins: [...new Set(allUnresolvedIsins)],
 
-        // Gap C: deposits/dividends/fees now wired for DeGiro Rekeningoverzicht.
-        // Saxo and other parsers do not yet extract cash flows — they contribute 0.
+        // Gap C: deposits/dividends/fees now wired for DeGiro Rekeningoverzicht
+        // and Saxo (Geldoverboeking/Corporate action rows). Other parsers do not
+        // yet extract cash flows — they contribute 0.
         // cashFlows/capitalAtStart remain deferred (Stage 2 — requires deposit timing logic).
         cashFlows:      [],   // TODO Stage 2 — needed for capitalAtStart calculation
         capitalAtStart: null, // TODO Stage 2 — derived from cashFlows

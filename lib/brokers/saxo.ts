@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { BrokerTrade, SkipSummary } from './types';
+import type { CashEntry } from './degiro';
 
 // Matches: "Koop 30 @ 29.05 USD" | "Verkoop -1000 @ 6.67 USD" | "Expiry -4 @ 0.00 USD"
 // Currency code is optional — some Saxo exports omit it; fall back to Instrumentvaluta column.
@@ -11,6 +12,22 @@ function excelSerialToISO(serial: number): string {
   // Excel's epoch is Dec 30 1899 (accounts for the 1900 leap-year bug)
   const ms = (serial - 25569) * 86400 * 1000;
   return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * Parse Dutch-formatted numbers: "1.234,56" → 1234.56, "198,16" → 198.16.
+ * Mirrors degiro.ts parseNum so Boekingsbedrag values normalise identically.
+ * Numeric cells (cellDates:true read) arrive as numbers and pass through unchanged.
+ */
+function parseNum(raw: unknown): number | null {
+  if (raw == null || raw === '') return null;
+  if (typeof raw === 'number') return raw;
+  const s = String(raw)
+    .replace(/[€$£\s]/g, '')
+    .replace(/\./g, '')   // strip thousand-separator dots
+    .replace(',', '.');   // decimal comma → dot
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
 }
 
 /** Parse a raw cell value from a Datum column into an ISO date string. */
@@ -30,12 +47,15 @@ function parseDate(raw: unknown): string {
 export function parseSaxo(wb: XLSX.WorkBook): {
   trades: BrokerTrade[];
   skipSummary: SkipSummary;
+  deposits: CashEntry[];
+  dividends: CashEntry[];
+  fees: CashEntry[];
 } {
   const sheetName = wb.SheetNames.find(
     (n) => n.trim().toLowerCase() === 'transacties'
   );
   if (!sheetName) {
-    return { trades: [], skipSummary: { parseErrors: 1 } };
+    return { trades: [], skipSummary: { parseErrors: 1 }, deposits: [], dividends: [], fees: [] };
   }
 
   const sheet = wb.Sheets[sheetName];
@@ -58,13 +78,24 @@ export function parseSaxo(wb: XLSX.WorkBook): {
   );
   const col = (name: string) => rawHeaders.indexOf(name);
 
-  const typeCol    = col('type');
-  const actiesCol  = col('acties');
-  const symboolCol = col('instrumentsymbool');
-  const datumCol   = col('transactiedatum');
-  const valutaCol  = col('instrumentvaluta');
+  const typeCol            = col('type');
+  const actiesCol          = col('acties');
+  const symboolCol         = col('instrumentsymbool');
+  const datumCol           = col('transactiedatum');
+  const valutaCol          = col('instrumentvaluta');
+  const boekingsbedragCol  = col('boekingsbedrag');
+  // Booking-amount currency. Saxo's Boekingsbedrag is in the account currency (EUR
+  // for the audited export). If a future export carries a non-EUR booking currency
+  // we must NOT convert blindly — skip + flag instead. Absent column → assume EUR.
+  const boekingsvalutaCol  = col('boekingsvaluta');
 
   const trades: BrokerTrade[] = [];
+  // Cash-flow buckets — same { date, amountEur } shape as the DeGiro parser, so
+  // downstream (totalDeposited/totalDividends/totalFees and the twrDeposits filter
+  // `d.date && d.amountEur > 0`) consumes them unchanged.
+  const deposits:  CashEntry[] = [];
+  const dividends: CashEntry[] = [];
+  const fees:      CashEntry[] = [];
   const skip: SkipSummary = {
     optionsSkipped:       0,
     expirySkipped:        0,
@@ -80,10 +111,50 @@ export function parseSaxo(wb: XLSX.WorkBook): {
 
     const rowType = String(row[typeCol] ?? '').trim().toLowerCase();
 
-    // Filter by row type
-    if (rowType === 'corporate action') { skip.dividendsSkipped!++;     continue; }
-    if (rowType === 'geldoverboeking')  { skip.cashTransfersSkipped!++;  continue; }
-    if (rowType !== 'transactie')       { skip.parseErrors!++;           continue; }
+    // ── Cash movements (Geldoverboeking) → deposit / income / fee ───────────
+    if (rowType === 'geldoverboeking') {
+      const actiesLow = String(row[actiesCol] ?? '').trim().toLowerCase();
+      const amount    = boekingsbedragCol >= 0 ? parseNum(row[boekingsbedragCol]) : null;
+      const cashDate  = datumCol >= 0 ? parseDate(row[datumCol]) : '';
+
+      if (actiesLow.startsWith('storting')) {
+        // Deposit. Boekingsbedrag is the account-currency booking amount (EUR).
+        // Guard against a non-EUR booking currency — do NOT convert, skip + count.
+        const ccy = boekingsvalutaCol >= 0 ? String(row[boekingsvalutaCol] ?? '').trim().toUpperCase() : '';
+        if (ccy && ccy !== 'EUR') { skip.cashTransfersSkipped!++; continue; }
+        if (amount != null && amount > 0) deposits.push({ date: cashDate, amountEur: amount });
+      } else if (actiesLow.startsWith('securities lending inkomsten')) {
+        // Securities-lending income — classified with dividends (matches DeGiro).
+        if (amount != null && amount > 0) dividends.push({ date: cashDate, amountEur: amount });
+      } else if (
+        actiesLow.startsWith('service fee') ||
+        actiesLow.startsWith('factureringsbedragen voor service')
+      ) {
+        if (amount != null) fees.push({ date: cashDate, amountEur: Math.abs(amount) });
+      } else {
+        skip.cashTransfersSkipped!++;
+      }
+      continue;
+    }
+
+    // ── Corporate actions → dividend income / non-cash split ────────────────
+    if (rowType === 'corporate action') {
+      const actiesLow = String(row[actiesCol] ?? '').trim().toLowerCase();
+      const amount    = boekingsbedragCol >= 0 ? parseNum(row[boekingsbedragCol]) : null;
+      const cashDate  = datumCol >= 0 ? parseDate(row[datumCol]) : '';
+
+      if (actiesLow.startsWith('herbeleggingsdividend') || actiesLow.startsWith('dividend')) {
+        // Dividend income — NOT a deposit (never enters external cash flow).
+        if (amount != null && amount > 0) dividends.push({ date: cashDate, amountEur: amount });
+      } else if (actiesLow.startsWith('stock split')) {
+        // Non-cash — ignore entirely (no bucket).
+      } else {
+        skip.dividendsSkipped!++;
+      }
+      continue;
+    }
+
+    if (rowType !== 'transactie') { skip.parseErrors!++; continue; }
 
     const symbool = String(row[symboolCol] ?? '').trim();
 
@@ -123,5 +194,5 @@ export function parseSaxo(wb: XLSX.WorkBook): {
     trades.push({ ticker, shares, price, currency, date, action });
   }
 
-  return { trades, skipSummary: skip };
+  return { trades, skipSummary: skip, deposits, dividends, fees };
 }
