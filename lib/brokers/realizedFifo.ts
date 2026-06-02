@@ -1,4 +1,5 @@
 import type { BrokerTrade } from './types';
+import { STOCK_SPLITS } from './splits';
 
 export interface FIFOResult {
   symbol:          string;
@@ -44,7 +45,27 @@ export function calcFIFO(trades: BrokerTrade[]): FIFOResult[] {
     let totalBoughtEur = 0, totalSoldEur = 0, realizedPnl = 0;
     let firstBuy: string | null = null, lastSell: string | null = null, closedShares = 0;
 
+    // Stock splits for this symbol — apply each once, to the lots open at the time
+    // the split's effective date is reached. Brokers that book pre-split buys and
+    // post-split sells (e.g. Saxo AVGO: buy 3 then sell 30) otherwise orphan shares.
+    const symbolSplits = STOCK_SPLITS[symbol] ?? [];
+    const appliedSplits = new Set<string>();
+
     for (const tx of txs) {
+      // Before processing this trade, fire any not-yet-applied split whose effective
+      // date is on/before the trade's date, scaling the CURRENT open lots:
+      // shares × ratio, costPerShare ÷ ratio (total cost basis preserved).
+      for (const sp of symbolSplits) {
+        const key = `${sp.date}__${sp.ratio}`;
+        if (!appliedSplits.has(key) && tx.date && sp.date <= tx.date) {
+          for (const lot of lots) {
+            lot.shares      *= sp.ratio;
+            lot.costPerShare /= sp.ratio;
+          }
+          appliedSplits.add(key);
+        }
+      }
+
       const shares = Math.abs(tx.shares);
       // EUR per share: prefer the trade's absolute EUR cash value (Saxo Boekingsbedrag,
       // DeGiro native ÷ FX); fall back to native price so other brokers are unchanged.

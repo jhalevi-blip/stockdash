@@ -3,9 +3,12 @@ import type { BrokerTrade, SkipSummary } from './types';
 import type { CashEntry } from './degiro';
 
 // Matches: "Koop 30 @ 29.05 USD" | "Verkoop -1000 @ 6.67 USD" | "Expiry -4 @ 0.00 USD"
-// Currency code is optional — some Saxo exports omit it; fall back to Instrumentvaluta column.
+// US number format: comma = thousands separator, dot = decimal (e.g. "1,702.00").
+// Shares/price groups allow thousands commas; commas are stripped before parseFloat.
+// Currency is [A-Za-z]{3} so pence codes like "GBp" match; still optional — some
+// Saxo exports omit it and we fall back to the Instrumentvaluta column.
 const ACTIES_RE =
-  /^(Koop|Verkoop|Expiry)\s+(-?\d+(?:\.\d+)?)\s*@\s*(-?\d+(?:\.\d+)?)(?:\s+([A-Z]{3}))?$/;
+  /^(Koop|Verkoop|Expiry)\s+(-?[\d,]+(?:\.\d+)?)\s*@\s*(-?[\d,]+(?:\.\d+)?)(?:\s+([A-Za-z]{3}))?$/;
 
 /** Convert an Excel serial date number to an ISO date string (YYYY-MM-DD). */
 function excelSerialToISO(serial: number): string {
@@ -191,8 +194,9 @@ export function parseSaxo(wb: XLSX.WorkBook): {
     const currency = ccyFromActies || (valutaCol >= 0 ? String(row[valutaCol] ?? '').trim() : '');
     if (!currency) { skip.parseErrors!++; continue; }
 
-    const sharesRaw = parseFloat(sharesStr);
-    const price     = parseFloat(priceStr);
+    // Strip thousands-separator commas before parsing ("1,702.00" → 1702.00).
+    const sharesRaw = parseFloat(sharesStr.replace(/,/g, ''));
+    const price     = parseFloat(priceStr.replace(/,/g, ''));
     const action: 'buy' | 'sell' = verb === 'Koop' ? 'buy' : 'sell';
     // abs() so both "Verkoop 25 @ ..." and "Verkoop -25 @ ..." produce a positive
     // share count. Direction is carried by action (Koop/Verkoop), not the sign.
