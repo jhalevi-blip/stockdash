@@ -19,6 +19,9 @@ export interface DeGiroParseResult {
   /** Raw signed EUR cash track — every EUR-denominated row's cash impact, for
    *  client-side cash reconstruction. Non-EUR legs excluded (deferred to PRIO 2). */
   cashEvents:      CashEntry[];
+  /** Current cash in EUR from the Saldo running-balance column (latest EUR Saldo +
+   *  latest USD Saldo × FX). null when there is no Saldo column to read. */
+  currentCashEur:  number | null;
   /** Temporary diagnostic field — remove before Stage 1 cleanup. */
   _debug?: {
     groupCount:           number;
@@ -89,7 +92,7 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
   if (raw.length < 2) {
     return {
       trades: [], skipSummary: {}, unresolvedIsins: [],
-      deposits: [], dividends: [], fees: [], cashEvents: [],
+      deposits: [], dividends: [], fees: [], cashEvents: [], currentCashEur: null,
     };
   }
 
@@ -103,6 +106,18 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
   // Amount column is the unnamed column immediately right of Mutatie
   const amountCol  = mutatieCol >= 0 ? mutatieCol + 1 : -1;
   const orderIdCol = findCol(headers, ['order id', 'orderid', 'order-id']);
+  // Saldo running balance — same positional pattern as Mutatie: the Saldo column
+  // is the currency code, the balance value sits in the unnamed column to its right.
+  const saldoCol    = findCol(headers, ['saldo']);
+  const saldoValCol = saldoCol >= 0 ? saldoCol + 1 : -1;
+  const fxCol       = findCol(headers, ['fx']);
+
+  // Current cash, captured from the Saldo column. The export is reverse-chronological
+  // and rows are iterated in file order, so the FIRST row carrying a given Saldo
+  // currency is the current (latest) balance for that currency.
+  let latestEurSaldo: number | null = null;
+  let latestUsdSaldo: number | null = null;
+  let usdSaldoFx:     number | null = null; // FX rate on the row of the latest USD Saldo
 
   // ── Pass 1: bucket rows by Order Id; collect ISINs for batch resolution ────
   const groups      = new Map<string, unknown[][]>();
@@ -122,6 +137,20 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
     if (mutatie === 'EUR' && amountCol >= 0) {
       const amt = parseNum(r[amountCol]);
       if (amt != null) cashEvents.push({ date: datumCol >= 0 ? parseDate(r[datumCol]) : '', amountEur: amt });
+    }
+
+    // Latest Saldo per currency — first occurrence wins (newest, reverse-chron file).
+    if (saldoValCol >= 0) {
+      const saldoCcy = String(r[saldoCol] ?? '').trim().toUpperCase();
+      const saldoVal = parseNum(r[saldoValCol]);
+      if (saldoVal != null) {
+        if (saldoCcy === 'EUR' && latestEurSaldo == null) {
+          latestEurSaldo = saldoVal;
+        } else if (saldoCcy === 'USD' && latestUsdSaldo == null) {
+          latestUsdSaldo = saldoVal;
+          usdSaldoFx = fxCol >= 0 ? parseNum(r[fxCol]) : null;
+        }
+      }
     }
 
     const orderId = orderIdCol >= 0 ? String(r[orderIdCol] ?? '').trim() : '';
@@ -264,6 +293,19 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
     }
   }
 
+  // Current cash = latest EUR Saldo + latest USD Saldo converted to EUR via the FX
+  // on that row. USD Saldo is €0 today, so the conversion is skipped when zero.
+  // NOTE: the FX direction (× vs ÷) is unverified against a non-zero USD Saldo
+  // export — flagged for validation if/when USD cash is present.
+  // No Saldo column → null (don't guess). Column present but no balance read → null.
+  let currentCashEur: number | null = null;
+  if (saldoCol >= 0 && (latestEurSaldo != null || latestUsdSaldo != null)) {
+    currentCashEur = latestEurSaldo ?? 0;
+    if (latestUsdSaldo != null && latestUsdSaldo !== 0 && usdSaldoFx != null) {
+      currentCashEur += latestUsdSaldo * usdSaldoFx;
+    }
+  }
+
   return {
     trades,
     skipSummary:     skip,
@@ -272,6 +314,7 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
     dividends,
     fees,
     cashEvents,
+    currentCashEur,
     _debug: {
       groupCount:           groups.size,
       tradeIsins:           [...tradeIsins],
@@ -391,6 +434,7 @@ async function parseTransacties(wb: XLSX.WorkBook): Promise<DeGiroParseResult> {
     dividends:       [],
     fees:            [],
     cashEvents:      [],
+    currentCashEur:  null,
   };
 }
 
@@ -417,5 +461,6 @@ export async function parseDeGiro(wb: XLSX.WorkBook): Promise<DeGiroParseResult>
     dividends:       [],
     fees:            [],
     cashEvents:      [],
+    currentCashEur:  null,
   };
 }

@@ -117,6 +117,11 @@ export async function POST(request: Request) {
     // Raw signed EUR cash track across brokers (Saxo + DeGiro EUR legs) — paired
     // with tradeLegs below so the client can reconstruct cash as of any date.
     const allCashEvents:      { date: string; amountEur: number }[] = [];
+    // Reconstructed CURRENT cash per broker (EUR). Computed by a different method
+    // per broker (Saxo = Σ cashEvents; DeGiro = latest Saldo) — kept separate from
+    // allCashEvents, which must NOT be summed for current cash. null = not provided.
+    let   saxoCurrentCashEur:   number | null = null;
+    let   degiroCurrentCashEur: number | null = null;
     let   _debugDegiro:       unknown                               = undefined;
     // Holdings snapshots (generic intent files) are pushed during the loop.
     // Broker open positions are derived after the loop via per-broker aggregateFIFO.
@@ -157,6 +162,7 @@ export async function POST(request: Request) {
               allDividends.push(...r.dividends);
               allFees.push(...r.fees);
               allCashEvents.push(...r.cashEvents);
+              if (r.currentCashEur != null) saxoCurrentCashEur = (saxoCurrentCashEur ?? 0) + r.currentCashEur;
               break;
             }
             case 'degiro': {
@@ -167,6 +173,7 @@ export async function POST(request: Request) {
               allDividends.push(...r.dividends);
               allFees.push(...r.fees);
               allCashEvents.push(...r.cashEvents);
+              if (r.currentCashEur != null) degiroCurrentCashEur = (degiroCurrentCashEur ?? 0) + r.currentCashEur;
               if (r._debug) _debugDegiro = r._debug;
               break;
             }
@@ -415,6 +422,22 @@ export async function POST(request: Request) {
       s: t.action === 'sell' ? -Math.abs(t.shares) : Math.abs(t.shares),
     }));
 
+    // Reconstructed current cash (EUR). amountEur sums only the brokers that
+    // returned a non-null value; null when none did. byBroker keeps the per-broker
+    // breakdown for transparency / SQL verification. NOT derived from allCashEvents.
+    const _ccContributors = [saxoCurrentCashEur, degiroCurrentCashEur].filter(
+      (v): v is number => v != null
+    );
+    const currentCash = {
+      amountEur: _ccContributors.length
+        ? Math.round(_ccContributors.reduce((s, v) => s + v, 0) * 100) / 100
+        : null,
+      byBroker: {
+        saxo:   saxoCurrentCashEur   != null ? Math.round(saxoCurrentCashEur   * 100) / 100 : null,
+        degiro: degiroCurrentCashEur != null ? Math.round(degiroCurrentCashEur * 100) / 100 : null,
+      },
+    };
+
     return Response.json(
       {
         // Realized P&L — mirrors /api/transactions response shape
@@ -451,6 +474,10 @@ export async function POST(request: Request) {
         // holdings + cash as of any start date. No valuation here.
         tradeLegs,
         cashEvents:     allCashEvents,
+
+        // Reconstructed CURRENT cash per broker (EUR). Saxo = Σ cashEvents;
+        // DeGiro = latest Saldo. Persisted via /api/realized-data for verification.
+        currentCash,
 
         // Temporary diagnostic — remove before Stage 1 cleanup.
         _debug:                _debugDegiro ?? null,

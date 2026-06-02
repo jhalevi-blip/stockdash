@@ -51,12 +51,13 @@ export function parseSaxo(wb: XLSX.WorkBook): {
   dividends: CashEntry[];
   fees: CashEntry[];
   cashEvents: CashEntry[];
+  currentCashEur: number | null;
 } {
   const sheetName = wb.SheetNames.find(
     (n) => n.trim().toLowerCase() === 'transacties'
   );
   if (!sheetName) {
-    return { trades: [], skipSummary: { parseErrors: 1 }, deposits: [], dividends: [], fees: [], cashEvents: [] };
+    return { trades: [], skipSummary: { parseErrors: 1 }, deposits: [], dividends: [], fees: [], cashEvents: [], currentCashEur: null };
   }
 
   const sheet = wb.Sheets[sheetName];
@@ -208,5 +209,9 @@ export function parseSaxo(wb: XLSX.WorkBook): {
     trades.push({ ticker, shares, price, currency, date, action });
   }
 
-  return { trades, skipSummary: skip, deposits, dividends, fees, cashEvents };
+  // Current cash = Σ of every cashEvent's signed Boekingsbedrag (all EUR account
+  // currency). This nets deposits + buys − sells + fees + dividends to the live balance.
+  const currentCashEur = cashEvents.reduce((sum, e) => sum + e.amountEur, 0);
+
+  return { trades, skipSummary: skip, deposits, dividends, fees, cashEvents, currentCashEur };
 }
