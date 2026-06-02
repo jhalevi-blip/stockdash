@@ -13,14 +13,17 @@ function fmtXTick(dateStr, range) {
   return d.toLocaleDateString('en-US', { month: 'short' });
 }
 
-function fmtKAxis(v) {
-  if (v >= 1000000) return '$' + (v / 1000000).toFixed(1) + 'M';
-  if (v >= 1000)    return '$' + (v / 1000).toFixed(0) + 'k';
-  return '$' + v;
+const AXIS_SYMBOL = { USD: '$', EUR: '€', GBP: '£' };
+
+function fmtKAxis(v, currency = 'USD') {
+  const s = AXIS_SYMBOL[currency] ?? '$';
+  if (v >= 1000000) return s + (v / 1000000).toFixed(1) + 'M';
+  if (v >= 1000)    return s + (v / 1000).toFixed(0) + 'k';
+  return s + v;
 }
 
-function fmtFullValue(v) {
-  return v?.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+function fmtFullValue(v, currency = 'USD') {
+  return v?.toLocaleString('en-US', { style: 'currency', currency, minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 export default function HeroValue({ range = '1M', onRange, sparkData, data = PORTFOLIO }) {
@@ -69,14 +72,14 @@ export default function HeroValue({ range = '1M', onRange, sparkData, data = POR
           letterSpacing: '-.02em',
           color: 'var(--text-primary)',
           fontVariantNumeric: 'tabular-nums',
-        }}>{fmtCurrency(data.totalValue)}</span>
+        }}>{fmtCurrency(data.totalValue, 2, data.displayCurrency)}</span>
         <span style={{
           fontSize: 14,
           fontWeight: 600,
           color: data.dayChange >= 0 ? 'var(--positive)' : 'var(--negative)',
           fontVariantNumeric: 'tabular-nums',
         }}>
-          {fmtSigned(data.dayChange)} ({fmtPct(data.dayChangePct)}){' '}
+          {fmtSigned(data.dayChange, 2, data.displayCurrency)} ({fmtPct(data.dayChangePct)}){' '}
           <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>today</span>
         </span>
       </div>
@@ -89,12 +92,12 @@ export default function HeroValue({ range = '1M', onRange, sparkData, data = POR
         fontVariantNumeric: 'tabular-nums',
         flexWrap: 'wrap',
       }}>
-        <span>Cost {fmtCurrency(data.totalCost, 0)}</span>
+        <span>Cost {fmtCurrency(data.totalCost, 0, data.displayCurrency)}</span>
         <span>·</span>
         <span>
           Unrealized{' '}
           <span style={{ color: data.unrealized >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
-            {fmtSigned(data.unrealized, 0)}
+            {fmtSigned(data.unrealized, 0, data.displayCurrency)}
           </span>{' '}
           ({fmtPct(data.unrealizedPct, 1)})
         </span>
@@ -121,7 +124,7 @@ export default function HeroValue({ range = '1M', onRange, sparkData, data = POR
             />
             <YAxis
               dataKey="value"
-              tickFormatter={fmtKAxis}
+              tickFormatter={(v) => fmtKAxis(v, data.displayCurrency)}
               tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
               axisLine={false}
               tickLine={false}
@@ -136,7 +139,7 @@ export default function HeroValue({ range = '1M', onRange, sparkData, data = POR
                 fontSize: 12,
               }}
               labelStyle={{ color: 'var(--text-muted)' }}
-              formatter={(v) => [fmtFullValue(v), 'Portfolio']}
+              formatter={(v) => [fmtFullValue(v, data.displayCurrency), 'Portfolio']}
             />
             <Area
               type="monotone"

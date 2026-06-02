@@ -50,6 +50,9 @@ export default function DashboardV2Page() {
   const { holdings, cash: cashData, error, refresh } = useHoldings();
   const [prices,   setPrices]   = useState({});
   const [history,  setHistory]  = useState(null); // [{ date, value }] — full 1-year daily series
+  // Live EUR/USD (USD per EUR, ≈1.16). null until loaded → aggregates show a brief
+  // loading state rather than flashing USD figures as if they were EUR. USD→EUR = ÷ eurUsd.
+  const [eurUsd,   setEurUsd]   = useState(null);
   // Raw amount from Supabase (no currency conversion — pre-existing display behaviour preserved)
   const cash         = cashData?.amount   ?? 0;
   const cashCurrency = cashData?.currency ?? 'USD';
@@ -68,6 +71,20 @@ export default function DashboardV2Page() {
         setPrices(priceMap);
       });
   }, [holdings]);
+
+  // Live EUR/USD rate (last close of EURUSD=X) — used to display portfolio
+  // aggregates in EUR. Fetched once on mount; same /api/chart source the
+  // performance page uses.
+  useEffect(() => {
+    fetch('/api/chart?symbol=EURUSD%3DX')
+      .then(r => r.json())
+      .catch(() => ({}))
+      .then(json => {
+        const candles = json?.candles ?? [];
+        const last = candles[candles.length - 1]?.close;
+        if (last != null && last > 0) setEurUsd(last);
+      });
+  }, []);
 
   // Fetch 1-year daily prices for all held tickers and compute portfolio value per day.
   // Runs after holdings are known. Skips if holdings is empty/null (mock/demo case).
@@ -141,6 +158,16 @@ export default function DashboardV2Page() {
     return n === Infinity ? history : history.slice(-n);
   }, [history, range]);
 
+  // EUR view of the hero chart: convert each USD point (÷ eurUsd) and add today's
+  // EUR cash flat to every point, so the latest point lines up with the headline
+  // Total Portfolio Value (positions EUR + cash). The chart already backtests today's
+  // holdings, so adding today's cash flat fits the same hypothetical framing.
+  // Derived (does not mutate sparkData); only used by the hero when displayCurrency is EUR.
+  const sparkDataEur = useMemo(() => {
+    if (!eurUsd) return sparkData;
+    return sparkData.map(p => ({ ...p, value: p.value / eurUsd + cash }));
+  }, [sparkData, eurUsd, cash]);
+
   // Compute enriched rows in the shape HoldingsTable expects.
   // Weight requires a two-pass: compute totalMktValue first, then assign weights.
   const enrichedRows = (() => {
@@ -202,22 +229,40 @@ export default function DashboardV2Page() {
   // Returns null when no real holdings are loaded (anonymous / demo).
   const realPortfolioStats = (() => {
     if (enrichedRows.length === 0) return null;
-    const totalValue    = enrichedRows.reduce((s, r) => s + r.mktValue, 0);
-    const totalCost     = enrichedRows.reduce((s, r) => s + r.shares * r.costBasis, 0);
-    const unrealized    = totalValue - totalCost;
-    const unrealizedPct = totalCost > 0 ? (unrealized / totalCost) * 100 : 0;
-    const dayChange     = enrichedRows.reduce((s, r) => s + r.mktValue * (r.change / 100), 0);
-    const prevValue     = totalValue - dayChange;
-    const dayChangePct  = prevValue > 0 ? (dayChange / prevValue) * 100 : 0;
+    // Raw USD aggregates from live USD prices / USD cost basis.
+    const totalValueUsd = enrichedRows.reduce((s, r) => s + r.mktValue, 0);
+    const totalCostUsd  = enrichedRows.reduce((s, r) => s + r.shares * r.costBasis, 0);
+    const dayChangeUsd  = enrichedRows.reduce((s, r) => s + r.mktValue * (r.change / 100), 0);
+    const unrealizedPct = totalCostUsd > 0 ? ((totalValueUsd - totalCostUsd) / totalCostUsd) * 100 : 0;
+    const prevValueUsd  = totalValueUsd - dayChangeUsd;
+    const dayChangePct  = prevValueUsd > 0 ? (dayChangeUsd / prevValueUsd) * 100 : 0;
+
+    // Display-layer FX: convert USD aggregates to EUR (USD ÷ eurUsd, where eurUsd is
+    // USD-per-EUR ≈1.16) and fold the already-EUR cash into the total. Percentages are
+    // FX-invariant. Until eurUsd loads, keep USD values + displayCurrency 'USD' (the
+    // hero render is gated on eurUsd, so EUR magnitudes are never flashed stale).
+    const positionsValue = eurUsd ? totalValueUsd / eurUsd : totalValueUsd;
+    const totalCostEur   = eurUsd ? totalCostUsd  / eurUsd : totalCostUsd;
     return {
-      totalValue, totalCost, unrealized, unrealizedPct, dayChange, dayChangePct,
+      totalValue:     positionsValue + (eurUsd ? cash : 0), // fold EUR cash into the total
+      totalCost:      totalCostEur,
+      unrealized:     positionsValue - totalCostEur,
+      unrealizedPct,
+      dayChange:      eurUsd ? dayChangeUsd / eurUsd : dayChangeUsd,
+      dayChangePct,
       cash, cashCurrency, positions: enrichedRows.length,
+      displayCurrency: eurUsd ? 'EUR' : 'USD',
       asOf: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }),
     };
   })();
 
   // hero: real stats when signed in with holdings, mock otherwise
   const hero = realPortfolioStats ?? PORTFOLIO;
+
+  // Hold the hero (which shows EUR aggregates) until the FX rate has loaded, so we
+  // never flash USD magnitudes before converting. Only applies to real holdings;
+  // the mock/sample hero (PORTFOLIO, USD) renders immediately.
+  const heroFxPending = isSignedIn && Array.isArray(holdings) && holdings.length > 0 && eurUsd == null;
 
   // Map enrichedRows to the shape PortfolioAISummary expects (matches /dashboard row keys).
   const aiRows = enrichedRows.map(r => ({
@@ -309,13 +354,25 @@ export default function DashboardV2Page() {
 
       {/* 1. Hero strip */}
       <Card padding="18px 20px">
-        <HeroValue range={range} onRange={setRange} sparkData={sparkData} data={hero} />
+        {heroFxPending ? (
+          <div style={{
+            minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--text-muted)', fontSize: 13,
+          }}>Loading…</div>
+        ) : (
+          <HeroValue
+            range={range}
+            onRange={setRange}
+            sparkData={hero.displayCurrency === 'EUR' ? sparkDataEur : sparkData}
+            data={hero}
+          />
+        )}
       </Card>
 
       {/* 2. KPI chips */}
       <div className="dv2-kpi-grid">
-        <MetricChip label="Today's P&L"  value={fmtCurrency(hero.dayChange, 0)}  change={hero.dayChangePct} />
-        <MetricChip label="Unrealized"   value={fmtCurrency(hero.unrealized, 0)} change={hero.unrealizedPct} />
+        <MetricChip label="Today's P&L"  value={fmtCurrency(hero.dayChange, 0, hero.displayCurrency)}  change={hero.dayChangePct} />
+        <MetricChip label="Unrealized"   value={fmtCurrency(hero.unrealized, 0, hero.displayCurrency)} change={hero.unrealizedPct} />
         <MetricChip label="Positions"    value={String(hero.positions)} />
         <MetricChip label="Cash"         value={fmtCurrency(hero.cash, 0, hero.cashCurrency)} />
       </div>
