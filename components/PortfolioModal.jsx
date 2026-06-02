@@ -116,6 +116,9 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
   const [error,        setError]        = useState('');
   const [cashAmount,   setCashAmount]   = useState(cash?.amount   ?? 0);
   const [cashCurrency, setCashCurrency] = useState(cash?.currency ?? 'USD');
+  // True when the cash field was pre-filled from an upload's reconstructed
+  // currentCash; cleared on any manual edit so the override is honoured at Save.
+  const [cashReconstructed, setCashReconstructed] = useState(false);
   const [uploadOpen,      setUploadOpen]      = useState(false);
   const [uploadPending,   setUploadPending]   = useState(false);
   const [pendingRealized, setPendingRealized] = useState(null);
@@ -252,7 +255,7 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
               <input
                 value={String(cashAmount || '')}
-                onChange={e => setCashAmount(parseFloat(e.target.value) || 0)}
+                onChange={e => { setCashAmount(parseFloat(e.target.value) || 0); setCashReconstructed(false); }}
                 placeholder="0.00" type="number" min="0" step="0.01"
                 style={{ ...iStyle, width: 200 }}
               />
@@ -269,6 +272,11 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
                 Cash held in brokerage — shown as a separate card on the dashboard, excluded from P&amp;L
               </span>
             </div>
+            {cashReconstructed && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                Reconstructed from your uploaded transactions — edit to override.
+              </div>
+            )}
           </div>
 
           {/* Column headers — desktop only, hidden while upload panel is open */}
@@ -289,7 +297,17 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
             <UnifiedUpload
               onClose={() => setUploadOpen(false)}
               onPendingChange={setUploadPending}
-              onTransactions={(tx) => setPendingRealized(tx)}
+              onTransactions={(tx) => {
+                setPendingRealized(tx);
+                // Pre-fill cash from the upload's reconstructed current cash (EUR),
+                // replacing any stale saved value. Stays editable — a manual edit
+                // clears the reconstructed label and wins at Save.
+                if (tx?.currentCash?.amountEur != null) {
+                  setCashAmount(tx.currentCash.amountEur);
+                  setCashCurrency('EUR');
+                  setCashReconstructed(true);
+                }
+              }}
               onHoldings={(holdings, mode) => {
                 if (!Array.isArray(holdings) || holdings.length === 0) {
                   setUploadOpen(false);
