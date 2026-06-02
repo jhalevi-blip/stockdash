@@ -257,6 +257,89 @@ export default function PerformanceV2Page() {
     return () => { cancelled = true; };
   }, [holdings]);
 
+  /* ── Stage 2b: reconstructed-start-value inputs (feed the stats memo) ─────────
+     Rebuild the portfolio as of the start date from Stage-1 persisted data
+     (realizedData.tradeLegs + realizedData.cashEvents). Declared BEFORE the stats
+     memo so Modified Dietz can use the reconstructed start value. These depend
+     only on realizedData / startDate / estimatedDate — none depend on stats. ── */
+
+  // Do we have the Stage-1 arrays at all? Drives the graceful "no data" note.
+  const hasReconData =
+    Array.isArray(realizedData?.tradeLegs) && Array.isArray(realizedData?.cashEvents);
+
+  // Effective reconstruction date. Falls back to the page's estimated date when
+  // the user hasn't pinned a start date, so the calc still has a basis.
+  const reconStartDate = startDate ?? estimatedDate ?? '';
+
+  // Start-held shares: net signed shares per ticker across all legs dated strictly
+  // before the start date. Floor ≤0 to drop fully-closed / short artifacts
+  // (e.g. AVGO buy 3 / sell 30 → −27 → dropped). tradeLeg.d / reconStartDate are
+  // ISO YYYY-MM-DD, so string comparison is correct.
+  const startHeld = useMemo(() => {
+    if (!hasReconData || !reconStartDate) return null;
+    const net = {};
+    for (const leg of realizedData.tradeLegs) {
+      if (!leg?.t || !leg?.d) continue;
+      if (leg.d < reconStartDate) net[leg.t] = (net[leg.t] ?? 0) + (leg.s ?? 0);
+    }
+    const held = {};
+    for (const [t, sh] of Object.entries(net)) {
+      if (sh > 1e-9) held[t] = Math.round(sh * 1e8) / 1e8;
+    }
+    return held;
+  }, [hasReconData, realizedData, reconStartDate]);
+
+  // Cash at start (EUR): sum of every cashEvent dated strictly before the start date.
+  const startCashEur = useMemo(() => {
+    if (!hasReconData || !reconStartDate) return null;
+    let sum = 0;
+    for (const e of realizedData.cashEvents) {
+      if (e?.date && e.date < reconStartDate && typeof e.amountEur === 'number') sum += e.amountEur;
+    }
+    return sum;
+  }, [hasReconData, realizedData, reconStartDate]);
+
+  // Fetch start-date closes for the start-held tickers (≤20). years=2 gives margin
+  // around the start date. Mirrors the dashboard's historical-prices consumption:
+  // the per-ticker series is sorted ascending, so the close on — or the most recent
+  // trading day before — the start date is the last row with date ≤ reconStartDate
+  // (carry-forward over weekends/holidays).
+  useEffect(() => {
+    if (!startHeld || !reconStartDate) { setStartReconPrices(null); return; }
+    const tickers = Object.keys(startHeld).slice(0, 20);
+    if (!tickers.length) { setStartReconPrices({ prices: {}, missing: [] }); return; }
+
+    let cancelled = false;
+    setStartReconPrices({ loading: true });
+    (async () => {
+      try {
+        const res  = await fetch(`/api/historical-prices?tickers=${tickers.join(',')}&years=2`);
+        const json = await res.json();
+        if (cancelled) return;
+
+        const byTicker = {};
+        for (const { ticker, prices: p } of (Array.isArray(json?.data) ? json.data : [])) {
+          byTicker[ticker] = p ?? [];
+        }
+        const prices = {};
+        const missing = [];
+        for (const t of tickers) {
+          let close = null;
+          for (const row of (byTicker[t] ?? [])) {
+            if (row.date <= reconStartDate) close = row.close; // carry forward
+            else break;
+          }
+          if (close == null) missing.push(t);
+          else prices[t] = close;
+        }
+        setStartReconPrices({ prices, missing });
+      } catch (e) {
+        if (!cancelled) setStartReconPrices({ error: e?.message ?? 'Failed to load start-date prices' });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [startHeld, reconStartDate]);
+
   /* ── Full stats useMemo — all fields computed now ────────────────────────
      9A renders:  portNow, spyMirrorNow, vsSpyPct, portReturn, spyReturn,
                   adjustedCostBasis, totalCostBasis, netCapital,
@@ -396,6 +479,39 @@ export default function PerformanceV2Page() {
       currencyImpact = portNow * (1 / eurNow - 1 / eurStart);
     }
 
+    // ── Reconstructed start value (Stage 2b) — drives the Modified Dietz startValue.
+    // holdingsValueUSD: Σ start-held shares × start-date close, skipping tickers
+    // with no available close (surfaced via reconMissing, never valued at 0).
+    // USD→EUR uses eurStart (start-date FX), NOT the latest eurUsd. Start-held
+    // tickers here are US-listed (USD), so closes are USD; EUR-listed start holdings
+    // would need their own conversion (deferred).
+    const reconPrices = startReconPrices?.prices ?? null;
+    const heldTickers = startHeld ? Object.keys(startHeld) : [];
+    const reconBreakdown = [];
+    const reconMissing   = [];
+    let holdingsValueUSD = 0;
+    for (const t of heldTickers) {
+      const shares = startHeld[t];
+      const close  = reconPrices ? reconPrices[t] : undefined;
+      if (close == null) { reconMissing.push(t); reconBreakdown.push({ t, shares, close: null, valueUSD: null }); continue; }
+      const valueUSD = shares * close;
+      holdingsValueUSD += valueUSD;
+      reconBreakdown.push({ t, shares, close, valueUSD });
+    }
+    reconBreakdown.sort((a, b) => (b.valueUSD ?? 0) - (a.valueUSD ?? 0));
+
+    // Null until prices have loaded AND there's ≥1 start-held ticker (and a start
+    // FX rate to convert the cash leg). Falls back to manual cash via ?? below.
+    const reconStartValueUSD =
+      (reconPrices && heldTickers.length && startCashEur != null && eurStart && eurStart > 0)
+        ? holdingsValueUSD + startCashEur * eurStart
+        : null;
+
+    // Display values (EUR)
+    const reconCashEur     = startCashEur;
+    const reconHoldingsEur = eurStart && eurStart > 0 ? holdingsValueUSD / eurStart : null;
+    const reconTotalEur    = reconStartValueUSD != null && eurStart > 0 ? reconStartValueUSD / eurStart : null;
+
     // Portfolio beta — market-cap weighted (Phase 9B)
     let totalMktCap = 0, weightedBeta = 0;
     valArr.forEach(v => {
@@ -423,7 +539,9 @@ export default function PerformanceV2Page() {
 
     if (twrDeposits.length > 0) {
       const T           = (spyLen - 1) - startIdx;
-      const startValue  = startingCashUSD;
+      // Stage 2b: prefer the reconstructed start value (cash + start-held holdings);
+      // fall back to manual starting cash until start-date prices have loaded.
+      const startValue  = reconStartValueUSD ?? startingCashUSD;
       const totalDep    = twrDeposits.reduce((s, d) => s + d.amountUSD, 0);
       const weightedDep = twrDeposits.reduce((s, d) => {
         const t_i = d.idx - startIdx;
@@ -441,139 +559,24 @@ export default function PerformanceV2Page() {
         twr, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact,
         totalCostBasis, adjustedCostBasis, startingCashUSD, netCapital,
         realizedGainsUSD, hasRealizedData: realizedData != null,
+        // Stage 2b reconstructed start value (drives startValue above) + display fields.
+        // reconStartDate is intentionally NOT returned here — the render reads the
+        // top-level reconStartDate const so this memo need not depend on it.
+        reconStartValueUSD, reconCashEur, reconHoldingsEur, reconTotalEur,
+        reconHoldingsValueUSD: holdingsValueUSD, reconBreakdown, reconMissing,
       },
     };
-  }, [rawData, holdings, startDate, realizedData, startingCash, cashCurrency]);
+  }, [rawData, holdings, startDate, realizedData, startingCash, cashCurrency, startHeld, startCashEur, startReconPrices]);
 
-  /* ── Stage 2a: reconstructed start value (DISPLAY ONLY — NOT wired to TWR) ────
-     Rebuilds portfolio value as of the start date from the data persisted in
-     Stage 1 (realizedData.tradeLegs + realizedData.cashEvents). This is a
-     verification preview only — the Modified Dietz startValue above is left
-     unchanged on purpose. ─────────────────────────────────────────────────── */
-
-  // Do we have the Stage-1 arrays at all? Drives the graceful "no data" note.
-  const hasReconData =
-    Array.isArray(realizedData?.tradeLegs) && Array.isArray(realizedData?.cashEvents);
-
-  // Effective reconstruction date. Falls back to the page's estimated date when
-  // the user hasn't pinned a start date, so the preview is still useful.
-  const reconStartDate = startDate ?? estimatedDate ?? '';
-
-  // Start-held shares: net signed shares per ticker across all legs dated strictly
-  // before the start date. Floor ≤0 to drop fully-closed / short artifacts
-  // (e.g. AVGO buy 3 / sell 30 → −27 → dropped). tradeLeg.d / reconStartDate are
-  // ISO YYYY-MM-DD, so string comparison is correct.
-  const startHeld = useMemo(() => {
-    if (!hasReconData || !reconStartDate) return null;
-    const net = {};
-    for (const leg of realizedData.tradeLegs) {
-      if (!leg?.t || !leg?.d) continue;
-      if (leg.d < reconStartDate) net[leg.t] = (net[leg.t] ?? 0) + (leg.s ?? 0);
-    }
-    const held = {};
-    for (const [t, sh] of Object.entries(net)) {
-      if (sh > 1e-9) held[t] = Math.round(sh * 1e8) / 1e8;
-    }
-    return held;
-  }, [hasReconData, realizedData, reconStartDate]);
-
-  // Cash at start (EUR): sum of every cashEvent dated strictly before the start date.
-  const startCashEur = useMemo(() => {
-    if (!hasReconData || !reconStartDate) return null;
-    let sum = 0;
-    for (const e of realizedData.cashEvents) {
-      if (e?.date && e.date < reconStartDate && typeof e.amountEur === 'number') sum += e.amountEur;
-    }
-    return sum;
-  }, [hasReconData, realizedData, reconStartDate]);
-
-  // Fetch start-date closes for the start-held tickers (≤20). years=2 gives margin
-  // around the start date. Mirrors the dashboard's historical-prices consumption:
-  // the per-ticker series is sorted ascending, so the close on — or the most recent
-  // trading day before — the start date is the last row with date ≤ reconStartDate
-  // (carry-forward over weekends/holidays).
+  // Secondary detail: dump the per-ticker reconstruction breakdown to the console.
   useEffect(() => {
-    if (!startHeld || !reconStartDate) { setStartReconPrices(null); return; }
-    const tickers = Object.keys(startHeld).slice(0, 20);
-    if (!tickers.length) { setStartReconPrices({ prices: {}, missing: [] }); return; }
-
-    let cancelled = false;
-    setStartReconPrices({ loading: true });
-    (async () => {
-      try {
-        const res  = await fetch(`/api/historical-prices?tickers=${tickers.join(',')}&years=2`);
-        const json = await res.json();
-        if (cancelled) return;
-
-        const byTicker = {};
-        for (const { ticker, prices: p } of (Array.isArray(json?.data) ? json.data : [])) {
-          byTicker[ticker] = p ?? [];
-        }
-        const prices = {};
-        const missing = [];
-        for (const t of tickers) {
-          let close = null;
-          for (const row of (byTicker[t] ?? [])) {
-            if (row.date <= reconStartDate) close = row.close; // carry forward
-            else break;
-          }
-          if (close == null) missing.push(t);
-          else prices[t] = close;
-        }
-        setStartReconPrices({ prices, missing });
-      } catch (e) {
-        if (!cancelled) setStartReconPrices({ error: e?.message ?? 'Failed to load start-date prices' });
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [startHeld, reconStartDate]);
-
-  // Combine cash + holdings into the reconstructed start value.
-  // USD→EUR uses eurStart (the start-date FX from the stats memo), NOT the latest
-  // eurUsd. Start-held tickers here are US-listed (USD), so historical closes are
-  // USD; EUR-listed start holdings would need their own conversion (deferred).
-  const startRecon = useMemo(() => {
-    if (!startHeld || startCashEur == null) return null;
-    const eurStart  = stats?.eurStart ?? null;
-    const priceSt   = startReconPrices;
-    const havePrice = priceSt && priceSt.prices;
-
-    const breakdown = [];
-    const missing   = [];
-    let holdingsValueUSD = 0;
-    for (const t of Object.keys(startHeld)) {
-      const shares = startHeld[t];
-      const close  = havePrice ? priceSt.prices[t] : undefined;
-      if (close == null) { missing.push(t); breakdown.push({ t, shares, close: null, valueUSD: null }); continue; }
-      const valueUSD = shares * close;
-      holdingsValueUSD += valueUSD;
-      breakdown.push({ t, shares, close, valueUSD });
-    }
-    const holdingsValueEur = eurStart && eurStart > 0 ? holdingsValueUSD / eurStart : null;
-    const totalEur         = holdingsValueEur != null ? startCashEur + holdingsValueEur : null;
-
-    return {
-      reconStartDate,
-      cashEur:          startCashEur,
-      holdingsValueUSD,
-      holdingsValueEur,
-      totalEur,
-      eurStart,
-      breakdown:        breakdown.sort((a, b) => (b.valueUSD ?? 0) - (a.valueUSD ?? 0)),
-      missing,
-      loading:          !!priceSt?.loading,
-      error:            priceSt?.error ?? null,
-    };
-  }, [startHeld, startCashEur, startReconPrices, stats, reconStartDate]);
-
-  // Secondary detail: dump the per-ticker breakdown to the console for inspection.
-  useEffect(() => {
-    if (startRecon && !startRecon.loading && !startRecon.error && startRecon.breakdown.length) {
-      console.table(startRecon.breakdown.map(b => ({
+    const bd = stats?.reconBreakdown;
+    if (bd && bd.length && !startReconPrices?.loading && !startReconPrices?.error) {
+      console.table(bd.map(b => ({
         ticker: b.t, shares: b.shares, startClose: b.close, valueUSD: b.valueUSD,
       })));
     }
-  }, [startRecon]);
+  }, [stats, startReconPrices]);
 
   /* ── Date handlers ───────────────────────────────────────────────────────── */
   function handleDateSave() {
@@ -591,6 +594,9 @@ export default function PerformanceV2Page() {
   }
 
   const s        = stats;
+  // Stage 2b: the reconstructed start value is driving the return whenever it
+  // resolved to a number — the manual "Starting cash" field is then not used.
+  const reconActive = s?.reconStartValueUSD != null;
   const xInterval = Math.max(1, Math.floor((chartData.length - 1) / 5));
   const eurXInt   = Math.max(1, Math.floor((eurData.length   - 1) / 5));
 
@@ -679,10 +685,17 @@ export default function PerformanceV2Page() {
                 </button>
               )}
 
-              {/* Starting cash input + EUR/USD toggle */}
+              {/* Starting cash input + EUR/USD toggle.
+                  When the reconstructed start value is driving the return
+                  (reconActive), this manual field is non-authoritative — disabled
+                  and dimmed so the stale figure doesn't look like it still feeds
+                  the number. It re-enables as a fallback when reconstruction is
+                  unavailable (no data / prices not loaded). */}
               <div
-                style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}
-                title="Enter your cash balance at the start date to subtract it from cost basis for accurate P&L calculations"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', opacity: reconActive ? 0.45 : 1 }}
+                title={reconActive
+                  ? 'Not used: your start value is reconstructed from your trades. Cleared from the return until reconstruction is unavailable.'
+                  : 'Enter your cash balance at the start date to subtract it from cost basis for accurate P&L calculations'}
               >
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Starting cash:</span>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -698,6 +711,7 @@ export default function PerformanceV2Page() {
                     step="0.01"
                     value={startingCash || ''}
                     placeholder="0.00"
+                    disabled={reconActive}
                     onChange={e => {
                       const v = parseFloat(e.target.value) || 0;
                       setStartingCash(v);
@@ -708,12 +722,14 @@ export default function PerformanceV2Page() {
                       background: 'var(--bg-card)', border: '1px solid var(--border-color)',
                       borderRadius: 6, padding: '4px 8px 4px 22px', fontSize: 12,
                       color: 'var(--text-primary)', outline: 'none', width: 100,
+                      cursor: reconActive ? 'not-allowed' : 'text',
                     }}
                   />
                 </div>
                 {['EUR', 'USD'].map(ccy => (
                   <button
                     key={ccy}
+                    disabled={reconActive}
                     onClick={() => {
                       setCashCurrency(ccy);
                       localStorage.setItem('starting_cash_currency', ccy);
@@ -721,7 +737,8 @@ export default function PerformanceV2Page() {
                     style={{
                       background: 'none',
                       border: `1px solid ${cashCurrency === ccy ? '#22d3ee' : 'var(--border-color)'}`,
-                      borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer',
+                      borderRadius: 4, padding: '3px 7px', fontSize: 11,
+                      cursor: reconActive ? 'not-allowed' : 'pointer',
                       color: cashCurrency === ccy ? '#22d3ee' : 'var(--text-muted)',
                       fontWeight: cashCurrency === ccy ? 600 : 400,
                       lineHeight: 1,
@@ -730,72 +747,80 @@ export default function PerformanceV2Page() {
                     {ccy === 'EUR' ? '€' : '$'}
                   </button>
                 ))}
+                {reconActive && (
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    not used
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* ── Stage 2a preview: reconstructed start value (DISPLAY ONLY) ────
-                Verification panel — NOT wired into the TWR / Modified Dietz math. */}
+            {/* ── START VALUE — reconstructed from trades (drives the return) ────
+                Now feeds the Modified Dietz startValue (s.reconStartValueUSD),
+                with manual starting cash as the fallback until prices load. */}
             <div style={{
-              background: 'var(--bg-card)', border: '1px dashed var(--border-color)',
+              background: 'var(--bg-card)', border: '1px solid var(--border-color)',
               borderRadius: 10, padding: '14px 18px',
             }}>
               <div style={{
                 fontSize: 11, fontWeight: 700, letterSpacing: '.06em',
                 textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8,
               }}>
-                Reconstructed start value — preview
+                Start value — reconstructed from your trades
               </div>
 
               {!hasReconData ? (
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                   No <code>tradeLegs</code> / <code>cashEvents</code> data — re-upload your
-                  broker file to enable start-value reconstruction.
+                  broker file to reconstruct your start value. Return falls back to
+                  manual starting cash.
                 </div>
               ) : !reconStartDate ? (
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                   Set a start date to reconstruct the portfolio value as of that date.
                 </div>
-              ) : startRecon?.loading ? (
+              ) : startReconPrices?.loading ? (
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                  Loading start-date prices…
+                  Loading start-date prices… (return temporarily using manual starting cash)
                 </div>
-              ) : startRecon?.error ? (
+              ) : startReconPrices?.error ? (
                 <div style={{ fontSize: 12, color: 'var(--negative)' }}>
-                  Start-date price fetch failed: {startRecon.error}
+                  Start-date price fetch failed: {startReconPrices.error} — return falls back
+                  to manual starting cash.
                 </div>
-              ) : startRecon ? (
+              ) : s && s.reconBreakdown ? (
                 <>
                   {/* Headline components */}
                   <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', marginBottom: 12 }}>
                     <div>
                       <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Reconstructed total (EUR)</div>
                       <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {startRecon.totalEur != null ? `€${fmt(startRecon.totalEur)}` : '—'}
+                        {s.reconTotalEur != null ? `€${fmt(s.reconTotalEur)}` : '—'}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        as of {startRecon.reconStartDate}{startDate ? '' : ' (estimated)'}
+                        as of {reconStartDate}{startDate ? '' : ' (estimated)'}
                       </div>
                     </div>
                     <div>
                       <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Cash</div>
                       <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
-                        €{fmt(startRecon.cashEur)}
+                        {s.reconCashEur != null ? `€${fmt(s.reconCashEur)}` : '—'}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>cashEvents &lt; start</div>
                     </div>
                     <div>
                       <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Holdings</div>
                       <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {startRecon.holdingsValueEur != null ? `€${fmt(startRecon.holdingsValueEur)}` : '—'}
+                        {s.reconHoldingsEur != null ? `€${fmt(s.reconHoldingsEur)}` : '—'}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        ${fmt(startRecon.holdingsValueUSD)} @ eurStart {startRecon.eurStart != null ? startRecon.eurStart.toFixed(4) : '—'}
+                        ${fmt(s.reconHoldingsValueUSD)} @ eurStart {s.eurStart != null ? s.eurStart.toFixed(4) : '—'}
                       </div>
                     </div>
                   </div>
 
                   {/* Per-ticker breakdown */}
-                  {startRecon.breakdown.length > 0 && (
+                  {s.reconBreakdown.length > 0 && (
                     <table style={{ fontSize: 11, borderCollapse: 'collapse', width: '100%', maxWidth: 460 }}>
                       <thead>
                         <tr style={{ color: 'var(--text-muted)', textAlign: 'left' }}>
@@ -806,7 +831,7 @@ export default function PerformanceV2Page() {
                         </tr>
                       </thead>
                       <tbody>
-                        {startRecon.breakdown.map(b => (
+                        {s.reconBreakdown.map(b => (
                           <tr key={b.t} style={{ color: 'var(--text-secondary)' }}>
                             <td style={{ padding: '2px 8px 2px 0', color: 'var(--text-primary)' }}>{b.t}</td>
                             <td style={{ padding: '2px 8px', textAlign: 'right' }}>{fmt(b.shares, 0)}</td>
@@ -823,14 +848,25 @@ export default function PerformanceV2Page() {
                   )}
 
                   {/* Surface tickers with no available start-date close (not valued at 0) */}
-                  {startRecon.missing.length > 0 && (
+                  {s.reconMissing.length > 0 && (
                     <div style={{ fontSize: 11, color: 'var(--negative)', marginTop: 8 }}>
-                      No start-date close for: {startRecon.missing.join(', ')} — excluded from
+                      No start-date close for: {s.reconMissing.join(', ')} — excluded from
                       holdings value (not counted as 0).
                     </div>
                   )}
+
+                  {/* State of play: is the reconstructed value actually driving the return? */}
+                  <div style={{ fontSize: 11, color: reconActive ? 'var(--positive)' : 'var(--text-muted)', marginTop: 8 }}>
+                    {reconActive
+                      ? 'Now driving the Modified Dietz start value (manual starting cash not used).'
+                      : 'Reconstruction incomplete — return temporarily using manual starting cash.'}
+                  </div>
                 </>
-              ) : null}
+              ) : (
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  Computing reconstructed start value…
+                </div>
+              )}
             </div>
 
             {/* ── Inline date picker popover ──────────────────────────────────── */}
