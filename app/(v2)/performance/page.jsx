@@ -132,7 +132,7 @@ function MetricCard({ label, value, sub, valueColor }) {
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 export default function PerformanceV2Page() {
   const { user, isLoaded, isSignedIn } = useUser();
-  const { holdings, error: holdingsError, refresh: holdingsRefresh } = useHoldings();
+  const { holdings, cash: cashData, error: holdingsError, refresh: holdingsRefresh } = useHoldings();
   // ── All 11 state slots declared now (9B/9C consume remaining fields) ──────
   const [rawData,        setRawData]        = useState(null);
   const [dataLoading,    setDataLoading]    = useState(false);
@@ -551,6 +551,21 @@ export default function PerformanceV2Page() {
       if (denom > 0) twr = ((portNow - startValue - totalDep) / denom) * 100;
     }
 
+    // ── Display-layer EUR figures (USD→EUR = ÷ eurUsd; cashData is the live cash
+    // balance). These feed the cards only — no return computation depends on them.
+    const holdingsValueEur    = portNow / eurUsd;
+    const currentCashEur      = cashData?.currency === 'EUR'
+      ? (cashData.amount ?? 0)
+      : (cashData?.amount ?? 0) / eurUsd;
+    const portfolioValueEur   = holdingsValueEur + currentCashEur;   // holdings + cash
+    const unrealizedEur       = (portNow - totalCostBasis) / eurUsd; // matches the dashboard
+    const realizedEur         = realizedData?.totalPnl ?? 0;         // already EUR
+    const totalPnlEur         = realizedEur + unrealizedEur;
+    const spyMirrorEur        = spyMirrorNow != null ? spyMirrorNow / eurUsd : null;
+    const adjustedCostBasisEur = adjustedCostBasis / eurUsd;
+    const netCapitalEur        = netCapital / eurUsd;
+    const realizedGainsEur     = realizedGainsUSD / eurUsd;
+
     return {
       chartData,
       eurData,
@@ -564,9 +579,13 @@ export default function PerformanceV2Page() {
         // top-level reconStartDate const so this memo need not depend on it.
         reconStartValueUSD, reconCashEur, reconHoldingsEur, reconTotalEur,
         reconHoldingsValueUSD: holdingsValueUSD, reconBreakdown, reconMissing,
+        // Stage 2: display-layer EUR figures for the cards (holdings + cash, P&L block).
+        holdingsValueEur, currentCashEur, portfolioValueEur, unrealizedEur,
+        realizedEur, totalPnlEur, spyMirrorEur, adjustedCostBasisEur,
+        netCapitalEur, realizedGainsEur,
       },
     };
-  }, [rawData, holdings, startDate, realizedData, startingCash, cashCurrency, startHeld, startCashEur, startReconPrices]);
+  }, [rawData, holdings, cashData, startDate, realizedData, startingCash, cashCurrency, startHeld, startCashEur, startReconPrices]);
 
   // Secondary detail: dump the per-ticker reconstruction breakdown to the console.
   useEffect(() => {
@@ -827,7 +846,7 @@ export default function PerformanceV2Page() {
                           <th style={{ padding: '2px 8px 2px 0', fontWeight: 600 }}>Ticker</th>
                           <th style={{ padding: '2px 8px', fontWeight: 600, textAlign: 'right' }}>Shares</th>
                           <th style={{ padding: '2px 8px', fontWeight: 600, textAlign: 'right' }}>Start close</th>
-                          <th style={{ padding: '2px 0 2px 8px', fontWeight: 600, textAlign: 'right' }}>Value (USD)</th>
+                          <th style={{ padding: '2px 0 2px 8px', fontWeight: 600, textAlign: 'right' }}>Value (EUR)</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -839,7 +858,7 @@ export default function PerformanceV2Page() {
                               {b.close != null ? `$${fmt(b.close)}` : <span style={{ color: 'var(--negative)' }}>no close</span>}
                             </td>
                             <td style={{ padding: '2px 0 2px 8px', textAlign: 'right' }}>
-                              {b.valueUSD != null ? `$${fmt(b.valueUSD)}` : '—'}
+                              {b.valueUSD != null && s.eurStart ? `€${fmt(b.valueUSD / s.eurStart)}` : '—'}
                             </td>
                           </tr>
                         ))}
@@ -910,26 +929,19 @@ export default function PerformanceV2Page() {
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <StatCard
                 label="Portfolio Value"
-                value={s ? `$${fmt(s.portNow)}` : '…'}
-                sub={
-                  s == null ? null :
-                  s.startingCashUSD > 0 && s.realizedGainsUSD > 0
-                    ? `$${fmt(s.totalCostBasis)} − ${cashCurrency === 'EUR' ? '€' : '$'}${fmt(startingCash)} cash = $${fmt(s.adjustedCostBasis)} + $${fmt(s.realizedGainsUSD, 0)} reinvested = $${fmt(s.netCapital, 0)}`
-                    : s.startingCashUSD > 0
-                    ? `$${fmt(s.totalCostBasis)} − ${cashCurrency === 'EUR' ? '€' : '$'}${fmt(startingCash)} cash = $${fmt(s.adjustedCostBasis)}`
-                    : `Cost basis: $${fmt(s.totalCostBasis)}`
-                }
+                value={s ? `€${fmt(s.portfolioValueEur)}` : '…'}
+                sub={s == null ? null : `Holdings €${fmt(s.holdingsValueEur, 0)} + Cash €${fmt(s.currentCashEur, 0)}`}
                 valueColor={s && s.portNow >= s.adjustedCostBasis ? 'var(--positive)' : s ? 'var(--negative)' : undefined}
               />
               <StatCard
                 label="SPY Mirror"
-                value={s ? `$${fmt(s.spyMirrorNow)}` : '…'}
+                value={s ? `€${fmt(s.spyMirrorEur)}` : '…'}
                 sub={
                   s == null ? null :
                   s.hasRealizedData && s.realizedGainsUSD > 0
-                    ? `Based on $${fmt(s.adjustedCostBasis, 0)} net capital + $${fmt(s.realizedGainsUSD, 0)} reinvested gains · SPY ${fmtD(s.spyReturn, 1)}`
+                    ? `Based on €${fmt(s.adjustedCostBasisEur, 0)} net capital + €${fmt(s.realizedGainsEur, 0)} reinvested gains · SPY ${fmtD(s.spyReturn, 1)}`
                     : s.hasRealizedData
-                    ? `Based on $${fmt(s.netCapital, 0)} net capital deployed · SPY ${fmtD(s.spyReturn, 1)}`
+                    ? `Based on €${fmt(s.netCapitalEur, 0)} net capital deployed · SPY ${fmtD(s.spyReturn, 1)}`
                     : s.spyReturn != null ? `SPY return: ${fmtD(s.spyReturn, 1)}` : null
                 }
               />
@@ -1029,7 +1041,7 @@ export default function PerformanceV2Page() {
               />
               <MetricCard
                 label="Currency Impact"
-                value={s?.currencyImpact != null ? `$${fmt(Math.abs(s.currencyImpact))}` : '—'}
+                value={s?.currencyImpact != null ? `€${fmt(Math.abs(s.currencyImpact))}` : '—'}
                 sub={
                   s?.currencyImpact == null ? 'No EUR/USD data' :
                   s.currencyImpact >= 0     ? 'Tailwind (USD weakened)' :
@@ -1061,6 +1073,22 @@ export default function PerformanceV2Page() {
                   />
                 );
               })()}
+              {s && (
+                <MetricCard
+                  label="Unrealized P&L"
+                  value={(s.unrealizedEur >= 0 ? '+€' : '-€') + fmt(Math.abs(s.unrealizedEur))}
+                  sub="Open positions · market − cost"
+                  valueColor={clr(s.unrealizedEur)}
+                />
+              )}
+              {s && (
+                <MetricCard
+                  label="Total P&L"
+                  value={(s.totalPnlEur >= 0 ? '+€' : '-€') + fmt(Math.abs(s.totalPnlEur))}
+                  sub="Realized + unrealized"
+                  valueColor={clr(s.totalPnlEur)}
+                />
+              )}
             </div>
 
             {/* ── EUR/USD AreaChart ─────────────────────────────────────────── */}
