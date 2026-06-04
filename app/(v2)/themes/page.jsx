@@ -18,6 +18,8 @@ const VERDICT_COLOR = {
 };
 
 const FONT = "'Segoe UI', system-ui, -apple-system, sans-serif";
+const WORLDVIEW_MAX = 300;
+const RESCORE_CONCURRENCY = 2;
 
 // Table cell styles modeled on dashboard/_components/HoldingsTable.jsx
 const headerCell = (align) => ({
@@ -45,7 +47,7 @@ const cellBase = (align) => ({
 const fmtWeight = (w) => (w == null ? '—' : `${w.toFixed(1)}%`);
 
 // ─────────────────────────────────────────────────────────────
-// Verdict pill (style modeled on MetricChip / BeatChip)
+// Pills (style modeled on MetricChip / BeatChip)
 // ─────────────────────────────────────────────────────────────
 function VerdictPill({ verdict, rationale, onClick, active }) {
   const color = VERDICT_COLOR[verdict] ?? 'var(--text-muted)';
@@ -77,7 +79,8 @@ function VerdictPill({ verdict, rationale, onClick, active }) {
   );
 }
 
-function NotScoredPill() {
+// Generic non-interactive pill (Not scored / Scoring… / Failed)
+function StatePill({ label, color = 'var(--text-muted)', border = 'var(--border-color)' }) {
   return (
     <span style={{
       display: 'inline-flex',
@@ -87,12 +90,12 @@ function NotScoredPill() {
       fontWeight: 600,
       padding: '3px 9px',
       borderRadius: 999,
-      border: '1px solid var(--border-color)',
-      color: 'var(--text-muted)',
+      border: `1px solid ${border}`,
+      color,
       background: 'transparent',
       whiteSpace: 'nowrap',
     }}>
-      Not scored
+      {label}
     </span>
   );
 }
@@ -136,6 +139,7 @@ function ExposureBar({ name, exposure }) {
 function ThemesPageInner() {
   const { isLoaded, isSignedIn } = useUser();
   const { holdings } = useHoldings();
+  const signedIn = !!isSignedIn;
 
   // Live prices for market-value weights. Reuses the dashboard's exact path:
   // /api/prices?tickers=… → priceMap[ticker] = quote, weight = mktValue / total.
@@ -153,7 +157,31 @@ function ThemesPageInner() {
       });
   }, [holdings]);
 
-  // Real rows for signed-in users (weights from live prices; verdicts not scored yet).
+  // Cached classifications + saved worldview (signed-in only). No auto-scoring.
+  const [verdictsByTicker, setVerdictsByTicker] = useState({});
+  const [worldview, setWorldview] = useState(null); // resolved below
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!signedIn) { setWorldview(MOCK_WORLDVIEW); return; }
+    let cancelled = false;
+    setWorldview(DEFAULT_WORLDVIEW); // default until the fetch resolves
+    fetch('/api/user-settings')
+      .then(r => r.json())
+      .then(j => { if (!cancelled && j?.worldview) setWorldview(j.worldview); })
+      .catch(() => {});
+    fetch('/api/theme-classifications')
+      .then(r => r.json())
+      .then(j => {
+        if (cancelled) return;
+        const map = {};
+        if (Array.isArray(j?.classifications)) j.classifications.forEach(c => { map[c.ticker] = c.verdicts; });
+        setVerdictsByTicker(map);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isLoaded, signedIn]);
+
+  // Real rows for signed-in users (weights from live prices; verdicts from cache).
   const realRows = useMemo(() => {
     if (!holdings?.length) return [];
     const enriched = holdings.map(h => {
@@ -165,14 +193,12 @@ function ThemesPageInner() {
     return enriched.map(r => ({
       ticker: r.ticker,
       weightPct: (r.mktValue != null && total > 0) ? (r.mktValue / total) * 100 : null,
-      verdicts: null, // scoring wired in the next stage
+      verdicts: verdictsByTicker[r.ticker] ?? null,
     }));
-  }, [holdings, prices]);
+  }, [holdings, prices, verdictsByTicker]);
 
-  const signedIn   = !!isSignedIn;
-  const worldview  = signedIn ? DEFAULT_WORLDVIEW : MOCK_WORLDVIEW;
-  const rows       = signedIn ? realRows : MOCK_ROWS;
-  const exposure   = signedIn ? null : MOCK_EXPOSURE;
+  const worldviewText = worldview ?? (signedIn ? DEFAULT_WORLDVIEW : MOCK_WORLDVIEW);
+  const rows = signedIn ? realRows : MOCK_ROWS;
 
   // Loading / empty states for the signed-in matrix
   const holdingsLoading = signedIn && holdings === null;
@@ -183,11 +209,130 @@ function ThemesPageInner() {
   const keyOf = (t, id) => `${t}::${id}`;
   const toggle = (t, id) => setExpanded(prev => (prev === keyOf(t, id) ? null : keyOf(t, id)));
 
+  // ── Worldview edit ──────────────────────────────────────────────────────────
+  const [editing, setEditing]     = useState(false);
+  const [draft, setDraft]         = useState('');
+  const [savingWv, setSavingWv]   = useState(false);
+  const [wvHint, setWvHint]       = useState(false);
+
+  function startEdit() { setDraft(worldviewText); setWvHint(false); setEditing(true); }
+  function cancelEdit() { setEditing(false); }
+  async function saveWorldview() {
+    const text = draft.trim();
+    if (!text || text.length > WORLDVIEW_MAX) return;
+    setSavingWv(true);
+    try {
+      const res = await fetch('/api/user-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ worldview: text }),
+      });
+      const json = await res.json();
+      if (res.ok && json.worldview) {
+        setWorldview(json.worldview);
+        setEditing(false);
+        setWvHint(true);
+      }
+    } catch {}
+    setSavingWv(false);
+  }
+
+  // ── Re-score (concurrency-2 promise pool, no library) ────────────────────────
+  const [scoreStatus, setScoreStatus] = useState({}); // ticker -> 'scoring' | 'failed'
+  const [scoring, setScoring]         = useState(false);
+  const [doneCount, setDoneCount]     = useState(0);
+
+  const scoreTickers = signedIn ? realRows.map(r => r.ticker) : [];
+  const canRescore = signedIn && scoreTickers.length > 0 && !scoring;
+
+  async function rescore() {
+    if (!canRescore) return;
+    const tickers = [...scoreTickers];
+    setScoring(true);
+    setDoneCount(0);
+    setScoreStatus(() => { const m = {}; tickers.forEach(t => { m[t] = 'scoring'; }); return m; });
+
+    let idx = 0;
+    let done = 0;
+    async function worker() {
+      while (idx < tickers.length) {
+        const t = tickers[idx++];
+        try {
+          const res = await fetch('/api/theme-classify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticker: t }),
+          });
+          const json = await res.json();
+          if (!res.ok || !json.verdicts) throw new Error('failed');
+          setVerdictsByTicker(prev => ({ ...prev, [t]: json.verdicts }));
+          setScoreStatus(prev => { const m = { ...prev }; delete m[t]; return m; });
+        } catch {
+          setScoreStatus(prev => ({ ...prev, [t]: 'failed' }));
+        } finally {
+          done += 1;
+          setDoneCount(done);
+        }
+      }
+    }
+    const pool = Math.min(RESCORE_CONCURRENCY, tickers.length);
+    await Promise.all(Array.from({ length: pool }, () => worker()));
+    setScoring(false);
+  }
+
+  // ── Exposure (signed-in): compute once every holding is scored ───────────────
+  const allScored = signedIn && realRows.length > 0 && realRows.every(r => verdictsByTicker[r.ticker]);
+  const computedExposure = useMemo(() => {
+    if (!allScored) return null;
+    const totals = {};
+    THESES.forEach(t => { totals[t.id] = { benefits: 0, hurt: 0, neutral: 0 }; });
+    realRows.forEach(r => {
+      const w = r.weightPct ?? 0;
+      const v = verdictsByTicker[r.ticker];
+      THESES.forEach(t => {
+        const verdict = v?.[t.id]?.verdict;
+        if (verdict === 'Benefits') totals[t.id].benefits += w;
+        else if (verdict === 'Hurt') totals[t.id].hurt += w;
+        else if (verdict === 'Neutral') totals[t.id].neutral += w;
+        else if (verdict === 'Mixed') { totals[t.id].benefits += w / 2; totals[t.id].hurt += w / 2; }
+      });
+    });
+    const out = {};
+    THESES.forEach(t => {
+      out[t.id] = {
+        benefitsPct: Math.round(totals[t.id].benefits),
+        hurtPct:     Math.round(totals[t.id].hurt),
+        neutralPct:  Math.round(totals[t.id].neutral),
+      };
+    });
+    return out;
+  }, [allScored, realRows, verdictsByTicker]);
+
   if (!isLoaded) {
     return <main style={{ padding: '18px 20px', color: 'var(--text-muted)', fontSize: 13 }}>Loading…</main>;
   }
 
   const totalCols = 2 + THESES.length;
+
+  // Cell content for a given row × thesis, honoring transient scoring status.
+  function cellContent(row, thesisId) {
+    const status = signedIn ? scoreStatus[row.ticker] : null;
+    if (status === 'scoring') return <StatePill label="Scoring…" />;
+    if (status === 'failed')  return <StatePill label="Failed" color="var(--negative)" border="var(--negative)" />;
+    if (row.verdicts == null) return <NotScoredCell />;
+    const v = row.verdicts[thesisId];
+    if (!v) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+    return (
+      <VerdictPill
+        verdict={v.verdict}
+        rationale={v.rationale}
+        active={expanded === keyOf(row.ticker, thesisId)}
+        onClick={() => toggle(row.ticker, thesisId)}
+      />
+    );
+  }
+
+  function NotScoredCell() { return <StatePill label="Not scored" />; }
 
   return (
     <main style={{
@@ -216,14 +361,17 @@ function ThemesPageInner() {
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Theme Research</h1>
           <button
             type="button"
-            disabled
-            title="Coming soon"
+            onClick={startEdit}
+            disabled={!signedIn || editing}
+            title={signedIn ? undefined : 'Sign in to edit'}
             style={{
               fontFamily: FONT, fontSize: 12, fontWeight: 600,
               padding: '6px 14px', borderRadius: 6,
-              border: '1px solid var(--border-color)',
-              background: 'transparent', color: 'var(--text-muted)',
-              cursor: 'not-allowed', opacity: 0.7,
+              border: `1px solid ${signedIn && !editing ? 'var(--accent)' : 'var(--border-color)'}`,
+              background: 'transparent',
+              color: signedIn && !editing ? 'var(--accent)' : 'var(--text-muted)',
+              cursor: signedIn && !editing ? 'pointer' : 'not-allowed',
+              opacity: signedIn && !editing ? 1 : 0.7,
             }}
           >Edit</button>
         </div>
@@ -236,7 +384,65 @@ function ThemesPageInner() {
           <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--accent-cyan)', marginBottom: 6 }}>
             Worldview
           </div>
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--text-secondary)' }}>{worldview}</p>
+          {editing ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value.slice(0, WORLDVIEW_MAX))}
+                maxLength={WORLDVIEW_MAX}
+                rows={3}
+                style={{
+                  width: '100%', resize: 'vertical',
+                  background: 'var(--bg-input)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 6, padding: '8px 10px',
+                  color: 'var(--text-primary)', fontSize: 14, lineHeight: 1.5,
+                  fontFamily: FONT, boxSizing: 'border-box',
+                }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                  {draft.trim().length}/{WORLDVIEW_MAX}
+                </span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    disabled={savingWv}
+                    style={{
+                      fontFamily: FONT, fontSize: 12, fontWeight: 600,
+                      padding: '6px 14px', borderRadius: 6,
+                      border: '1px solid var(--border-color)',
+                      background: 'transparent', color: 'var(--text-secondary)',
+                      cursor: savingWv ? 'not-allowed' : 'pointer',
+                    }}
+                  >Cancel</button>
+                  <button
+                    type="button"
+                    onClick={saveWorldview}
+                    disabled={savingWv || !draft.trim() || draft.trim().length > WORLDVIEW_MAX}
+                    style={{
+                      fontFamily: FONT, fontSize: 12, fontWeight: 600,
+                      padding: '6px 14px', borderRadius: 6,
+                      border: '1px solid var(--accent)',
+                      background: 'var(--accent)', color: '#fff',
+                      cursor: (savingWv || !draft.trim()) ? 'not-allowed' : 'pointer',
+                      opacity: (savingWv || !draft.trim()) ? 0.7 : 1,
+                    }}
+                  >{savingWv ? 'Saving…' : 'Save'}</button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--text-secondary)' }}>{worldviewText}</p>
+              {wvHint && (
+                <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  Worldview updated — re-score to apply it.
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
@@ -294,6 +500,8 @@ function ThemesPageInner() {
                 <tbody>
                   {rows.map(row => {
                     const expandedThesis = THESES.find(t => expanded === keyOf(row.ticker, t.id));
+                    const showExpand = expandedThesis && row.verdicts?.[expandedThesis.id]
+                      && !(signedIn && scoreStatus[row.ticker]);
                     return (
                       <Fragment key={row.ticker}>
                         <tr>
@@ -303,25 +511,13 @@ function ThemesPageInner() {
                             </span>
                           </td>
                           <td style={cellBase('right')}>{fmtWeight(row.weightPct)}</td>
-                          {THESES.map(t => {
-                            const v = row.verdicts ? row.verdicts[t.id] : null;
-                            return (
-                              <td key={t.id} style={{ ...cellBase('center'), textAlign: 'center' }}>
-                                {row.verdicts == null ? (
-                                  <NotScoredPill />
-                                ) : v ? (
-                                  <VerdictPill
-                                    verdict={v.verdict}
-                                    rationale={v.rationale}
-                                    active={expanded === keyOf(row.ticker, t.id)}
-                                    onClick={() => toggle(row.ticker, t.id)}
-                                  />
-                                ) : '—'}
-                              </td>
-                            );
-                          })}
+                          {THESES.map(t => (
+                            <td key={t.id} style={{ ...cellBase('center'), textAlign: 'center' }}>
+                              {cellContent(row, t.id)}
+                            </td>
+                          ))}
                         </tr>
-                        {expandedThesis && row.verdicts?.[expandedThesis.id] && (
+                        {showExpand && (
                           <tr>
                             <td colSpan={totalCols} style={{
                               padding: '8px 10px 12px',
@@ -346,50 +542,45 @@ function ThemesPageInner() {
             {/* Mobile: per-holding cards (layout lives in the <style> block so it
                  doesn't override the responsive display rule) */}
             <div className="themes-matrix-mobile">
-              {rows.map(row => (
-                <div key={row.ticker} style={{
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 8,
-                  padding: '12px',
-                  background: 'var(--bg-secondary)',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <span style={{ color: 'var(--accent)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontWeight: 600, fontSize: 13 }}>
-                      {row.ticker}
-                    </span>
-                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-                      {fmtWeight(row.weightPct)}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {THESES.map(t => {
-                      const v = row.verdicts ? row.verdicts[t.id] : null;
-                      return (
-                        <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{t.name}</span>
-                            {row.verdicts == null ? (
-                              <NotScoredPill />
-                            ) : v ? (
-                              <VerdictPill
-                                verdict={v.verdict}
-                                rationale={v.rationale}
-                                active={expanded === keyOf(row.ticker, t.id)}
-                                onClick={() => toggle(row.ticker, t.id)}
-                              />
-                            ) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+              {rows.map(row => {
+                const status = signedIn ? scoreStatus[row.ticker] : null;
+                return (
+                  <div key={row.ticker} style={{
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 8,
+                    padding: '12px',
+                    background: 'var(--bg-secondary)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <span style={{ color: 'var(--accent)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontWeight: 600, fontSize: 13 }}>
+                        {row.ticker}
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                        {fmtWeight(row.weightPct)}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {THESES.map(t => {
+                        const v = row.verdicts ? row.verdicts[t.id] : null;
+                        const showExpand = v && !status && expanded === keyOf(row.ticker, t.id);
+                        return (
+                          <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{t.name}</span>
+                              {cellContent(row, t.id)}
+                            </div>
+                            {showExpand && (
+                              <p style={{ margin: 0, fontSize: 11, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+                                {v.rationale}
+                              </p>
+                            )}
                           </div>
-                          {v && expanded === keyOf(row.ticker, t.id) && (
-                            <p style={{ margin: 0, fontSize: 11, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-                              {v.rationale}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
@@ -398,13 +589,21 @@ function ThemesPageInner() {
       {/* d) Exposure bars */}
       <Card title="Theme Exposure" eyebrow={signedIn ? 'Your holdings' : 'Sample'}>
         {signedIn ? (
-          <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-            Scores pending — run your first scoring.
-          </div>
+          computedExposure ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {THESES.map(t => (
+                <ExposureBar key={t.id} name={t.name} exposure={computedExposure[t.id]} />
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+              {scoring ? 'Scoring…' : 'Scores pending — run your first scoring.'}
+            </div>
+          )
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {THESES.map(t => (
-              <ExposureBar key={t.id} name={t.name} exposure={exposure[t.id]} />
+              <ExposureBar key={t.id} name={t.name} exposure={MOCK_EXPOSURE[t.id]} />
             ))}
           </div>
         )}
@@ -414,16 +613,21 @@ function ThemesPageInner() {
       <div>
         <button
           type="button"
-          disabled
-          title="Wired in the next stage"
+          onClick={rescore}
+          disabled={!canRescore}
+          title={signedIn ? undefined : 'Sign in and add a portfolio to score'}
           style={{
             fontFamily: FONT, fontSize: 13, fontWeight: 600,
             padding: '9px 18px', borderRadius: 6,
-            border: '1px solid var(--border-color)',
-            background: 'transparent', color: 'var(--text-muted)',
-            cursor: 'not-allowed', opacity: 0.7,
+            border: `1px solid ${canRescore ? 'var(--accent)' : 'var(--border-color)'}`,
+            background: canRescore ? 'var(--accent)' : 'transparent',
+            color: canRescore ? '#fff' : 'var(--text-muted)',
+            cursor: canRescore ? 'pointer' : 'not-allowed',
+            opacity: canRescore ? 1 : 0.7,
           }}
-        >Re-score portfolio</button>
+        >
+          {scoring ? `Scoring ${doneCount}/${scoreTickers.length}…` : 'Re-score portfolio'}
+        </button>
       </div>
 
       {/* Footer */}
