@@ -165,11 +165,11 @@ function ThemesPageInner() {
     if (!signedIn) { setWorldview(MOCK_WORLDVIEW); return; }
     let cancelled = false;
     setWorldview(DEFAULT_WORLDVIEW); // default until the fetch resolves
-    fetch('/api/user-settings')
+    fetch('/api/user-settings', { cache: 'no-store' })
       .then(r => r.json())
       .then(j => { if (!cancelled && j?.worldview) setWorldview(j.worldview); })
       .catch(() => {});
-    fetch('/api/theme-classifications')
+    fetch('/api/theme-classifications', { cache: 'no-store' })
       .then(r => r.json())
       .then(j => {
         if (cancelled) return;

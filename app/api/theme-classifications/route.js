@@ -21,15 +21,5 @@ export async function GET() {
   if (error) return Response.json({ error: error.message }, { status: 500 });
 
   const classifications = (data ?? []).map(r => ({ ticker: r.ticker, verdicts: r.verdicts }));
-
-  // TEMP DEBUG — remove after cache-read bug is resolved.
-  const { count: totalForUser } = await sb
-    .from('theme_classifications')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId);
-
-  return Response.json({
-    classifications,
-    debug: { userId, thesisVersion: THESIS_VERSION, totalForUser },
-  });
+  return Response.json({ classifications }, { headers: { 'Cache-Control': 'no-store' } });
 }
