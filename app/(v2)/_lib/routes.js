@@ -10,6 +10,7 @@ export const ROUTES = {
   correlations: '/correlations',
   research:     '/financial-filings',
   researchPage: '/research',
+  themes:       '/themes',
   valuation:    '/valuation',
   earnings:     '/earnings',
   analyst:          '/ratings-and-shorts',
@@ -29,7 +30,8 @@ export const ROUTES = {
 
 export const NAV_ITEMS = [
   { id: 'dashboard',   label: 'Dashboard',       emoji: '📊', href: ROUTES.dashboard },
-  { id: 'stock-research', label: 'Research',          emoji: '📑', href: ROUTES.researchPage },
+  { id: 'stock-research', label: 'Stock Research',    emoji: '📑', href: ROUTES.researchPage },
+  { id: 'themes',         label: 'Theme Research',    emoji: '🧭', href: ROUTES.themes },
   { id: 'performance', label: 'Performance',     emoji: '📈', href: ROUTES.performance },
   { id: 'macro',       label: 'Macro',           emoji: '🌏', href: ROUTES.macro },
   { id: 'insider',     label: 'Insider',         emoji: '🔎', href: ROUTES.insider },
