@@ -206,7 +206,7 @@ function ThemesPageInner() {
         @media (max-width: 640px) {
           .themes-thesis-grid { grid-template-columns: minmax(0, 1fr) !important; }
           .themes-matrix-desktop { display: none !important; }
-          .themes-matrix-mobile { display: block !important; }
+          .themes-matrix-mobile { display: flex !important; flex-direction: column; gap: 10px; }
         }
       `}</style>
 
@@ -343,8 +343,9 @@ function ThemesPageInner() {
               </table>
             </div>
 
-            {/* Mobile: per-holding cards */}
-            <div className="themes-matrix-mobile" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* Mobile: per-holding cards (layout lives in the <style> block so it
+                 doesn't override the responsive display rule) */}
+            <div className="themes-matrix-mobile">
               {rows.map(row => (
                 <div key={row.ticker} style={{
                   border: '1px solid var(--border-color)',
