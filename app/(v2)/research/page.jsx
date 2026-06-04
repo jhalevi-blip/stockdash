@@ -515,7 +515,7 @@ function BulletList({ items }) {
 }
 
 // thesis + setThesis are lifted to ResearchPageInner so DCFCalculator can read thesis.dcfInputs
-function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings, thesis, setThesis, resolvedRevenue, priorAnnualRevenue }) {
+function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings, savedCash, thesis, setThesis, resolvedRevenue, priorAnnualRevenue }) {
   const usageKey   = `research_thesis_usage_${userId ?? 'anon'}`;
   const cacheKey   = `research_thesis_${ticker}`;
   const LIMIT      = isSignedIn ? THESIS_LIMIT_SIGNED : THESIS_LIMIT_ANON;
@@ -551,7 +551,7 @@ function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings,
     try {
       const holdingsPayload = savedHoldings
         ?.filter(h => h.t !== '__CASH__')
-        .map(h => ({ ticker: h.t, shares: h.s, avgCost: h.s > 0 ? (h.costVal / h.s) : null, marketValue: h.mktVal ?? null }))
+        .map(h => ({ ticker: h.t, shares: h.s, avgCost: h.s > 0 ? (h.costVal != null ? h.costVal / h.s : h.c) : null, marketValue: h.mktVal ?? null }))
         ?? [];
 
       const res  = await fetch('/api/stock-ai-summary', {
@@ -595,10 +595,34 @@ function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings,
     setUsageCount(newCount);
     writeThesisUsage(usageKey, newCount);
     try {
+      // Compact, portfolio-aware payload — equities only, cap at 50 positions.
+      // savedHoldings stores avg cost per share as `c`; dashboard-enriched rows
+      // use `costVal` (total) instead, so prefer costVal when present, else `c`.
+      const equities = (savedHoldings ?? [])
+        .filter(h => h.t !== '__CASH__')
+        .slice(0, 50)
+        .map(h => ({
+          ticker:  h.t,
+          shares:  h.s,
+          avgCost: h.s > 0 ? (h.costVal != null ? h.costVal / h.s : h.c) : undefined,
+        }));
+      // Prefer cash threaded from the /api/portfolio mount fetch; fall back to a
+      // __CASH__ sentinel row for the localStorage (openModal) path.
+      const cashRow = (savedHoldings ?? []).find(h => h.t === '__CASH__');
+      const cash = savedCash?.amount > 0
+        ? { amount: savedCash.amount, currency: savedCash.currency ?? 'USD' }
+        : cashRow ? { amount: cashRow.amount, currency: cashRow.currency ?? 'USD' } : undefined;
+
       const res  = await fetch('/api/stock-quick-action', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ ticker, prompt, price: quote?.price }),
+        body:    JSON.stringify({
+          ticker,
+          prompt,
+          price: quote?.price,
+          // Only attach portfolio context when the user actually holds equities.
+          ...(equities.length ? { holdings: equities, ...(cash ? { cash } : {}) } : {}),
+        }),
       });
       const json = await res.json();
       setQuickResult({ prompt, response: json.response ?? json.error ?? 'No response' });
@@ -2178,6 +2202,12 @@ function ResearchPageInner() {
         try {
           const data = await fetch('/api/portfolio').then(r => r.json());
           if (data.signedIn && data.holdings?.length) {
+            // Make the AI thesis + quick-action chips portfolio-aware. /api/portfolio
+            // returns equities only (cash is split into data.cash) in the same
+            // { t, s, c, d } shape loadUserHoldings yields, so existing savedHoldings
+            // consumers need no remapping.
+            setSavedHoldings(data.holdings);
+            setSavedCash(data.cash ?? null); // { amount, currency } | null — matches savedCash shape
             const eq = data.holdings.filter(h => h.t !== '__CASH__');
             if (eq.length) {
               const tList = eq.map(h => h.t);
@@ -2395,6 +2425,7 @@ function ResearchPageInner() {
         isSignedIn={!!isSignedIn}
         userId={user?.id}
         savedHoldings={savedHoldings}
+        savedCash={savedCash}
         thesis={thesis}
         setThesis={setThesis}
         resolvedRevenue={resolvedRevenue}
