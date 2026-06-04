@@ -2,7 +2,7 @@
 
 import { fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
 
-export default function MetricChip({ label, value, change, valueColor, onClick }) {
+export default function MetricChip({ label, value, change, sub, valueColor, onClick }) {
   return (
     <button onClick={onClick} style={{
       display: 'flex',
@@ -41,6 +41,14 @@ export default function MetricChip({ label, value, change, valueColor, onClick }
           color: colorForChange(change),
           fontVariantNumeric: 'tabular-nums',
         }}>{fmtPct(change)}</span>
+      )}
+      {sub !== undefined && (
+        <span style={{
+          fontSize: 11,
+          fontWeight: 600,
+          color: 'var(--text-muted)',
+          fontVariantNumeric: 'tabular-nums',
+        }}>{sub}</span>
       )}
     </button>
   );

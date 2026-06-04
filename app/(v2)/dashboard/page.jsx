@@ -16,7 +16,7 @@ import NewsFeed from './_components/NewsFeed';
 import InsiderActivity from './_components/InsiderActivity';
 import QuickJumpTiles from './_components/QuickJumpTiles';
 import { PORTFOLIO, HOLDINGS, AI_SUMMARY, PORTFOLIO_SPARK, ALLOCATION } from './_lib/mockData';
-import { fmtCurrency, fmtSigned } from '@/app/(v2)/_lib/format';
+import { fmtCurrency, fmtSigned, fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
 import { useHoldings } from '@/lib/useHoldings';
 
 const SECTOR_COLORS = {
@@ -45,6 +45,8 @@ export default function DashboardV2Page() {
   const router = useRouter();
   const [range,   setRange]  = useState('1M');
   const [sectors, setSectors] = useState({});
+  // S&P 500 today % for the "Today vs S&P" KPI card; null until loaded / on error.
+  const [spyPct,  setSpyPct]  = useState(null);
 
   // Real holdings + cash — Supabase-authoritative, listens to portfolio-saved event
   const { holdings, cash: cashData, error, refresh } = useHoldings();
@@ -87,6 +89,15 @@ export default function DashboardV2Page() {
         const last = candles[candles.length - 1]?.close;
         if (last != null && last > 0) setEurUsd(last);
       });
+  }, []);
+
+  // S&P 500 today % for the "Today vs S&P" card. Own fetch (same precedent as
+  // MacroStrip; /api/macro is CDN-cached). No polling; leave null on any error.
+  useEffect(() => {
+    fetch('/api/macro')
+      .then(r => r.json())
+      .then(json => setSpyPct(json?.indices?.SPY?.changesPercentage ?? null))
+      .catch(() => {});
   }, []);
 
   // Realized P&L (EUR) — mirrors the performance page's /api/realized-data fetch.
@@ -394,7 +405,16 @@ export default function DashboardV2Page() {
       <div className="dv2-kpi-grid">
         <MetricChip label="Today's P&L"  value={fmtCurrency(hero.dayChange, 0, hero.displayCurrency)}  change={hero.dayChangePct} />
         <MetricChip label="Total P&L"    value={fmtSigned(hero.totalPnl ?? hero.unrealized, 0, hero.displayCurrency)} valueColor={(hero.totalPnl ?? hero.unrealized) >= 0 ? 'var(--positive)' : 'var(--negative)'} />
-        <MetricChip label="Positions"    value={String(hero.positions)} />
+        {spyPct == null ? (
+          <MetricChip label="Today vs S&P" value="—" valueColor="var(--text-muted)" />
+        ) : (
+          <MetricChip
+            label="Today vs S&P"
+            value={`${fmtSigned(hero.dayChangePct - spyPct)} pp`}
+            valueColor={colorForChange(hero.dayChangePct - spyPct)}
+            sub={`You ${fmtPct(hero.dayChangePct)} · S&P ${fmtPct(spyPct)}`}
+          />
+        )}
         <MetricChip label="Cash"         value={fmtCurrency(hero.cash, 0, hero.cashCurrency)} />
       </div>
 
