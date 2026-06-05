@@ -10,7 +10,7 @@
 // cached snapshots in theme_temperatures invalidate. Keep thesis ids aligned with
 // _lib/theses.js.
 
-export const ENGINE_VERSION = 'temp-v2-2026-06-05';
+export const ENGINE_VERSION = 'temp-v3-2026-06-05';
 export const HISTORY_YEARS = 2;
 
 // Symbols we'll quietly drop from a basket (with a note) if the feed lacks them,

@@ -540,7 +540,6 @@ function ThemesPageInner() {
         .themes-thesis-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
         .themes-matrix-desktop { display: block; }
         .themes-matrix-mobile { display: none; }
-        .themes-legend-toggle:hover { color: var(--accent) !important; }
         @media (max-width: 640px) {
           .themes-thesis-grid { grid-template-columns: minmax(0, 1fr) !important; }
           .themes-matrix-desktop { display: none !important; }
@@ -552,21 +551,35 @@ function ThemesPageInner() {
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Theme Research</h1>
-          <button
-            type="button"
-            onClick={startEdit}
-            disabled={!signedIn || editing}
-            title={signedIn ? undefined : 'Sign in to edit'}
-            style={{
-              fontFamily: FONT, fontSize: 12, fontWeight: 600,
-              padding: '6px 14px', borderRadius: 6,
-              border: `1px solid ${signedIn && !editing ? 'var(--accent)' : 'var(--border-color)'}`,
-              background: 'transparent',
-              color: signedIn && !editing ? 'var(--accent)' : 'var(--text-muted)',
-              cursor: signedIn && !editing ? 'pointer' : 'not-allowed',
-              opacity: signedIn && !editing ? 1 : 0.7,
-            }}
-          >Edit</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setLegendOpen(o => !o)}
+              style={{
+                fontFamily: FONT, fontSize: 12, fontWeight: 600,
+                padding: '6px 14px', borderRadius: 6,
+                border: '1px solid var(--accent)',
+                background: 'transparent',
+                color: 'var(--accent)',
+                cursor: 'pointer',
+              }}
+            >ⓘ How to read this page{legendOpen ? ' ▾' : ''}</button>
+            <button
+              type="button"
+              onClick={startEdit}
+              disabled={!signedIn || editing}
+              title={signedIn ? undefined : 'Sign in to edit'}
+              style={{
+                fontFamily: FONT, fontSize: 12, fontWeight: 600,
+                padding: '6px 14px', borderRadius: 6,
+                border: `1px solid ${signedIn && !editing ? 'var(--accent)' : 'var(--border-color)'}`,
+                background: 'transparent',
+                color: signedIn && !editing ? 'var(--accent)' : 'var(--text-muted)',
+                cursor: signedIn && !editing ? 'pointer' : 'not-allowed',
+                opacity: signedIn && !editing ? 1 : 0.7,
+              }}
+            >Edit</button>
+          </div>
         </div>
         <div style={{
           background: 'var(--bg-card)',
@@ -639,6 +652,50 @@ function ThemesPageInner() {
         </div>
       </div>
 
+      {/* How to read this page — collapsible legend; toggled from the header button */}
+      {legendOpen && (
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 8,
+          padding: '14px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+        }}>
+          <LegendBlock label="Temperature">
+            Temperature measures how much of a thesis the market has already paid for — not whether the thesis is true. It blends the 12-month run, the stretch above the 200-day average (in units of the tracker&rsquo;s own normal movement), and the distance below the peak.
+          </LegendBlock>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {TEMP_LEGEND.map(([bucket, meaning]) => (
+              <div key={bucket} style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+                <TempBucketPill bucket={bucket} />
+                <span style={{ flex: '1 1 220px', minWidth: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+                  — {meaning}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <LegendBlock label="Validity">
+            The INTACT badge is a separate dial: is the thesis still true at all? The rule of thumb: buy validity, time with temperature. A cold tracker under an intact thesis is a discount; a cold tracker under a wobbling badge may be a thesis dying, not on sale.
+          </LegendBlock>
+
+          <LegendBlock label="Chips">
+            Each small chip is one gauge inside the thesis. Click it to see its numbers: 12-month run · stretch above the 200-day base (σ) · distance off the high.
+          </LegendBlock>
+
+          <LegendBlock label="Matrix">
+            In the matrix below: Benefits and Hurt are a stock&rsquo;s exposure to each thesis, Mixed means two real opposing forces, Neutral means the exposure simply isn&rsquo;t dominant. Click any verdict for its one-line reason.
+          </LegendBlock>
+
+          <div style={{ fontSize: 11, fontStyle: 'italic', color: 'var(--text-muted)' }}>
+            Observation, not advice — temperature flags stretch and discount; it doesn&rsquo;t schedule returns.
+          </div>
+        </div>
+      )}
+
       {/* b) Four thesis cards */}
       <div className="themes-thesis-grid">
         {THESES.map(t => (
@@ -664,65 +721,6 @@ function ThemesPageInner() {
             {renderTemperature(t.id)}
           </div>
         ))}
-      </div>
-
-      {/* b2) How to read this page — collapsible legend, visible to everyone */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <button
-          type="button"
-          className="themes-legend-toggle"
-          onClick={() => setLegendOpen(o => !o)}
-          style={{
-            alignSelf: 'flex-start',
-            fontFamily: FONT, fontSize: 12, fontWeight: 600,
-            padding: '2px 0', border: 'none', background: 'transparent',
-            color: 'var(--text-muted)', cursor: 'pointer',
-          }}
-        >
-          How to read this page {legendOpen ? '▾' : '▸'}
-        </button>
-        {legendOpen && (
-          <div style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-color)',
-            borderRadius: 8,
-            padding: '14px 16px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 14,
-          }}>
-            <LegendBlock label="Temperature">
-              Temperature measures how much of a thesis the market has already paid for — not whether the thesis is true. It blends the 12-month run, the stretch above the 200-day average (in units of the tracker&rsquo;s own normal movement), and the distance below the peak.
-            </LegendBlock>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {TEMP_LEGEND.map(([bucket, meaning]) => (
-                <div key={bucket} style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
-                  <TempBucketPill bucket={bucket} />
-                  <span style={{ flex: '1 1 220px', minWidth: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-                    — {meaning}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <LegendBlock label="Validity">
-              The INTACT badge is a separate dial: is the thesis still true at all? The rule of thumb: buy validity, time with temperature. A cold tracker under an intact thesis is a discount; a cold tracker under a wobbling badge may be a thesis dying, not on sale.
-            </LegendBlock>
-
-            <LegendBlock label="Chips">
-              Each small chip is one gauge inside the thesis. Click it to see its numbers: 12-month run · stretch above the 200-day base (σ) · distance off the high.
-            </LegendBlock>
-
-            <LegendBlock label="Matrix">
-              In the matrix below: Benefits and Hurt are a stock&rsquo;s exposure to each thesis, Mixed means two real opposing forces, Neutral means the exposure simply isn&rsquo;t dominant. Click any verdict for its one-line reason.
-            </LegendBlock>
-
-            <div style={{ fontSize: 11, fontStyle: 'italic', color: 'var(--text-muted)' }}>
-              Observation, not advice — temperature flags stretch and discount; it doesn&rsquo;t schedule returns.
-            </div>
-          </div>
-        )}
       </div>
 
       {/* c) Matrix */}
