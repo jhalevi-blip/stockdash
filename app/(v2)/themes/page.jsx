@@ -27,6 +27,16 @@ const TEMP_COLOR = {
   SPLIT:    'var(--accent-cyan)',
 };
 
+// Bucket → one-line meaning, for the "How to read this page" legend.
+const TEMP_LEGEND = [
+  ['HOT',      'stretched and crowded; the move is mature, late to add.'],
+  ['WARM',     'trending above home base.'],
+  ['LUKEWARM', 'near home base; nothing stretched, nothing washed out.'],
+  ['COOL',     'below home base, out of favor.'],
+  ['COLD',     'washed out; if the badge is still INTACT, this is the contrarian entry zone.'],
+  ['SPLIT',    'the theme disagrees with itself; the chips show which leg is hot and which is cold.'],
+];
+
 const FONT = "'Segoe UI', system-ui, -apple-system, sans-serif";
 const WORLDVIEW_MAX = 300;
 const RESCORE_CONCURRENCY = 2;
@@ -188,6 +198,20 @@ function TempChip({ label, color, clickable, active, title, onClick }) {
   );
 }
 
+// Labeled text block for the "How to read this page" legend.
+function LegendBlock({ label, children }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 12, lineHeight: 1.55, color: 'var(--text-secondary)' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 // Exposure bar (Benefits / Hurt / Neutral as % of portfolio weight)
 // ─────────────────────────────────────────────────────────────
@@ -250,6 +274,7 @@ function ThemesPageInner() {
   const [temps, setTemps]           = useState(null);
   const [tempsError, setTempsError] = useState(false);
   const [tempExpanded, setTempExpanded] = useState(null); // `${thesisId}::${trackerId}`
+  const [legendOpen, setLegendOpen] = useState(false);     // "How to read this page"
   useEffect(() => {
     let cancelled = false;
     fetch('/api/theme-temperatures', { cache: 'no-store' })
@@ -515,6 +540,7 @@ function ThemesPageInner() {
         .themes-thesis-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
         .themes-matrix-desktop { display: block; }
         .themes-matrix-mobile { display: none; }
+        .themes-legend-toggle:hover { color: var(--accent) !important; }
         @media (max-width: 640px) {
           .themes-thesis-grid { grid-template-columns: minmax(0, 1fr) !important; }
           .themes-matrix-desktop { display: none !important; }
@@ -638,6 +664,65 @@ function ThemesPageInner() {
             {renderTemperature(t.id)}
           </div>
         ))}
+      </div>
+
+      {/* b2) How to read this page — collapsible legend, visible to everyone */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <button
+          type="button"
+          className="themes-legend-toggle"
+          onClick={() => setLegendOpen(o => !o)}
+          style={{
+            alignSelf: 'flex-start',
+            fontFamily: FONT, fontSize: 12, fontWeight: 600,
+            padding: '2px 0', border: 'none', background: 'transparent',
+            color: 'var(--text-muted)', cursor: 'pointer',
+          }}
+        >
+          How to read this page {legendOpen ? '▾' : '▸'}
+        </button>
+        {legendOpen && (
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 8,
+            padding: '14px 16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+          }}>
+            <LegendBlock label="Temperature">
+              Temperature measures how much of a thesis the market has already paid for — not whether the thesis is true. It blends the 12-month run, the stretch above the 200-day average (in units of the tracker&rsquo;s own normal movement), and the distance below the peak.
+            </LegendBlock>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {TEMP_LEGEND.map(([bucket, meaning]) => (
+                <div key={bucket} style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+                  <TempBucketPill bucket={bucket} />
+                  <span style={{ flex: '1 1 220px', minWidth: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+                    — {meaning}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <LegendBlock label="Validity">
+              The INTACT badge is a separate dial: is the thesis still true at all? The rule of thumb: buy validity, time with temperature. A cold tracker under an intact thesis is a discount; a cold tracker under a wobbling badge may be a thesis dying, not on sale.
+            </LegendBlock>
+
+            <LegendBlock label="Chips">
+              Each small chip is one gauge inside the thesis. Click it to see its numbers: 12-month run · stretch above the 200-day base (σ) · distance off the high.
+            </LegendBlock>
+
+            <LegendBlock label="Matrix">
+              In the matrix below: Benefits and Hurt are a stock&rsquo;s exposure to each thesis, Mixed means two real opposing forces, Neutral means the exposure simply isn&rsquo;t dominant. Click any verdict for its one-line reason.
+            </LegendBlock>
+
+            <div style={{ fontSize: 11, fontStyle: 'italic', color: 'var(--text-muted)' }}>
+              Observation, not advice — temperature flags stretch and discount; it doesn&rsquo;t schedule returns.
+            </div>
+          </div>
+        )}
       </div>
 
       {/* c) Matrix */}
