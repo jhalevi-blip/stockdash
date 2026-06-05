@@ -71,48 +71,45 @@ export async function POST(req: Request) {
     );
   }
 
-  // Cascade-delete user-keyed rows. Both errors are logged but we
-  // still return 200 so Clerk doesn't retry indefinitely — manual
-  // cleanup is preferable to retry storms.
-  const portfolioResult = await supa
-    .from('portfolios')
-    .delete()
-    .eq('user_id', userId);
+  // Cascade-delete every user-keyed row across all five tables. A delete that
+  // matches nothing is not an error, so missing rows are tolerated. Failures are
+  // isolated — one table erroring must not stop the others — and collected for
+  // logging. Signature verification already passed, so we always return 200:
+  // manual cleanup of a failed table beats Clerk retry storms.
+  const USER_TABLES = [
+    'portfolios',
+    'portfolio_transactions',
+    'portfolio_correlations',
+    'user_settings',
+    'theme_classifications',
+  ] as const;
 
-  const correlationsResult = await supa
-    .from('portfolio_correlations')
-    .delete()
-    .eq('user_id', userId);
-
-  if (portfolioResult.error) {
-    console.error(
-      '[clerk-webhook] portfolios delete failed',
-      userId,
-      portfolioResult.error
-    );
-  }
-  if (correlationsResult.error) {
-    console.error(
-      '[clerk-webhook] portfolio_correlations delete failed',
-      userId,
-      correlationsResult.error
-    );
-  }
-
-  console.log(
-    '[clerk-webhook] user.deleted cascade complete',
-    userId,
-    {
-      portfoliosOk: !portfolioResult.error,
-      correlationsOk: !correlationsResult.error,
-    }
+  const results = await Promise.all(
+    USER_TABLES.map(async (table) => {
+      const { count, error } = await supa
+        .from(table)
+        .delete({ count: 'exact' })
+        .eq('user_id', userId);
+      if (error) {
+        console.error(`[clerk-webhook] ${table} delete failed`, userId, error);
+      }
+      return { table, deleted: count ?? 0, error: error?.message ?? null };
+    })
   );
+
+  const deletedByTable = Object.fromEntries(results.map((r) => [r.table, r.deleted]));
+  const failedTables = results.filter((r) => r.error).map((r) => r.table);
+
+  console.log('[clerk-webhook] user.deleted cascade complete', userId, {
+    deletedByTable,
+    failedTables,
+  });
 
   return NextResponse.json({
     received: true,
     userId,
-    portfoliosDeleted: !portfolioResult.error,
-    correlationsDeleted: !correlationsResult.error,
+    deletedByTable,
+    failedTables,
   });
 }
 
