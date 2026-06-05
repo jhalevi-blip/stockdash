@@ -17,6 +17,15 @@ const VERDICT_COLOR = {
   Mixed:    'var(--warn)',
 };
 
+// Temperature bucket colors (hot → cold), theme-consistent.
+const TEMP_COLOR = {
+  HOT:      'var(--negative)',
+  WARM:     '#f59e0b',
+  LUKEWARM: 'var(--text-muted)',
+  COOL:     '#60a5fa',
+  COLD:     '#3b82f6',
+};
+
 const FONT = "'Segoe UI', system-ui, -apple-system, sans-serif";
 const WORLDVIEW_MAX = 300;
 const RESCORE_CONCURRENCY = 2;
@@ -45,6 +54,24 @@ const cellBase = (align) => ({
 });
 
 const fmtWeight = (w) => (w == null ? '—' : `${w.toFixed(1)}%`);
+
+// Signed formatters for the per-tracker temperature detail line.
+const fmtSignedPct   = (x) => (x == null ? '—' : `${x >= 0 ? '+' : ''}${(x * 100).toFixed(1)}%`);
+const fmtSignedSigma = (x) => (x == null ? '—' : `${x >= 0 ? '+' : ''}${x.toFixed(2)}σ`);
+
+// Short chip name from a tracker label: drop the parenthetical, trim the K-suffix for
+// the k-shaped sectors, and cap at ~18 chars on a word boundary.
+function shortTrackerName(thesisId, label) {
+  let base = (label || '').split('(')[0].trim();
+  if (thesisId === 'k-shaped') base = base.replace(/\s*K$/i, '').trim();
+  if (base.length > 18) {
+    let cut = base.slice(0, 18);
+    const sp = cut.lastIndexOf(' ');
+    if (sp > 8) cut = cut.slice(0, sp);
+    base = cut.trim() + '…';
+  }
+  return base;
+}
 
 // ─────────────────────────────────────────────────────────────
 // Pills (style modeled on MetricChip / BeatChip)
@@ -97,6 +124,59 @@ function StatePill({ label, color = 'var(--text-muted)', border = 'var(--border-
     }}>
       {label}
     </span>
+  );
+}
+
+// Thesis-level temperature pill (bucket word). Same visual language as VerdictPill.
+function TempBucketPill({ bucket }) {
+  const color = TEMP_COLOR[bucket] ?? 'var(--text-muted)';
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      fontFamily: FONT,
+      fontSize: 10,
+      fontWeight: 700,
+      letterSpacing: '.04em',
+      lineHeight: 1.2,
+      padding: '2px 8px',
+      borderRadius: 999,
+      border: `1px solid ${color}`,
+      color,
+      background: 'transparent',
+      whiteSpace: 'nowrap',
+    }}>
+      {bucket}
+    </span>
+  );
+}
+
+// Per-tracker mini-chip — clickable (toggles detail) or a muted, non-clickable "n/a".
+function TempChip({ label, color, clickable, active, title, onClick }) {
+  const Comp = clickable ? 'button' : 'span';
+  return (
+    <Comp
+      type={clickable ? 'button' : undefined}
+      title={title || undefined}
+      onClick={clickable ? onClick : undefined}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        fontFamily: FONT,
+        fontSize: 10,
+        fontWeight: 600,
+        lineHeight: 1.2,
+        padding: '2px 7px',
+        borderRadius: 999,
+        border: `1px solid ${color}`,
+        color,
+        background: active ? 'var(--bg-hover)' : 'transparent',
+        cursor: clickable ? 'pointer' : 'default',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </Comp>
   );
 }
 
@@ -156,6 +236,20 @@ function ThemesPageInner() {
         setPrices(m);
       });
   }, [holdings]);
+
+  // Global market temperatures (not user data) — fetched for everyone, including the
+  // signed-out demo. temps: null = loading, {} or map = loaded; tempsError on failure.
+  const [temps, setTemps]           = useState(null);
+  const [tempsError, setTempsError] = useState(false);
+  const [tempExpanded, setTempExpanded] = useState(null); // `${thesisId}::${trackerId}`
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/theme-temperatures', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(j => { if (!cancelled) setTemps(j?.payload?.theses ?? {}); })
+      .catch(() => { if (!cancelled) setTempsError(true); });
+    return () => { cancelled = true; };
+  }, []);
 
   // Cached classifications + saved worldview (signed-in only). No auto-scoring.
   const [verdictsByTicker, setVerdictsByTicker] = useState({});
@@ -334,6 +428,56 @@ function ThemesPageInner() {
 
   function NotScoredCell() { return <StatePill label="Not scored" />; }
 
+  // Temperature block for one thesis card. Loading → muted "Temperature: …";
+  // failure or missing thesis → muted "Temperature: unavailable"; otherwise a bucket
+  // pill plus per-tracker chips, one detail line open at a time.
+  function renderTemperature(thesisId) {
+    const italic = { marginTop: 'auto', fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' };
+    if (temps === null && !tempsError) {
+      return <div style={italic}>Temperature: …</div>;
+    }
+    const entry = (!tempsError && temps) ? temps[thesisId] : null;
+    if (!entry) {
+      return <div style={italic}>Temperature: unavailable</div>;
+    }
+    const trackers = Array.isArray(entry.trackers) ? entry.trackers : [];
+    const openTracker = trackers.find(tr => !tr.error && `${thesisId}::${tr.id}` === tempExpanded) || null;
+    return (
+      <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+            Temperature
+          </span>
+          <TempBucketPill bucket={entry.temperature} />
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+          {trackers.map(tr => {
+            if (tr.error) {
+              return <TempChip key={tr.id} label="n/a" color="var(--text-muted)" clickable={false} title={tr.error} />;
+            }
+            const k = `${thesisId}::${tr.id}`;
+            return (
+              <TempChip
+                key={tr.id}
+                label={shortTrackerName(thesisId, tr.label)}
+                color={TEMP_COLOR[tr.temperature] ?? 'var(--text-muted)'}
+                clickable
+                active={tempExpanded === k}
+                title={tr.note || undefined}
+                onClick={() => setTempExpanded(prev => (prev === k ? null : k))}
+              />
+            );
+          })}
+        </div>
+        {openTracker && (
+          <div style={{ fontSize: 10, lineHeight: 1.4, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+            12m {fmtSignedPct(openTracker.run12m)} · extension {fmtSignedSigma(openTracker.extensionSigma)} · off high {fmtSignedPct(openTracker.offHigh)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <main style={{
       padding: '18px 20px',
@@ -468,9 +612,7 @@ function ThemesPageInner() {
               }}>{t.validity}</span>
             </div>
             <p style={{ margin: 0, fontSize: 12, lineHeight: 1.55, color: 'var(--text-secondary)' }}>{t.view}</p>
-            <div style={{ marginTop: 'auto', fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-              Temperature: coming soon
-            </div>
+            {renderTemperature(t.id)}
           </div>
         ))}
       </div>
