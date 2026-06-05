@@ -99,6 +99,7 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 
 ## Recently Shipped (last 14 days)
 
+- 2026-06-05 — `fix(webhooks)`: Clerk user.deleted E2E verified. Finding: endpoint was never registered on the production Clerk instance and CLERK_WEBHOOK_SIGNING_SECRET was never set in Vercel — the cascade had never fired since shipping (48d4073). Fixed: endpoint registered + secret set; cascade extended to all five user tables (portfolios, portfolio_transactions, portfolio_correlations, user_settings, theme_classifications) in 1a49969. Verified live: user.deleted → 200 → all counts zero.
 - 2026-06-02 — `feat(perf)`: dashboard + performance display all figures in EUR; Total Portfolio Value = holdings + cash (identical on both pages); SPY Mirror, Currency Impact ($→€ label fix), and the start-value column (via start-date FX `eurStart`) converted. 0b1e059, 4251a2b.
 - 2026-06-02 — `feat(perf)`: Realized / Unrealized / Total P&L cards on /performance; Total P&L (≈ €118k) on the dashboard replacing Unrealized, with green/red chip coloring. 4251a2b, b2a70e9, 48ac68a.
 - 2026-06-02 — `feat(realized)`: realized-P&L currency overhaul — EUR via per-trade Boekingsbedrag (net of fees), dropped Saxo sell-legs recovered, AVGO 10:1 split handled; €37,139 verified. 3117bac, 5307bf3.
