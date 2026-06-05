@@ -24,6 +24,7 @@ const TEMP_COLOR = {
   LUKEWARM: 'var(--text-muted)',
   COOL:     '#60a5fa',
   COLD:     '#3b82f6',
+  SPLIT:    'var(--accent-cyan)',
 };
 
 const FONT = "'Segoe UI', system-ui, -apple-system, sans-serif";
@@ -128,12 +129,14 @@ function StatePill({ label, color = 'var(--text-muted)', border = 'var(--border-
 }
 
 // Thesis-level temperature pill (bucket word). Same visual language as VerdictPill.
-function TempBucketPill({ bucket }) {
+function TempBucketPill({ bucket, score }) {
   const color = TEMP_COLOR[bucket] ?? 'var(--text-muted)';
+  const showScore = bucket !== 'SPLIT' && score != null;
   return (
     <span style={{
       display: 'inline-flex',
       alignItems: 'center',
+      gap: 4,
       fontFamily: FONT,
       fontSize: 10,
       fontWeight: 700,
@@ -147,6 +150,11 @@ function TempBucketPill({ bucket }) {
       whiteSpace: 'nowrap',
     }}>
       {bucket}
+      {showScore && (
+        <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+          {`${score >= 0 ? '+' : ''}${score.toFixed(2)}`}
+        </span>
+      )}
     </span>
   );
 }
@@ -448,8 +456,23 @@ function ThemesPageInner() {
           <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
             Temperature
           </span>
-          <TempBucketPill bucket={entry.temperature} />
+          <TempBucketPill bucket={entry.temperature} score={entry.score} />
         </div>
+        {entry.temperature === 'SPLIT' && entry.splitEnds && (() => {
+          const { high, low } = entry.splitEnds;
+          const colorFor = (id) => {
+            const tr = trackers.find(t => t.id === id);
+            return TEMP_COLOR[tr?.temperature] ?? 'var(--text-muted)';
+          };
+          const sgn = (x) => `${x >= 0 ? '+' : ''}${x.toFixed(2)}`;
+          return (
+            <div style={{ fontSize: 10, lineHeight: 1.4, fontVariantNumeric: 'tabular-nums', display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 4 }}>
+              <span style={{ color: colorFor(high.id) }}>{shortTrackerName(thesisId, high.label)} {sgn(high.score)}</span>
+              <span style={{ color: 'var(--text-muted)' }}>↔</span>
+              <span style={{ color: colorFor(low.id) }}>{shortTrackerName(thesisId, low.label)} {sgn(low.score)}</span>
+            </div>
+          );
+        })()}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
           {trackers.map(tr => {
             if (tr.error) {

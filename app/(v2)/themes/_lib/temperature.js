@@ -11,6 +11,7 @@ export const TEMP_PARAMS = {
   EXT_SCALE: 2.0,                 // 2σ of extension above the 200d MA ≈ one unit of ext score
   CLAMP: 2.0,                     // clamp each normalised component to ±2 before blending
   OFFHIGH_COOL_THRESHOLD: -0.15,  // more than 15% off the high → demote one bucket
+  SPLIT_THRESHOLD: 1.5,           // if max−min tracker score exceeds this, the thesis headline reads SPLIT instead of the (misleading) average
   BUCKETS: [                      // ordered hottest → coldest; first whose min ≤ score wins
     { min: 1.2,       label: 'HOT' },
     { min: 0.6,       label: 'WARM' },
@@ -253,6 +254,25 @@ export function thesisTemperature(trackers) {
   if (!scored.length) {
     return { temperature: 'UNKNOWN', score: null, trackers: results };
   }
-  const avg = scored.reduce((a, t) => a + t.score, 0) / scored.length;
+  const scores = scored.map(t => t.score);
+  const avg = scores.reduce((a, s) => a + s, 0) / scores.length;
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+  // A wide spread between trackers makes the average meaningless — headline it as SPLIT.
+  if (scored.length >= 2 && (max - min) > TEMP_PARAMS.SPLIT_THRESHOLD) {
+    const maxTracker = scored.reduce((a, t) => (t.score > a.score ? t : a));
+    const minTracker = scored.reduce((a, t) => (t.score < a.score ? t : a));
+    return {
+      temperature: 'SPLIT',
+      score: round(avg),
+      split: true,
+      scoreRange: { min: round(min), max: round(max) },
+      splitEnds: {
+        high: { id: maxTracker.id, label: maxTracker.label, score: round(maxTracker.score) },
+        low:  { id: minTracker.id, label: minTracker.label, score: round(minTracker.score) },
+      },
+      trackers: results,
+    };
+  }
   return { temperature: bucketLabel(avg), score: round(avg), trackers: results };
 }
