@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, Fragment, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import Card from '@/app/(v2)/_components/Card';
 import { useHoldings } from '@/lib/useHoldings';
@@ -269,6 +270,7 @@ function ExposureBar({ name, exposure }) {
 function ThemesPageInner() {
   const { isLoaded, isSignedIn } = useUser();
   const { holdings } = useHoldings();
+  const router = useRouter();
   const signedIn = !!isSignedIn;
 
   // Live prices for market-value weights. Reuses the dashboard's exact path:
@@ -874,7 +876,12 @@ function ThemesPageInner() {
                     gap: 10,
                     alignItems: 'baseline',
                   }}>
-                    <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontWeight: 700, fontSize: 12, color: 'var(--accent)' }}>
+                    <span
+                      onClick={() => router.push(`/research?ticker=${c.ticker}`)}
+                      onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline'; }}
+                      onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none'; }}
+                      style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontWeight: 700, fontSize: 12, color: 'var(--accent)', cursor: 'pointer' }}
+                    >
                       {c.ticker}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
