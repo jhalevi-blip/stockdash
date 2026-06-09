@@ -82,6 +82,7 @@ export async function POST(req: Request) {
     'portfolio_correlations',
     'user_settings',
     'theme_classifications',
+    'theme_candidates',
   ] as const;
 
   const results = await Promise.all(
