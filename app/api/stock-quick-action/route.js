@@ -1,3 +1,6 @@
+import { auth } from '@clerk/nextjs/server';
+import { getSupabaseAdmin } from '@/lib/supabase';
+
 export const dynamic = 'force-dynamic';
 
 const SYSTEM_BASE = `You are a stock analyst for StockDashes. The user clicked a quick-action chip while viewing a stock research page. Answer in 2–4 sentences. Focus on a 3-year investing horizon — NOT day-trading advice. Be specific where data is provided; otherwise reason from first principles. Never invent specific numbers not included in the prompt.`;
@@ -18,9 +21,38 @@ export async function POST(request) {
   const { ticker, prompt, price } = body;
   if (!ticker || !prompt) return Response.json({ error: 'Missing ticker or prompt' }, { status: 400 });
 
+  // Portfolio source of truth: signed-in users load holdings server-side from
+  // Supabase (never trust the client body); anonymous users fall back to the
+  // localStorage-derived holdings/cash in the request body, as before.
+  let holdingsInput = body.holdings;
+  let cashInput     = body.cash;
+
+  const { userId } = await auth();
+  if (userId) {
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      // Mirror app/api/correlation/route.js: load the user's portfolio row.
+      const { data: portfolioData } = await sb
+        .from('portfolios')
+        .select('holdings')
+        .eq('user_id', userId)
+        .single();
+      // Stored shape (see app/api/portfolio/route.ts): equity rows are
+      // { t: ticker, s: shares, c: avg cost/share }, plus a sentinel
+      // { t: '__CASH__', amount, currency } row. Map equities into the
+      // { ticker, shares, avgCost } shape the validator below expects.
+      const raw = Array.isArray(portfolioData?.holdings) ? portfolioData.holdings : [];
+      holdingsInput = raw
+        .filter(h => h?.t && h.t !== '__CASH__')
+        .map(h => ({ ticker: h.t, shares: h.s, avgCost: h.c }));
+      const cashRow = raw.find(h => h?.t === '__CASH__');
+      cashInput = cashRow ? { amount: cashRow.amount, currency: cashRow.currency } : null;
+    }
+  }
+
   // Optional portfolio context — validate defensively: array only, cap at 50,
   // coerce numbers, drop malformed rows.
-  const holdings = (Array.isArray(body.holdings) ? body.holdings : [])
+  const holdings = (Array.isArray(holdingsInput) ? holdingsInput : [])
     .slice(0, 50)
     .map(h => {
       const t       = typeof h?.ticker === 'string' ? h.ticker.trim().toUpperCase() : null;
@@ -31,9 +63,9 @@ export async function POST(request) {
     })
     .filter(Boolean);
 
-  const cashAmount = Number(body.cash?.amount);
+  const cashAmount = Number(cashInput?.amount);
   const cash = Number.isFinite(cashAmount) && cashAmount > 0
-    ? { amount: cashAmount, currency: typeof body.cash?.currency === 'string' ? body.cash.currency : 'USD' }
+    ? { amount: cashAmount, currency: typeof cashInput?.currency === 'string' ? cashInput.currency : 'USD' }
     : null;
 
   const hasPortfolio = holdings.length > 0;
