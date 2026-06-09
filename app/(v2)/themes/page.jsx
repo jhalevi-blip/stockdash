@@ -871,6 +871,26 @@ function ThemesPageInner() {
                   <p style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
                     {c.rationale}
                   </p>
+                  {c.themes && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                      {THESES.map(t => {
+                        const v = c.themes[t.id];
+                        const color = VERDICT_COLOR[v] ?? 'var(--text-muted)';
+                        return (
+                          <span key={t.id} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            fontFamily: FONT, fontSize: 10, fontWeight: 600, lineHeight: 1.2,
+                            padding: '2px 8px', borderRadius: 999,
+                            border: `1px solid ${color}`, color,
+                            whiteSpace: 'nowrap',
+                          }}>
+                            <span style={{ color: 'var(--text-muted)' }}>{t.name}</span>
+                            {v ?? '—'}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

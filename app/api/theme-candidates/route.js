@@ -3,19 +3,25 @@ import { getSupabaseAdmin } from '@/lib/supabase';
 import { trackFMP } from '@/lib/apiUsage';
 import { fetchDailyCloses } from '@/lib/fmpHistory';
 import {
-  THESES, THESIS_VERSION, DEFAULT_WORLDVIEW,
+  THESES, THESIS_VERSION, DEFAULT_WORLDVIEW, VERDICTS,
 } from '@/app/(v2)/themes/_lib/theses';
 
-// Discover Candidates: proposes ~10 liquid large-cap tickers that benefit from one
+// Discover Candidates: proposes ~10 liquid tickers across the cap spectrum that benefit from one
 // thesis (excluding current holdings), each FMP-validated before display. Mirrors the
 // Opus / forced-tool-use / error-handling pattern of theme-classify exactly.
 export const dynamic = 'force-dynamic';
 
 const TICKER_RE = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 
+// Per-thesis verdict properties, built from THESES so the schema stays in sync.
+const themeProps = {};
+for (const t of THESES) {
+  themeProps[t.id] = { type: 'string', enum: VERDICTS, description: `Verdict for the ${t.name} thesis` };
+}
+
 const candidatesTool = {
   name: 'propose_candidates',
-  description: 'Propose liquid large-cap stocks that would benefit from a macro thesis.',
+  description: 'Propose liquid stocks across the market-cap spectrum that fit a macro thesis.',
   input_schema: {
     type: 'object',
     properties: {
@@ -23,10 +29,15 @@ const candidatesTool = {
         type: 'array',
         items: {
           type: 'object',
-          required: ['ticker', 'rationale'],
+          required: ['ticker', 'rationale', 'themes'],
           properties: {
             ticker:    { type: 'string', description: 'US-listed ticker symbol' },
             rationale: { type: 'string', description: 'One sentence, max ~20 words' },
+            themes: {
+              type: 'object',
+              properties: themeProps,
+              required: THESES.map(t => t.id),
+            },
           },
         },
       },
@@ -46,7 +57,9 @@ Thesis — ${thesis.name}: ${thesis.view}
 
 The user's worldview, which should tilt ambiguous calls: ${worldview}
 
-Propose 10-12 liquid, publicly-traded, large-cap tickers that would clearly BENEFIT from this thesis playing out, given the user's worldview. ${excludeBlock} Each candidate needs a one-line rationale in a concise, finance-literate voice — the same verdict style used elsewhere in the dashboard (max ~20 words, no hedging filler).`;
+Propose 10-12 liquid, publicly-traded tickers that would clearly BENEFIT from this thesis playing out, given the user's worldview. Spread them across the market-cap spectrum: include several mid-caps (roughly $2B-$50B) and one or two smaller but still liquid names alongside larger caps — explicitly avoid an all-mega-cap list. ${excludeBlock} Each candidate needs a one-line rationale in a concise, finance-literate voice — the same verdict style used elsewhere in the dashboard (max ~20 words, no hedging filler).
+
+For each candidate, also assign a verdict for all four theses — ${THESES.map(t => t.name).join(', ')} — using only these values: ${VERDICTS.join(', ')}. Most candidates will not benefit from every thesis; Neutral and Mixed are expected and correct, so do not inflate everything to Benefits.`;
 }
 
 function buildWorldviewSystem(theses, worldview, exclude) {
@@ -63,7 +76,9 @@ ${thesisBlock}
 
 The user's worldview, which ties these theses together: ${worldview}
 
-Propose 10-12 liquid, publicly-traded, large-cap tickers that are net beneficiaries of the worldview as a whole — each should benefit from two or more of the theses above and not be materially hurt by the others. Rank them by overall fit (best fit first). ${excludeBlock} Each candidate needs a one-line rationale in a concise, finance-literate voice — the same verdict style used elsewhere in the dashboard (max ~20 words, no hedging filler) — noting which theses it rides.`;
+Propose 10-12 liquid, publicly-traded tickers that are net beneficiaries of the worldview as a whole — each should benefit from two or more of the theses above and not be materially hurt by the others. Rank them by overall fit (best fit first). Spread them across the market-cap spectrum: include several mid-caps (roughly $2B-$50B) and one or two smaller but still liquid names alongside larger caps — explicitly avoid an all-mega-cap list. ${excludeBlock} Each candidate needs a one-line rationale in a concise, finance-literate voice — the same verdict style used elsewhere in the dashboard (max ~20 words, no hedging filler) — noting which theses it rides.
+
+For each candidate, also assign a verdict for all four theses — ${theses.map(t => t.name).join(', ')} — using only these values: ${VERDICTS.join(', ')}. Most candidates will not benefit from every thesis; Neutral and Mixed are expected and correct, so do not inflate everything to Benefits.`;
 }
 
 export async function POST(request) {
@@ -128,7 +143,7 @@ export async function POST(request) {
       },
       body: JSON.stringify({
         model: 'claude-opus-4-8',
-        max_tokens: 1500,
+        max_tokens: 2000,
         system: isWorldview
           ? buildWorldviewSystem(THESES, worldview, exclude)
           : buildSystem(thesis, worldview, exclude),
@@ -166,7 +181,12 @@ export async function POST(request) {
     const ticker = c.ticker.toUpperCase();
     if (!TICKER_RE.test(ticker) || excludeSet.has(ticker) || seen.has(ticker)) continue;
     seen.add(ticker);
-    cleaned.push({ ticker, rationale: c.rationale });
+    // Build a complete, valid verdict object — default to Neutral for anything missing/invalid.
+    const themes = {};
+    for (const t of THESES) {
+      themes[t.id] = VERDICTS.includes(c.themes?.[t.id]) ? c.themes[t.id] : 'Neutral';
+    }
+    cleaned.push({ ticker, rationale: c.rationale, themes });
   }
 
   if (cleaned.length === 0) {
@@ -195,6 +215,7 @@ export async function POST(request) {
           sector,
           marketCap:   d?.marketCap ?? null, // keep candidate even if missing
           rationale:   c.rationale,
+          themes:      c.themes,
         };
       } catch {
         return null;
