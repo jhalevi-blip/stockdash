@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 
-export default function InfoTooltip({ text, children, placement = 'bottom', style }) {
+export default function InfoTooltip({ text, children, placement = 'bottom', style, boxStyle }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef(null);
 
@@ -68,6 +68,7 @@ export default function InfoTooltip({ text, children, placement = 'bottom', styl
             maxWidth:     360,
             boxShadow:    '0 8px 24px rgba(0,0,0,0.4)',
             whiteSpace:   'normal',
+            ...boxStyle,
           }}
         >
           {text}

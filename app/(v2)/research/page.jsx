@@ -973,7 +973,7 @@ function Slider({ label, value, min, max, step, onChange, unit = '%', help }) {
         <span style={{ color: 'var(--text-secondary)', fontWeight: 500, display: 'inline-flex', alignItems: 'center' }}>
           {label}
           {help && (
-            <InfoTooltip text={help} style={{ flex: '0 0 auto', display: 'inline-flex', marginLeft: 6 }}>
+            <InfoTooltip text={help} style={{ flex: '0 0 auto', display: 'inline-flex', marginLeft: 6 }} boxStyle={{ width: 260 }}>
               <span style={{ color: 'var(--text-muted)', fontSize: 11, cursor: 'help' }}>ⓘ</span>
             </InfoTooltip>
           )}
