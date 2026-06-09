@@ -458,6 +458,11 @@ function ThemesPageInner() {
     }
   }
 
+  // Panel title — safe for the '_worldview' sentinel (no matching THESES entry).
+  const activeName = activeDiscovery === '_worldview'
+    ? 'Your worldview'
+    : THESES.find(t => t.id === activeDiscovery)?.name;
+
   // ── Exposure (signed-in): compute once every holding is scored ───────────────
   const allScored = signedIn && realRows.length > 0 && realRows.every(r => verdictsByTicker[r.ticker]);
   const computedExposure = useMemo(() => {
@@ -703,6 +708,22 @@ function ThemesPageInner() {
         </div>
       </div>
 
+      {/* Combined-worldview top picks — content-width button under the worldview block */}
+      <button
+        type="button"
+        onClick={() => discoverCandidates('_worldview')}
+        disabled={discoverStatus['_worldview'] === 'loading'}
+        style={{
+          alignSelf: 'flex-start',
+          fontFamily: FONT, fontSize: 12, fontWeight: 600,
+          padding: '6px 14px', borderRadius: 6,
+          border: '1px solid var(--accent)',
+          background: 'var(--accent)', color: '#fff',
+          cursor: discoverStatus['_worldview'] === 'loading' ? 'not-allowed' : 'pointer',
+          opacity: discoverStatus['_worldview'] === 'loading' ? 0.7 : 1,
+        }}
+      >{discoverStatus['_worldview'] === 'loading' ? 'Finding…' : 'Top picks across your worldview'}</button>
+
       {/* How to read this page — collapsible legend; toggled from the header button */}
       {legendOpen && (
         <div style={{
@@ -799,7 +820,7 @@ function ThemesPageInner() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
-              Candidates — {THESES.find(t => t.id === activeDiscovery).name}
+              Candidates — {activeName}
             </span>
             <button
               type="button"

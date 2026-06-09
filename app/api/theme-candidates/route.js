@@ -49,6 +49,23 @@ The user's worldview, which should tilt ambiguous calls: ${worldview}
 Propose 10-12 liquid, publicly-traded, large-cap tickers that would clearly BENEFIT from this thesis playing out, given the user's worldview. ${excludeBlock} Each candidate needs a one-line rationale in a concise, finance-literate voice — the same verdict style used elsewhere in the dashboard (max ~20 words, no hedging filler).`;
 }
 
+function buildWorldviewSystem(theses, worldview, exclude) {
+  const excludeBlock = exclude.length
+    ? `Exclude these tickers (already held): ${exclude.join(', ')}.`
+    : 'There are no tickers to exclude.';
+
+  const thesisBlock = theses.map(t => `${t.name}: ${t.view}`).join('\n');
+
+  return `You propose stock candidates that fit an entire worldview in a worldview-driven portfolio dashboard.
+
+The four fixed macro theses:
+${thesisBlock}
+
+The user's worldview, which ties these theses together: ${worldview}
+
+Propose 10-12 liquid, publicly-traded, large-cap tickers that are net beneficiaries of the worldview as a whole — each should benefit from two or more of the theses above and not be materially hurt by the others. Rank them by overall fit (best fit first). ${excludeBlock} Each candidate needs a one-line rationale in a concise, finance-literate voice — the same verdict style used elsewhere in the dashboard (max ~20 words, no hedging filler) — noting which theses it rides.`;
+}
+
 export async function POST(request) {
   const { userId } = await auth();
   if (!userId) return Response.json({ error: 'Unauthorized' }, { status: 401 });
@@ -63,8 +80,9 @@ export async function POST(request) {
         .filter(t => TICKER_RE.test(t))
     : [];
 
+  const isWorldview = thesisKey === '_worldview';
   const thesis = THESES.find(t => t.id === thesisKey);
-  if (!thesis) return Response.json({ error: 'Invalid thesisKey' }, { status: 400 });
+  if (!isWorldview && !thesis) return Response.json({ error: 'Invalid thesisKey' }, { status: 400 });
 
   const sb = getSupabaseAdmin();
   if (!sb) return Response.json({ error: 'Supabase not configured' }, { status: 500 });
@@ -111,10 +129,14 @@ export async function POST(request) {
       body: JSON.stringify({
         model: 'claude-opus-4-8',
         max_tokens: 1500,
-        system: buildSystem(thesis, worldview, exclude),
+        system: isWorldview
+          ? buildWorldviewSystem(THESES, worldview, exclude)
+          : buildSystem(thesis, worldview, exclude),
         tools: [candidatesTool],
         tool_choice: { type: 'tool', name: 'propose_candidates' },
-        messages: [{ role: 'user', content: `Propose candidates for the ${thesis.name} thesis.` }],
+        messages: [{ role: 'user', content: isWorldview
+          ? 'Propose candidates across the full worldview.'
+          : `Propose candidates for the ${thesis.name} thesis.` }],
       }),
     });
     raw = await res.json();
