@@ -41,6 +41,24 @@ const FONT = "'Segoe UI', system-ui, -apple-system, sans-serif";
 const WORLDVIEW_MAX = 300;
 const RESCORE_CONCURRENCY = 2;
 
+// Compact market-cap: $X.XT / $X.XB / $X.XM; null → em dash.
+function fmtMcap(n) {
+  if (n == null) return '—';
+  const abs = Math.abs(n);
+  if (abs >= 1e12) return `$${(n / 1e12).toFixed(1)}T`;
+  if (abs >= 1e9)  return `$${(n / 1e9).toFixed(1)}B`;
+  if (abs >= 1e6)  return `$${(n / 1e6).toFixed(1)}M`;
+  return `$${Math.round(n)}`;
+}
+
+// 12-month return as a signed whole-percent span, green ≥ 0 / red < 0; null → em dash.
+function fmtReturn(r) {
+  if (r == null) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+  const pct = Math.round(r * 100);
+  const color = pct >= 0 ? 'var(--positive)' : 'var(--negative)';
+  return <span style={{ color }}>{pct >= 0 ? '+' : ''}{pct}%</span>;
+}
+
 // Table cell styles modeled on dashboard/_components/HoldingsTable.jsx
 const headerCell = (align) => ({
   textAlign: align,
@@ -407,6 +425,39 @@ function ThemesPageInner() {
     setScoring(false);
   }
 
+  // ── Discover candidates (per-thesis, cache-aware) ────────────────────────────
+  const [discoverData, setDiscoverData]       = useState({}); // thesisKey -> candidates[]
+  const [discoverStatus, setDiscoverStatus]   = useState({}); // thesisKey -> 'loading' | 'error' | null
+  const [discoverError, setDiscoverError]     = useState({}); // thesisKey -> message
+  const [activeDiscovery, setActiveDiscovery] = useState(null);
+
+  async function discoverCandidates(thesisKey, regenerate = false) {
+    setActiveDiscovery(thesisKey);
+    // Already loaded and not forcing a refresh — just open the panel.
+    if (!regenerate && discoverData[thesisKey]) return;
+
+    setDiscoverStatus(prev => ({ ...prev, [thesisKey]: 'loading' }));
+    setDiscoverError(prev => { const m = { ...prev }; delete m[thesisKey]; return m; });
+    try {
+      const exclude = (holdings || []).map(h => h.t);
+      const res = await fetch('/api/theme-candidates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ thesisKey, exclude, regenerate }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw json;
+      setDiscoverData(prev => ({ ...prev, [thesisKey]: json.candidates ?? [] }));
+      setDiscoverStatus(prev => ({ ...prev, [thesisKey]: null }));
+    } catch (err) {
+      setDiscoverStatus(prev => ({ ...prev, [thesisKey]: 'error' }));
+      setDiscoverError(prev => ({
+        ...prev,
+        [thesisKey]: err?.message || err?.error || 'Could not load candidates',
+      }));
+    }
+  }
+
   // ── Exposure (signed-in): compute once every holding is scored ───────────────
   const allScored = signedIn && realRows.length > 0 && realRows.every(r => verdictsByTicker[r.ticker]);
   const computedExposure = useMemo(() => {
@@ -719,9 +770,92 @@ function ThemesPageInner() {
             </div>
             <p style={{ margin: 0, fontSize: 12, lineHeight: 1.55, color: 'var(--text-secondary)' }}>{t.view}</p>
             {renderTemperature(t.id)}
+            <button
+              type="button"
+              onClick={() => discoverCandidates(t.id)}
+              disabled={discoverStatus[t.id] === 'loading'}
+              style={{
+                marginTop: 4,
+                fontFamily: FONT, fontSize: 12, fontWeight: 600,
+                padding: '6px 14px', borderRadius: 6,
+                border: '1px solid var(--accent)',
+                background: 'var(--accent)', color: '#fff',
+                cursor: discoverStatus[t.id] === 'loading' ? 'not-allowed' : 'pointer',
+                opacity: discoverStatus[t.id] === 'loading' ? 0.7 : 1,
+              }}
+            >{discoverStatus[t.id] === 'loading' ? 'Finding…' : 'Discover candidates'}</button>
           </div>
         ))}
       </div>
+
+      {/* b2) Discover candidates panel (full width, one thesis at a time) */}
+      {activeDiscovery && (
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 8,
+          padding: '14px',
+          fontFamily: FONT,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
+              Candidates — {THESES.find(t => t.id === activeDiscovery).name}
+            </span>
+            <button
+              type="button"
+              onClick={() => discoverCandidates(activeDiscovery, true)}
+              disabled={discoverStatus[activeDiscovery] === 'loading'}
+              style={{
+                fontFamily: FONT, fontSize: 12, fontWeight: 600,
+                padding: '6px 14px', borderRadius: 6,
+                border: '1px solid var(--border-color)',
+                background: 'transparent', color: 'var(--text-secondary)',
+                cursor: discoverStatus[activeDiscovery] === 'loading' ? 'not-allowed' : 'pointer',
+              }}
+            >Re-generate</button>
+          </div>
+
+          {discoverStatus[activeDiscovery] === 'loading' ? (
+            <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+              Finding candidates…
+            </div>
+          ) : discoverStatus[activeDiscovery] === 'error' ? (
+            <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--negative)', fontSize: 13 }}>
+              {discoverError[activeDiscovery]}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {(discoverData[activeDiscovery] ?? []).map(c => (
+                <div key={c.ticker} style={{ padding: '10px 0', borderBottom: '1px solid var(--border-color)' }}>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 80px) minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 90px) minmax(0, 70px)',
+                    gap: 10,
+                    alignItems: 'baseline',
+                  }}>
+                    <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontWeight: 700, fontSize: 12, color: 'var(--accent)' }}>
+                      {c.ticker}
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.companyName ?? '—'}
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{c.sector ?? '—'}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      {fmtMcap(c.marketCap)}
+                    </span>
+                    <span style={{ fontSize: 12, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      {fmtReturn(c.return12m)}
+                    </span>
+                  </div>
+                  <p style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+                    {c.rationale}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* c) Matrix */}
       <Card title="Theme Matrix" eyebrow={signedIn ? 'Your holdings' : 'Sample'}>
