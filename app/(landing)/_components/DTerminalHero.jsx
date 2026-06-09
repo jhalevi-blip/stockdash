@@ -38,7 +38,7 @@ export default function DTerminalHero() {
           textTransform: 'uppercase',
           marginBottom: 16,
         }}>
-          Powered by Claude Opus 4.7
+          Powered by Claude Opus 4.8
         </span>
 
         {/* H1 */}
@@ -60,7 +60,7 @@ export default function DTerminalHero() {
           margin: '0 auto',
           maxWidth: 600,
         }}>
-          Institutional-quality analysis on every holding — from Claude Opus 4.7. Free, no ads, your data stays on your device.
+          Institutional-quality analysis on every holding — from Claude Opus 4.8. Free, no ads, your data stays on your device.
         </p>
 
         {/* TICKER CHIPS — deferred to Step 9 polish pass per Phase 3 plan */}

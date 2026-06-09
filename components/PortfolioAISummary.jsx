@@ -295,7 +295,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
             color: 'var(--text-muted)', border: '1px solid var(--border-color)',
             borderRadius: 3, padding: '1px 6px', textTransform: 'uppercase',
           }}>
-            Powered by Claude Opus 4.7
+            Powered by Claude Opus 4.8
           </span>
         </div>
 

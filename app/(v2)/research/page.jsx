@@ -638,7 +638,7 @@ function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings,
       <Card>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 20px', gap: 10, textAlign: 'center' }}>
           <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--accent-cyan)' }}>
-            AI THESIS · POWERED BY CLAUDE OPUS 4.7
+            AI THESIS · POWERED BY CLAUDE OPUS 4.8
           </span>
           <button
             onClick={() => generate()}
@@ -687,7 +687,7 @@ function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings,
         {/* Header: eyebrow + regenerate */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
           <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-            Claude Thesis · Opus 4.7 · 3-year horizon
+            Claude Thesis · Opus 4.8 · 3-year horizon
             {generatedAt ? ` · ${generatedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}` : ' · cached'}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

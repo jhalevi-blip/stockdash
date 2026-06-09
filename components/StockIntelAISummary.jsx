@@ -22,7 +22,7 @@ const LABELS = {
     generationCount:    'Generation {n} of 2',
     usedToday:          '{count}/10 tickers analyzed today',
     signInPrompt:       'Sign in to generate AI summaries.',
-    poweredBy:          'Powered by Claude Opus 4.7',
+    poweredBy:          'Powered by Claude Opus 4.8',
   },
   nl: {
     claudeRating:       'CLAUDE BEOORDELING',
@@ -41,7 +41,7 @@ const LABELS = {
     generationCount:    'Generatie {n} van 2',
     usedToday:          '{count}/10 aandelen vandaag geanalyseerd',
     signInPrompt:       'Meld je aan om AI-samenvattingen te genereren.',
-    poweredBy:          'Aangedreven door Claude Opus 4.7',
+    poweredBy:          'Aangedreven door Claude Opus 4.8',
   },
 };
 

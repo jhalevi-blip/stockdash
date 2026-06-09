@@ -91,7 +91,7 @@ const STEPS = [
     element: '[data-tour="portfolio-ai-summary-cta"]',
     popover: {
       title: "Claude analyzes your portfolio",
-      description: "Rating, concentration risk, winners, and laggards. All in plain English, powered by Claude Opus 4.7.",
+      description: "Rating, concentration risk, winners, and laggards. All in plain English, powered by Claude Opus 4.8.",
       side: "left",
       align: "center",
     },

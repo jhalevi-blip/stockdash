@@ -75,7 +75,7 @@ function BlogSummaryBox({ summary }) {
             background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.2)',
             borderRadius: 100, padding: '3px 10px', textTransform: 'uppercase',
           }}>
-            Powered by Claude Opus 4.7
+            Powered by Claude Opus 4.8
           </span>
         </div>
       </div>

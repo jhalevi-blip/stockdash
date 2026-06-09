@@ -351,7 +351,7 @@ Generate 2-3 takeaways using the generate_correlation_takeaways tool.`;
     return Response.json(toolUse.input, { status: 200 });
   }
 
-  // Portfolio summary type — structured tool-use output via Claude Opus 4.7
+  // Portfolio summary type — structured tool-use output via Claude Opus 4.8
   if (body.type === 'portfolio-summary') {
     const { holdings, portfolioStats, userLang, correlationData } = body;
     if (!Array.isArray(holdings) || !holdings.length) {
@@ -411,7 +411,7 @@ User's browser locale: ${userLang || 'en'}`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
-          model: 'claude-opus-4-7',
+          model: 'claude-opus-4-8',
           max_tokens: 1500,
           system: PORTFOLIO_SYSTEM_PROMPT,
           tools: [generatePortfolioSummaryTool],

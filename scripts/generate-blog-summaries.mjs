@@ -11,7 +11,7 @@ if (!API_KEY) {
   process.exit(1);
 }
 
-const SYSTEM_PROMPT = `You are a blog post analyst for StockDashes, a free AI-powered portfolio analysis tool powered by Claude Opus 4.7.
+const SYSTEM_PROMPT = `You are a blog post analyst for StockDashes, a free AI-powered portfolio analysis tool powered by Claude Opus 4.8.
 
 Your job: summarize a blog post using the generate_summary tool.
 
@@ -64,7 +64,7 @@ async function generateSummary(postBody) {
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'claude-opus-4-7',
+      model: 'claude-opus-4-8',
       max_tokens: 1500,
       system: SYSTEM_PROMPT,
       tools: [TOOL],

@@ -65,7 +65,7 @@ export default function Sidebar() {
           <span>Live · 4:00 PM ET</span>
         </div>
         <div style={{ color: 'var(--text-faint, rgba(230,237,243,0.45))' }}>
-          Powered by Claude Opus 4.7
+          Powered by Claude Opus 4.8
         </div>
       </div>
     </aside>

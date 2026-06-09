@@ -332,7 +332,7 @@ export async function POST(request) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-7',
+        model: 'claude-opus-4-8',
         max_tokens: 2000,
         system: SYSTEM_PROMPT,
         tools: [generateStockSummaryTool],

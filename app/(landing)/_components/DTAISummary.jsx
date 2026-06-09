@@ -38,7 +38,7 @@ export default function DTAISummary({ summary }) {
             color: '#6e7681', border: '1px solid #1c232c',
             borderRadius: 3, padding: '1px 5px', textTransform: 'uppercase',
           }}>
-            Claude Opus 4.7
+            Claude Opus 4.8
           </span>
         </div>
         <span style={{ fontSize: 9, color: '#6e7681' }}>Just now</span>
