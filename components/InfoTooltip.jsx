@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 
-export default function InfoTooltip({ text, children, placement = 'bottom' }) {
+export default function InfoTooltip({ text, children, placement = 'bottom', style }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef(null);
 
@@ -42,6 +42,7 @@ export default function InfoTooltip({ text, children, placement = 'bottom' }) {
         flex:     '1 1 180px',
         minWidth: 0,
         cursor:   'help',
+        ...style,
       }}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}

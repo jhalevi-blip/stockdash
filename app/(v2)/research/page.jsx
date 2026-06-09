@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import Card from '@/app/(v2)/_components/Card';
 import PortfolioModal from '@/components/PortfolioModal';
+import InfoTooltip from '@/components/InfoTooltip';
 import { fmtCurrency, fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
 import { loadUserHoldings, saveUserHoldings } from '@/lib/holdingsStorage';
 import { calcDCF } from './_lib/dcf';
@@ -965,11 +966,18 @@ function EarningsCard({ ticker }) {
 // SUBSYSTEM 5 — DCF CALCULATOR
 // ─────────────────────────────────────────────────────────────
 
-function Slider({ label, value, min, max, step, onChange, unit = '%' }) {
+function Slider({ label, value, min, max, step, onChange, unit = '%', help }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-        <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{label}</span>
+        <span style={{ color: 'var(--text-secondary)', fontWeight: 500, display: 'inline-flex', alignItems: 'center' }}>
+          {label}
+          {help && (
+            <InfoTooltip text={help} style={{ flex: '0 0 auto', display: 'inline-flex', marginLeft: 6 }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 11, cursor: 'help' }}>ⓘ</span>
+            </InfoTooltip>
+          )}
+        </span>
         <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
           {value}{unit}
         </span>
@@ -1106,10 +1114,30 @@ function DCFCalculator({ ticker, financials, metrics, quote, aiScenarios, resolv
                 ✨ {aiScenarios[activePreset].rationale}
               </p>
             )}
-            <Slider label="WACC"               value={wacc}           min={4}  max={18} step={0.5}  onChange={handleSlider(setWacc)} />
-            <Slider label="Terminal Growth"    value={terminalGrowth} min={1}  max={5}  step={0.25} onChange={handleSlider(setTerminalGrowth)} />
-            <Slider label="Revenue CAGR"       value={revenueCagr}    min={0}  max={60} step={1}    onChange={handleSlider(setRevenueCagr)} />
-            <Slider label="Terminal Op Margin" value={terminalMargin} min={5}  max={80} step={1}    onChange={handleSlider(setTerminalMargin)} />
+            <Slider label="WACC"               value={wacc}           min={4}  max={18} step={0.5}  onChange={handleSlider(setWacc)} help={
+              <>
+                <div style={{ fontWeight: 600, marginBottom: 8 }}>WACC (Weighted Average Cost of Capital)</div>
+                <div>The yearly return a company must earn to satisfy both its lenders and shareholders. In a DCF it's the discount rate — it shrinks future cash to what it's worth today. A riskier company has a higher WACC, which lowers the valuation.</div>
+              </>
+            } />
+            <Slider label="Terminal Growth"    value={terminalGrowth} min={1}  max={5}  step={0.25} onChange={handleSlider(setTerminalGrowth)} help={
+              <>
+                <div style={{ fontWeight: 600, marginBottom: 8 }}>Terminal Growth</div>
+                <div>The slow, steady rate you assume the company grows at forever, after the detailed forecast ends. Usually kept near long-run economic growth (about 2–3%), since nothing outgrows the economy indefinitely. Small changes here move the valuation a lot.</div>
+              </>
+            } />
+            <Slider label="Revenue CAGR"       value={revenueCagr}    min={0}  max={60} step={1}    onChange={handleSlider(setRevenueCagr)} help={
+              <>
+                <div style={{ fontWeight: 600, marginBottom: 8 }}>Revenue CAGR</div>
+                <div>The average yearly rate you expect revenue to grow over the forecast period, smoothed into one steady percentage — the single rate that, compounded each year, takes revenue from today's level to the end of the forecast.</div>
+              </>
+            } />
+            <Slider label="Terminal Op Margin" value={terminalMargin} min={5}  max={80} step={1}    onChange={handleSlider(setTerminalMargin)} help={
+              <>
+                <div style={{ fontWeight: 600, marginBottom: 8 }}>Terminal Operating Margin</div>
+                <div>The operating profit the company keeps from each dollar of sales once it's mature (operating income ÷ revenue). A higher margin means more of every sale becomes profit, which lifts the valuation.</div>
+              </>
+            } />
           </div>
 
           {/* DCF result */}
