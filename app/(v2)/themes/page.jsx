@@ -846,6 +846,26 @@ function ThemesPageInner() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {/* Column headers — aligned to each row's metric grid */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 80px) minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 90px) minmax(0, 70px)',
+                gap: 10,
+                paddingBottom: 8,
+                borderBottom: '1px solid var(--border-color)',
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: '.08em',
+                textTransform: 'uppercase',
+                color: 'var(--text-muted)',
+                whiteSpace: 'nowrap',
+              }}>
+                <span>Ticker</span>
+                <span>Company</span>
+                <span>Sector</span>
+                <span style={{ textAlign: 'right' }}>Mkt cap</span>
+                <span style={{ textAlign: 'right' }}>12m return</span>
+              </div>
               {(discoverData[activeDiscovery] ?? []).map(c => (
                 <div key={c.ticker} style={{ padding: '10px 0', borderBottom: '1px solid var(--border-color)' }}>
                   <div style={{
