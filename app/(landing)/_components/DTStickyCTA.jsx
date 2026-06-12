@@ -21,7 +21,7 @@ export default function DTStickyCTA() {
           You're seeing live sample data. Sign up to use your own portfolio.
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-          Free forever · No credit card · No ads · Your data stays on your device
+          Free forever · No credit card · No ads · EU-hosted, never sold
         </div>
       </div>
 

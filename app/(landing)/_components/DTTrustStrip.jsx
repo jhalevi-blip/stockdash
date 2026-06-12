@@ -2,7 +2,7 @@ const TRUST = [
   { icon: '✓', text: '100% Free' },
   { icon: '✓', text: 'No credit card' },
   { icon: '✓', text: 'No ads, ever' },
-  { icon: '🔒', text: 'Your data stays on your device' },
+  { icon: '🔒', text: 'Your data stays private — EU-hosted, never sold' },
 ];
 
 export default function DTTrustStrip() {

@@ -62,7 +62,7 @@ export default function CorrelationsPage() {
       }}>
         Correlations are estimates based on past data and may not predict
         future behavior · Pairs need at least 2 positions and 30 trading
-        days to compute · Your data stays on your device
+        days to compute · EU-hosted, never sold
       </div>
     </div>
   );

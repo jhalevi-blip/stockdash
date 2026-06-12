@@ -510,7 +510,7 @@ export default function DashboardV2Page() {
         borderTop: '1px solid var(--border-section, var(--border-color))',
       }}>
         StockDashes is for informational purposes only and does not constitute financial advice ·
-        No account needed · Loads in seconds · Your data stays on your device
+        No account needed · Loads in seconds · EU-hosted, never sold
       </div>
     </div>
   );

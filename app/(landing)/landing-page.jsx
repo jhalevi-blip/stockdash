@@ -107,7 +107,7 @@ export default function LandingPage() {
           )}
         </div>
         <p style={{ color: "rgba(230,237,243,0.25)", fontSize: 12, marginTop: 14 }}>
-          No credit card · No ads · Your data stays on your device
+          No credit card · No ads · EU-hosted, never sold
         </p>
       </section>
 

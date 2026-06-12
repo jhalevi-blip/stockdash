@@ -60,7 +60,7 @@ export default function DTerminalHero() {
           margin: '0 auto',
           maxWidth: 600,
         }}>
-          Institutional-quality analysis on every holding — from Claude Opus 4.8. Free, no ads, your data stays on your device.
+          Institutional-quality analysis on every holding — from Claude Opus 4.8. Free, no ads, your data stays private — EU-hosted, never sold.
         </p>
 
         {/* TICKER CHIPS — deferred to Step 9 polish pass per Phase 3 plan */}
