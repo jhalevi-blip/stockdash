@@ -6,7 +6,20 @@ import PostHogProvider from '@/components/PostHogProvider';
 import { ClerkProvider } from '@clerk/nextjs';
 import { Analytics } from '@vercel/analytics/react';
 
-export const metadata = { title: 'StockDashes' };
+// app/manifest.ts wires <link rel="manifest"> automatically — no manual link.
+// iOS ignores manifest icons, so apple-touch-icon + apple web-app meta are set
+// explicitly here.
+export const metadata = {
+  title: 'StockDashes',
+  appleWebApp: {
+    capable: true,
+    title: 'StockDashes',
+    statusBarStyle: 'black-translucent',
+  },
+  icons: {
+    apple: '/icon-192.png',
+  },
+};
 
 export const viewport = {
   width: 'device-width',
