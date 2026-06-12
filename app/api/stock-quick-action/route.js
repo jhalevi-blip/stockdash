@@ -1,7 +1,15 @@
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { trackFinnhub } from '@/lib/apiUsage';
 
 export const dynamic = 'force-dynamic';
+
+// The "Why is this moving today?" chip is special-cased: for it (and only it)
+// we fetch recent company news server-side and ground the answer in real
+// headlines + the day's move. See the news fetch + WHY_MOVING_INSTRUCTION below.
+const WHY_MOVING_CHIP = 'Why is this moving today?';
+
+const WHY_MOVING_INSTRUCTION = `For this question, explain today's price move using the recent headlines and the size of the move provided in the prompt. If no headline plausibly explains a move of that magnitude, say the move looks like broader sector/market movement or normal volatility with no single clear catalyst. NEVER invent a catalyst that is not supported by the headlines.`;
 
 const SYSTEM_BASE = `You are a stock analyst for StockDashes. The user clicked a quick-action chip while viewing a stock research page. Answer in 2–4 sentences. Focus on a 3-year investing horizon — NOT day-trading advice. Be specific where data is provided; otherwise reason from first principles. Never invent specific numbers not included in the prompt.`;
 
@@ -20,6 +28,13 @@ export async function POST(request) {
 
   const { ticker, prompt, price } = body;
   if (!ticker || !prompt) return Response.json({ error: 'Missing ticker or prompt' }, { status: 400 });
+
+  // Day's % change — only sent by the client for the "Why is this moving today?"
+  // chip. Number or undefined.
+  const chgPctNum = Number(body.chgPct);
+  const chgPct = Number.isFinite(chgPctNum) ? chgPctNum : null;
+
+  const isWhyMoving = prompt === WHY_MOVING_CHIP;
 
   // Portfolio source of truth: signed-in users load holdings server-side from
   // Supabase (never trust the client body); anonymous users fall back to the
@@ -70,11 +85,58 @@ export async function POST(request) {
 
   const hasPortfolio = holdings.length > 0;
 
+  // For the "Why is this moving today?" chip only, fetch recent company news
+  // server-side (mirrors app/api/news/route.js) so the model can ground its
+  // answer in real headlines. Any failure or missing key → empty news block.
+  let newsLines = [];
+  if (isWhyMoving) {
+    const finnhubKey = process.env.FINNHUB_API_KEY;
+    if (finnhubKey) {
+      try {
+        trackFinnhub(1); // 1 company-news call
+        const today = new Date();
+        const from = new Date(today - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const to = today.toISOString().split('T')[0];
+        const newsRes = await fetch(
+          `https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${from}&to=${to}&token=${finnhubKey}`,
+          { next: { revalidate: 900 } }
+        );
+        const articles = await newsRes.json();
+        if (Array.isArray(articles)) {
+          newsLines = articles
+            .slice()
+            .sort((a, b) => (b?.datetime ?? 0) - (a?.datetime ?? 0))
+            .slice(0, 5)
+            .map(a => {
+              const headline = (a?.headline ?? '').trim();
+              if (!headline) return null;
+              const summary = (a?.summary ?? '').trim().slice(0, 200);
+              const date = a?.datetime ? new Date(a.datetime * 1000).toISOString().split('T')[0] : '';
+              const source = (a?.source ?? '').trim();
+              return `- ${headline}${summary ? ` — ${summary}` : ''}${date ? ` — ${date}` : ''}${source ? ` — ${source}` : ''}`;
+            })
+            .filter(Boolean);
+        }
+      } catch {
+        newsLines = [];
+      }
+    }
+  }
+
   const lines = [
     `Stock: ${ticker}`,
     price != null ? `Current price: $${Number(price).toFixed(2)}` : null,
     `Question: ${prompt}`,
   ].filter(Boolean);
+
+  if (isWhyMoving) {
+    if (chgPct != null) lines.push(`Today's move: ${chgPct}%`);
+    if (newsLines.length) {
+      lines.push('', 'Recent headlines (last 7 days):', ...newsLines);
+    } else {
+      lines.push('No recent headlines available.');
+    }
+  }
 
   if (hasPortfolio) {
     lines.push('', "User's current portfolio:");
@@ -88,6 +150,11 @@ export async function POST(request) {
 
   const userMessage = lines.join('\n');
 
+  // Base system prompt depends on portfolio context; for the "Why is this
+  // moving today?" chip, append the news-grounding instruction.
+  const baseSystem = hasPortfolio ? SYSTEM_WITH_PORTFOLIO : SYSTEM_NO_PORTFOLIO;
+  const system = isWhyMoving ? `${baseSystem}\n\n${WHY_MOVING_INSTRUCTION}` : baseSystem;
+
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -99,7 +166,7 @@ export async function POST(request) {
       body: JSON.stringify({
         model:      'claude-sonnet-4-0',
         max_tokens: 400,
-        system:     hasPortfolio ? SYSTEM_WITH_PORTFOLIO : SYSTEM_NO_PORTFOLIO,
+        system,
         messages:   [{ role: 'user', content: userMessage }],
       }),
     });

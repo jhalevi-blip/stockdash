@@ -621,6 +621,7 @@ function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings,
           ticker,
           prompt,
           price: quote?.price,
+          chgPct: quote?.chgPct,
           // Only attach portfolio context when the user actually holds equities.
           ...(equities.length ? { holdings: equities, ...(cash ? { cash } : {}) } : {}),
         }),
