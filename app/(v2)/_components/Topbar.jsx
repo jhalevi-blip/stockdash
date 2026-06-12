@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
 import Dot from './Dot';
+import PushOptIn from '@/components/PushOptIn';
 import { PORTFOLIO } from '@/app/(v2)/dashboard/_lib/mockData';
 
 const RECENT_KEY = 'recent_research_tickers';
@@ -178,6 +179,9 @@ export default function Topbar({ onCommand }) {
           cursor: 'pointer',
           fontWeight: 500,
         }}>🛠 Edit Portfolio</button>
+
+        {/* Web push opt-in — self-gates on browser support / permission */}
+        {isLoaded && isSignedIn && <PushOptIn />}
 
         {/* Auth UI — mirrors V1 NavBar pattern */}
         {isLoaded && !isSignedIn && (

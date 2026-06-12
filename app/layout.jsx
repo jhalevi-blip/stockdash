@@ -3,6 +3,7 @@ import Script from 'next/script';
 import AppShell from '@/components/AppShell';
 import DevMode from '@/components/DevMode';
 import PostHogProvider from '@/components/PostHogProvider';
+import PwaSetup from '@/components/PwaSetup';
 import { ClerkProvider } from '@clerk/nextjs';
 import { Analytics } from '@vercel/analytics/react';
 
@@ -64,6 +65,7 @@ export default function RootLayout({ children }) {
           <Analytics />
           <DevMode />
           <PostHogProvider />
+          <PwaSetup />
         </body>
       </html>
     </ClerkProvider>
