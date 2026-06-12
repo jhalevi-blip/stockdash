@@ -83,6 +83,7 @@ export async function POST(req: Request) {
     'user_settings',
     'theme_classifications',
     'theme_candidates',
+    'push_subscriptions',
   ] as const;
 
   const results = await Promise.all(

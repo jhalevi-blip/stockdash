@@ -28,6 +28,7 @@
     "remark-gfm": "^4.0.1",
     "resend": "^6.10.0",
     "svix": "^1.94.0",
+    "web-push": "^3.6.7",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
