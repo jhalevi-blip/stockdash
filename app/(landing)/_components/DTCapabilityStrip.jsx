@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { CAPABILITIES } from '@/lib/dTerminalCapabilities';
 
 export default function DTCapabilityStrip() {
@@ -50,32 +51,38 @@ export default function DTCapabilityStrip() {
         {/* 5×2 grid */}
         <div className="dt-cap-grid">
           {CAPABILITIES.map((cap, i) => (
-            <div
+            <Link
               key={cap.name}
-              onMouseEnter={() => setHovered(i)}
-              onMouseLeave={() => setHovered(null)}
-              style={{
-                padding: '20px 18px',
-                background: 'rgba(255,255,255,0.02)',
-                border: `1px solid ${hovered === i ? '#3b82f6' : '#1e2530'}`,
-                borderRadius: 8,
-                transform: hovered === i ? 'translateY(-2px)' : 'translateY(0)',
-                transition: 'border-color 0.15s ease, transform 0.15s ease',
-              }}
+              href={cap.href}
+              style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
             >
-              <div style={{ fontSize: 22, marginBottom: 10, lineHeight: 1 }}>{cap.icon}</div>
-              <div style={{
-                fontSize: 14, fontWeight: 700, color: '#e6edf3',
-                marginBottom: 6, letterSpacing: '-0.01em',
-              }}>
-                {cap.name}
+              <div
+                onMouseEnter={() => setHovered(i)}
+                onMouseLeave={() => setHovered(null)}
+                style={{
+                  padding: '20px 18px',
+                  background: 'rgba(255,255,255,0.02)',
+                  border: `1px solid ${hovered === i ? '#3b82f6' : '#1e2530'}`,
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  transform: hovered === i ? 'translateY(-2px)' : 'translateY(0)',
+                  transition: 'border-color 0.15s ease, transform 0.15s ease',
+                }}
+              >
+                <div style={{ fontSize: 22, marginBottom: 10, lineHeight: 1 }}>{cap.icon}</div>
+                <div style={{
+                  fontSize: 14, fontWeight: 700, color: '#e6edf3',
+                  marginBottom: 6, letterSpacing: '-0.01em',
+                }}>
+                  {cap.name}
+                </div>
+                <div style={{
+                  fontSize: 12, color: 'rgba(230,237,243,0.6)', lineHeight: 1.5,
+                }}>
+                  {cap.desc}
+                </div>
               </div>
-              <div style={{
-                fontSize: 12, color: 'rgba(230,237,243,0.6)', lineHeight: 1.5,
-              }}>
-                {cap.desc}
-              </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>
