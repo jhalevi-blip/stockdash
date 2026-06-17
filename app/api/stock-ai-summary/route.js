@@ -1,3 +1,6 @@
+import { auth } from '@clerk/nextjs/server';
+import { getSupabaseAdmin } from '@/lib/supabase';
+
 export const dynamic = 'force-dynamic';
 
 const BUY_CODES = new Set(['P', 'M', 'A', 'G']);
@@ -319,6 +322,33 @@ export async function POST(request) {
 
   const { ticker } = body;
   if (!ticker) return Response.json({ error: 'Missing ticker' }, { status: 400 });
+
+  // Server-enforced daily quota before the (expensive) Opus call. Anonymous
+  // callers keyed by IP (limit 2/day), signed-in by userId (limit 5/day). On
+  // any Supabase error we fail open — the 60/min IP limiter is still a floor
+  // and a quota hiccup must not block legitimate users.
+  const { userId } = await auth();
+  const identity = userId
+    ? `user:${userId}`
+    : `ip:${request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'}`;
+  const dailyLimit = userId ? 5 : 2;
+  const day = new Date().toISOString().slice(0, 10); // UTC YYYY-MM-DD
+
+  const sb = getSupabaseAdmin();
+  if (sb) {
+    try {
+      const { data: count, error } = await sb.rpc('increment_ai_usage', { p_identity: identity, p_day: day });
+      if (error) {
+        console.error('[stock-ai-summary] quota check failed, failing open:', error.message);
+      } else if (typeof count === 'number' && count > dailyLimit) {
+        return Response.json({ error: 'Daily limit reached' }, { status: 429 });
+      }
+    } catch (e) {
+      console.error('[stock-ai-summary] quota check threw, failing open:', e);
+    }
+  } else {
+    console.error('[stock-ai-summary] Supabase unavailable, failing open on quota');
+  }
 
   const userMessage = buildUserMessage(body);
 

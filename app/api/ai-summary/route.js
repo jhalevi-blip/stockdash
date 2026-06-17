@@ -1,3 +1,4 @@
+import { auth } from '@clerk/nextjs/server';
 import { summarizeCorrelationMatrix } from '@/lib/correlation';
 
 export const dynamic = 'force-dynamic';
@@ -229,6 +230,10 @@ Your job: generate 2-3 plain-English takeaways that surface the most useful obse
 - Never fabricate numbers. Every r-value or correlation claim must be derivable from the data provided.`;
 
 export async function POST(request) {
+  // Require sign-in: no signed-out caller exists for this endpoint.
+  const { userId } = await auth();
+  if (!userId) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
   const body = await request.json();
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return Response.json({ error: 'AI service unavailable' }, { status: 500 });
