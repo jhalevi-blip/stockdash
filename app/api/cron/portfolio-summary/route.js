@@ -54,7 +54,7 @@ async function fetchEurUsd() {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept': 'application/json',
         },
-        cache: 'no-store',
+        next: { revalidate: 3600 }, // share /api/chart's hourly Data Cache entry for this URL
       }
     );
     if (!res.ok) return null;
