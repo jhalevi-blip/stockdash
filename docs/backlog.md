@@ -1,6 +1,6 @@
 # StockDashes Roadmap
 
-_Last updated: 2026-06-02_
+_Last updated: 2026-06-17_
 
 ## Conventions
 
@@ -57,6 +57,7 @@ User-visible symptom: someone with positions across two brokers (e.g., Saxo + De
 **SEO post queue:**
 - SEO post: "Sector Diversification: How to Actually Diversify Your Portfolio" — companion to the correlation post; practical retail-investor angle
 - SEO post: "What Is Beta in Stocks? (And Why It Matters Less Than You Think)" — myth-busting angle; accessible, broad search appeal
+- SEO post #2: Stock Research (DCF/valuation feature) — a wedge-led, shareable piece, counterpart to the published debasement/Theme Research post (content/blog/debasement-trade-scored.md)
 
 **Fixes and hygiene:**
 - **Anon-after-signout cache read — verify sign-out clears cache (Stage 2)** — `useHoldings`'s anonymous path reads `stockdash_holdings` without checking `OWNER_KEY`, so an anonymous session could surface a prior signed-in user's holdings on a shared device. Mitigated IF `clearHoldingsCache()` fires on sign-out — but this is **UNVERIFIED**. Two-part item: (a) VERIFY `clearHoldingsCache()` is wired into the sign-out handler and actually fires — if it's missing or fires silently without effect, **promote to high priority** (live cross-user data leak); (b) add the OWNER_KEY guard to anon `getLocalHoldings`: return `[]` if `OWNER_KEY` is set to a real userId — confirmed safe (~3 lines: legit anon users have no OWNER_KEY, so no false negatives). Guard is defense-in-depth regardless of sign-out wiring.
