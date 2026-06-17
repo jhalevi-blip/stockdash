@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
-import webpush from 'web-push';
+import { sendToSubscriptions } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -21,7 +21,6 @@ export async function POST(request) {
   if (!subject || !publicKey || !privateKey) {
     return Response.json({ error: 'Push not configured' }, { status: 500 });
   }
-  webpush.setVapidDetails(subject, publicKey, privateKey);
 
   let body;
   try {
@@ -47,33 +46,7 @@ export async function POST(request) {
     url: url ?? '/dashboard',
   });
 
-  let sent = 0;
-  let failed = 0;
-  const expired = [];
-
-  await Promise.all(
-    (data ?? []).map(async (row) => {
-      try {
-        await webpush.sendNotification(row.subscription, payload);
-        sent += 1;
-      } catch (err) {
-        failed += 1;
-        // 404/410 mean the subscription is gone — mark for pruning.
-        if (err?.statusCode === 404 || err?.statusCode === 410) {
-          expired.push(row.endpoint);
-        }
-      }
-    })
-  );
-
-  let removed = 0;
-  if (expired.length) {
-    const { error: delErr, count } = await sb
-      .from('push_subscriptions')
-      .delete({ count: 'exact' })
-      .in('endpoint', expired);
-    if (!delErr) removed = count ?? expired.length;
-  }
+  const { sent, failed, removed } = await sendToSubscriptions({ sb, subs: data, payload });
 
   return Response.json({ sent, failed, removed });
 }
