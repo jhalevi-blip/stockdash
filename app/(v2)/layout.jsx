@@ -6,16 +6,23 @@ import Sidebar from './_components/Sidebar';
 import Topbar from './_components/Topbar';
 import MobileNavDrawer from './_components/MobileNavDrawer';
 import PortfolioModal from '@/components/PortfolioModal';
-import { loadUserHoldings, saveUserHoldings } from '@/lib/holdingsStorage';
+import { loadUserHoldings, saveUserHoldings, clearAllForeignData } from '@/lib/holdingsStorage';
 
 // V2 layout — owns its own chrome (Sidebar + Topbar) and the
 // Edit Portfolio modal. Mirrors NavBar's portfolio load/save
 // logic exactly so behavior matches across both layouts.
 export default function DashboardV2Layout({ children }) {
-  const { user, isSignedIn } = useUser();
+  const { user, isLoaded, isSignedIn } = useUser();
   const [modalOpen, setModalOpen] = useState(false);
   const [savedHoldings, setSavedHoldings] = useState([]);
   const [savedCash, setSavedCash] = useState(null);
+
+  // Confirmed-guest load on a shared browser: wipe any prior user's personal
+  // footprint. Strictly gated so a signed-in user's data is never cleared, and
+  // never during Clerk's loading window. Preserves demo + anonymous AI preview.
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) clearAllForeignData();
+  }, [isLoaded, isSignedIn]);
 
   function openModal() {
     const h = loadUserHoldings(user?.id);

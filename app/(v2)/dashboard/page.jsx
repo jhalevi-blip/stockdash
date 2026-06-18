@@ -466,6 +466,7 @@ export default function DashboardV2Page() {
         </div>
       ) : (
         <PortfolioAISummary
+          key={isSignedIn ? (user?.id || 'signed-in') : 'anon'}
           holdings={isSignedIn ? aiRows : HOLDINGS}
           portfolioStats={isSignedIn ? {
             totalValue:  hero.totalValue,

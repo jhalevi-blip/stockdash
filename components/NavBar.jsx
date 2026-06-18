@@ -6,7 +6,7 @@ import { useUser, useClerk, SignInButton, SignUpButton, UserButton } from '@cler
 import PortfolioModal from './PortfolioModal';
 import { startDemo } from '@/lib/startDemo';
 import {
-  migrateIfNeeded, loadUserHoldings, saveUserHoldings, clearHoldingsCache, getCacheOwner, CACHE_KEY,
+  migrateIfNeeded, loadUserHoldings, saveUserHoldings, clearHoldingsCache, clearAllForeignData, getCacheOwner, CACHE_KEY,
 } from '@/lib/holdingsStorage';
 
 const links = [
@@ -54,9 +54,7 @@ export default function NavBar() {
   useEffect(() => {
     if (!isLoaded) return;
     if (wasSignedIn.current && !isSignedIn) {
-      clearHoldingsCache(); // removes stockdash_holdings + owner
-      localStorage.removeItem('stockdash_cash_amount');
-      localStorage.removeItem('stockdash_cash_currency');
+      clearAllForeignData(); // wipe the full personal-data footprint on sign-out
     }
     wasSignedIn.current = isSignedIn ?? false;
   }, [isLoaded, isSignedIn]);
