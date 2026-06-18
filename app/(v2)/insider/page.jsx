@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import DemoPrompt from '@/components/DemoPrompt';
 import { getDemoTickers } from '@/lib/startDemo';
+import { getCachedHoldings } from '@/lib/holdingsStorage';
 
 /* ─── Transaction type codes (identical to V1) ──────────────────────────── */
 const CODES = {
@@ -37,7 +38,7 @@ const COLS = [
 
 /* ─── Page ──────────────────────────────────────────────────────────────── */
 export default function InsiderV2Page() {
-  const { isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   const [tickers,      setTickers]      = useState(null); // null = Clerk not yet loaded
   const [transactions, setTransactions] = useState([]);
   const [loading,      setLoading]      = useState(false);
@@ -50,15 +51,14 @@ export default function InsiderV2Page() {
   useEffect(() => {
     if (!isLoaded) return;
     try {
-      const stored   = localStorage.getItem('stockdash_holdings');
-      const holdings = stored ? JSON.parse(stored) : [];
+      const holdings = getCachedHoldings(user?.id);
       let ts = holdings.map(h => h.t);
       if (!ts.length && !isSignedIn) ts = getDemoTickers();
       setTickers(ts);
     } catch {
       setTickers(!isSignedIn ? getDemoTickers() : []);
     }
-  }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoaded, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch transactions when tickers are resolved
   useEffect(() => {

@@ -1,17 +1,18 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useUser } from '@clerk/nextjs';
 import DemoPrompt from '@/components/DemoPrompt';
 import { getDemoTickers } from '@/lib/startDemo';
+import { getCachedHoldings } from '@/lib/holdingsStorage';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid, AreaChart, Area,
 } from 'recharts';
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
-function getStoredTickers() {
+function getStoredTickers(userId) {
   try {
-    const stored = localStorage.getItem('stockdash_holdings');
-    const holdings = stored ? JSON.parse(stored) : [];
+    const holdings = getCachedHoldings(userId);
     const t = holdings.map(h => h.t);
     if (t.length) return t;
     if (localStorage.getItem('stockdash_demo') === 'true') return getDemoTickers();
@@ -59,6 +60,7 @@ const TABLE_COLS = [
 
 /* ─── Page ──────────────────────────────────────────────────────────────── */
 export default function EarningsV2Page() {
+  const { isLoaded, user } = useUser();
   const [tickers,      setTickers]      = useState([]);
   const [selected,     setSelected]     = useState(null);
   const [data,         setData]         = useState([]);
@@ -89,12 +91,12 @@ export default function EarningsV2Page() {
   };
 
   useEffect(() => {
-    const ts = getStoredTickers();
+    if (!isLoaded) return; // wait for Clerk so a signed-in user's tickers aren't blanked
+    const ts = getStoredTickers(user?.id);
     setTickers(ts);
     // Auto-load largest position by shares × cost-per-share
     try {
-      const stored = localStorage.getItem('stockdash_holdings');
-      const holdings = stored ? JSON.parse(stored) : [];
+      const holdings = getCachedHoldings(user?.id);
       const largest = [...holdings]
         .filter(h => h.s && h.c)
         .sort((a, b) => (b.s * b.c) - (a.s * a.c))[0];
@@ -103,7 +105,7 @@ export default function EarningsV2Page() {
     } catch {
       if (ts.length) loadEarnings(ts[0]);
     }
-  }, []);
+  }, [isLoaded, user?.id]);
 
   function handleSort(key) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');

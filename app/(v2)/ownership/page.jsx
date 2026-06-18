@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import DemoPrompt from '@/components/DemoPrompt';
 import { getDemoTickers } from '@/lib/startDemo';
+import { getCachedHoldings } from '@/lib/holdingsStorage';
 
 /* ─── Formatters ────────────────────────────────────────────────────────── */
 const f    = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
@@ -84,7 +85,7 @@ const sectionLabel = {
 
 /* ─── Page ──────────────────────────────────────────────────────────────── */
 export default function OwnershipV2Page() {
-  const { isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
 
   // null = Clerk not yet resolved; [] = resolved but empty (signed-in, no portfolio)
   const [tickers,      setTickers]      = useState(null);
@@ -106,15 +107,14 @@ export default function OwnershipV2Page() {
   useEffect(() => {
     if (!isLoaded) return;
     try {
-      const stored   = localStorage.getItem('stockdash_holdings');
-      const holdings = stored ? JSON.parse(stored) : [];
+      const holdings = getCachedHoldings(user?.id);
       let ts = holdings.map(h => h.t);
       if (!ts.length && !isSignedIn) ts = getDemoTickers();
       setTickers(ts);
     } catch {
       setTickers(!isSignedIn ? getDemoTickers() : []);
     }
-  }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoaded, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch all three APIs once tickers are resolved and non-empty.
   useEffect(() => {

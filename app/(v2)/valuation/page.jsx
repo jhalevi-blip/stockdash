@@ -1,8 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useUser } from '@clerk/nextjs';
 import Card from '@/app/(v2)/_components/Card';
 import DemoPrompt from '@/components/DemoPrompt';
 import { getDemoTickers } from '@/lib/startDemo';
+import { getCachedHoldings } from '@/lib/holdingsStorage';
 
 /* ─── Formatters (identical to V1) ─────────────────────────────────────── */
 const f    = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
@@ -40,6 +42,7 @@ const COLOR = {
 };
 
 export default function ValuationV2Page() {
+  const { isLoaded, user } = useUser();
   const [data,    setData]    = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState('peRatio');
@@ -47,9 +50,9 @@ export default function ValuationV2Page() {
 
   /* ─── Data fetch ────────────────────────────────────────────────────── */
   useEffect(() => {
+    if (!isLoaded) return; // wait for Clerk so a signed-in user's tickers aren't blanked
     try {
-      const stored   = localStorage.getItem('stockdash_holdings');
-      const holdings = stored ? JSON.parse(stored) : [];
+      const holdings = getCachedHoldings(user?.id);
 
       // Build ticker→name map from localStorage. Skip entries where the
       // stored name is missing or identical to the ticker (no useful data).
@@ -77,7 +80,7 @@ export default function ValuationV2Page() {
         })
         .finally(() => setLoading(false));
     } catch { setLoading(false); }
-  }, []);
+  }, [isLoaded, user?.id]);
 
   /* ─── Sort ──────────────────────────────────────────────────────────── */
   const handleSort = key => {

@@ -1,7 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useUser } from '@clerk/nextjs';
 import DemoPrompt from '@/components/DemoPrompt';
 import { getDemoTickers } from '@/lib/startDemo';
+import { getCachedHoldings } from '@/lib/holdingsStorage';
 
 /* ─── Formatters (identical to V1) ─────────────────────────────────────── */
 const fmtNum = (n, d = 2) => n != null ? n.toFixed(d) : '—';
@@ -87,6 +89,7 @@ function MetricRow({ label, peers, metricKey, fmt, lowerIsBetter }) {
 
 /* ─── Page ──────────────────────────────────────────────────────────────── */
 export default function PeersV2Page() {
+  const { isLoaded, user } = useUser();
   const [tickers, setTickers] = useState([]);
   const [ticker,  setTicker]  = useState(null);
   const [data,    setData]    = useState(null);
@@ -112,15 +115,15 @@ export default function PeersV2Page() {
   };
 
   useEffect(() => {
+    if (!isLoaded) return; // wait for Clerk so a signed-in user's tickers aren't blanked
     try {
-      const stored   = localStorage.getItem('stockdash_holdings');
-      const holdings = stored ? JSON.parse(stored) : [];
+      const holdings = getCachedHoldings(user?.id);
       let ts = holdings.map(h => h.t);
       if (!ts.length && localStorage.getItem('stockdash_demo') === 'true') ts = getDemoTickers();
       setTickers(ts);
       if (ts.length) load(ts[0]);
     } catch {}
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoaded, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const metrics = tab === 'valuation' ? VALUATION_METRICS : FINANCIAL_METRICS;
 

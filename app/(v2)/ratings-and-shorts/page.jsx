@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { DEMO_FALLBACK } from '@/lib/startDemo';
+import { getCachedHoldings } from '@/lib/holdingsStorage';
 
 /* ─── Formatter ─────────────────────────────────────────────────────────── */
 const fmt = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
@@ -38,7 +39,7 @@ const COLUMNS = [
 
 /* ─── Page ──────────────────────────────────────────────────────────────── */
 export default function RatingsAndShortsV2Page() {
-  const { isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   const [rows,        setRows]        = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [sortKey,     setSortKey]     = useState('upside');
@@ -46,11 +47,10 @@ export default function RatingsAndShortsV2Page() {
   const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
+    if (!isLoaded) return; // wait for Clerk so a signed-in user's tickers aren't blanked
     let tickers = [];
     try {
-      const stored = localStorage.getItem('stockdash_holdings');
-      const holdings = stored ? JSON.parse(stored) : [];
-      tickers = holdings.map(h => h.t);
+      tickers = getCachedHoldings(user?.id).map(h => h.t);
     } catch {}
     if (!tickers.length) tickers = DEMO_FALLBACK;
     const tp = tickers.join(',');
@@ -87,7 +87,7 @@ export default function RatingsAndShortsV2Page() {
       });
       setRows(enriched);
     }).finally(() => setLoading(false));
-  }, []);
+  }, [isLoaded, user?.id]);
 
   function handleSort(key) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');

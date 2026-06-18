@@ -1,7 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useUser } from '@clerk/nextjs';
 import DemoPrompt from '@/components/DemoPrompt';
 import { getDemoTickers } from '@/lib/startDemo';
+import { getCachedHoldings } from '@/lib/holdingsStorage';
 
 /* ─── Filing type badge colors (identical to V1) ────────────────────────── */
 const FILING_TYPES = {
@@ -15,10 +17,9 @@ const btnBase = {
 };
 
 /* ─── Ticker + demo resolution (same pattern as Earnings V2) ────────────── */
-function getStoredTickers() {
+function getStoredTickers(userId) {
   try {
-    const stored = localStorage.getItem('stockdash_holdings');
-    const holdings = stored ? JSON.parse(stored) : [];
+    const holdings = getCachedHoldings(userId);
     const t = holdings.map(h => h.t);
     if (t.length) return t;
     if (localStorage.getItem('stockdash_demo') === 'true') return getDemoTickers();
@@ -28,6 +29,7 @@ function getStoredTickers() {
 
 /* ─── Page ──────────────────────────────────────────────────────────────── */
 export default function FinancialFilingsV2Page() {
+  const { isLoaded, user } = useUser();
   const [tickers,     setTickers]     = useState([]);
   const [selected,    setSelected]    = useState(null);
   const [tab,         setTab]         = useState('filings');
@@ -68,11 +70,11 @@ export default function FinancialFilingsV2Page() {
 
   /* ─── Auto-load on mount: largest position by shares × cost ─────────── */
   useEffect(() => {
-    const ts = getStoredTickers();
+    if (!isLoaded) return; // wait for Clerk so a signed-in user's tickers aren't blanked
+    const ts = getStoredTickers(user?.id);
     setTickers(ts);
     try {
-      const stored   = localStorage.getItem('stockdash_holdings');
-      const holdings = stored ? JSON.parse(stored) : [];
+      const holdings = getCachedHoldings(user?.id);
       const largest  = [...holdings]
         .filter(h => h.s && h.c)
         .sort((a, b) => (b.s * b.c) - (a.s * a.c))[0];
@@ -81,7 +83,7 @@ export default function FinancialFilingsV2Page() {
     } catch {
       if (ts.length) loadData(ts[0]);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoaded, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredFilings = filterType === 'all'
     ? filings : filings.filter(f => f.type === filterType);

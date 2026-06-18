@@ -1,6 +1,8 @@
 'use client';
 import DemoPrompt from '@/components/DemoPrompt';
 import { getDemoTickers } from '@/lib/startDemo';
+import { getCachedHoldings } from '@/lib/holdingsStorage';
+import { useUser } from '@clerk/nextjs';
 import { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
@@ -122,6 +124,7 @@ function buildTable(transformed, rowDefs) {
 }
 
 export default function FinancialsPage() {
+  const { isLoaded, user } = useUser();
   const [tickers,  setTickers]  = useState([]);
   const [selected, setSelected] = useState(null);
   const [data,     setData]     = useState(null);
@@ -129,16 +132,13 @@ export default function FinancialsPage() {
   const [tab,      setTab]      = useState('income');
 
   useEffect(() => {
+    if (!isLoaded) return; // wait for Clerk so a signed-in user's tickers aren't blanked
     try {
-      // TODO: reads stockdash_holdings without ownership check — a polluted browser
-      // may show stale data here. Track: consolidate all unscoped cache reads behind
-      // a single ownership-aware getter (dual-table consolidation pass).
-      const stored = localStorage.getItem('stockdash_holdings');
-      let ts = stored ? JSON.parse(stored).map(h => h.t) : [];
+      let ts = getCachedHoldings(user?.id).map(h => h.t);
       if (!ts.length && localStorage.getItem('stockdash_demo') === 'true') ts = getDemoTickers();
       setTickers(ts);
     } catch { setTickers([]); }
-  }, []);
+  }, [isLoaded, user?.id]);
 
   const loadFinancials = async (ticker) => {
     setSelected(ticker);
