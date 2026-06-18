@@ -383,9 +383,74 @@ export default function PerformanceV2Page() {
     const eurUsd         = eurCandles[eurCandles.length - 1]?.close ?? 1;
     const totalCostBasis = holdings.reduce((sum, h) => sum + h.s * h.c, 0);
 
-    const startingCashUSD   = cashCurrency === 'USD'
+    // ── Start index, start-date FX, and reconstructed start value ────────────
+    // Hoisted above startingCashUSD so the manual-vs-reconstructed cash decision
+    // can read reconStartValueUSD. All inputs (startDate, holdings, candle series,
+    // startHeld, startCashEur, startReconPrices) are available at this point.
+
+    // Determine start candle index
+    let startIdx;
+    if (startDate) {
+      startIdx = findCandleByDate(spyCandles, startDate);
+    } else {
+      const explicitDates = holdings.map(h => h.d).filter(Boolean);
+      const earliestDate  = explicitDates.length
+        ? explicitDates.reduce((a, b) => a < b ? a : b) : null;
+      if (earliestDate) {
+        startIdx = findCandleByDate(spyCandles, earliestDate);
+      } else {
+        const spyStartIndices = holdings.map(h => {
+          const pIdx = estimatePurchaseIdx(tickerCandles[h.t], h.c);
+          const tLen = tickerCandles[h.t].length;
+          if (!tLen) return 0;
+          return Math.round((pIdx / tLen) * spyLen);
+        });
+        startIdx = Math.min(...spyStartIndices, spyLen - 1);
+      }
+    }
+
+    // Start-date EUR/USD close — used for the cash-leg USD conversion below and
+    // reused by the EUR chart further down.
+    const eurStartIdx  = Math.min(startIdx, eurCandles.length - 1);
+    const eurStart     = eurCandles[eurStartIdx]?.close ?? null;
+
+    // ── Reconstructed start value (Stage 2b) — drives the Modified Dietz startValue.
+    // holdingsValueUSD: Σ start-held shares × start-date close, skipping tickers
+    // with no available close (surfaced via reconMissing, never valued at 0).
+    // USD→EUR uses eurStart (start-date FX), NOT the latest eurUsd. Start-held
+    // tickers here are US-listed (USD), so closes are USD; EUR-listed start holdings
+    // would need their own conversion (deferred).
+    const reconPrices = startReconPrices?.prices ?? null;
+    const heldTickers = startHeld ? Object.keys(startHeld) : [];
+    const reconBreakdown = [];
+    const reconMissing   = [];
+    let holdingsValueUSD = 0;
+    for (const t of heldTickers) {
+      const shares = startHeld[t];
+      const close  = reconPrices ? reconPrices[t] : undefined;
+      if (close == null) { reconMissing.push(t); reconBreakdown.push({ t, shares, close: null, valueUSD: null }); continue; }
+      const valueUSD = shares * close;
+      holdingsValueUSD += valueUSD;
+      reconBreakdown.push({ t, shares, close, valueUSD });
+    }
+    reconBreakdown.sort((a, b) => (b.valueUSD ?? 0) - (a.valueUSD ?? 0));
+
+    // Null until prices have loaded and we have start cash + a start-date FX rate.
+    // Holdings at the start may be zero (all-cash start) — the loop below then
+    // contributes 0. Falls back to manual cash via ?? below.
+    const reconStartValueUSD =
+      (reconPrices && startCashEur != null && eurStart && eurStart > 0)
+        ? holdingsValueUSD + startCashEur * eurStart
+        : null;
+
+    const manualCashUSD     = cashCurrency === 'USD'
       ? (startingCash || 0)
       : (startingCash || 0) * eurUsd;
+    // When reconstruction drives the start value, use the file-derived start CASH
+    // (cash leg only, at the start-date FX). Otherwise fall back to manual.
+    const startingCashUSD   = reconStartValueUSD != null
+      ? startCashEur * eurStart
+      : manualCashUSD;
     const adjustedCostBasis = Math.max(0, totalCostBasis - startingCashUSD);
 
     // Current portfolio value — live Finnhub prices, fallback to last candle close
@@ -410,27 +475,6 @@ export default function PerformanceV2Page() {
     const realizedGainsUSD   = (realizedData?.totalPnl ?? 0) * eurUsd;
     const totalCostWithGains = adjustedCostBasis + realizedGainsUSD;
     const netCapital         = totalCostWithGains;
-
-    // Determine start candle index
-    let startIdx;
-    if (startDate) {
-      startIdx = findCandleByDate(spyCandles, startDate);
-    } else {
-      const explicitDates = holdings.map(h => h.d).filter(Boolean);
-      const earliestDate  = explicitDates.length
-        ? explicitDates.reduce((a, b) => a < b ? a : b) : null;
-      if (earliestDate) {
-        startIdx = findCandleByDate(spyCandles, earliestDate);
-      } else {
-        const spyStartIndices = holdings.map(h => {
-          const pIdx = estimatePurchaseIdx(tickerCandles[h.t], h.c);
-          const tLen = tickerCandles[h.t].length;
-          if (!tLen) return 0;
-          return Math.round((pIdx / tLen) * spyLen);
-        });
-        startIdx = Math.min(...spyStartIndices, spyLen - 1);
-      }
-    }
 
     const spyPriceAtStart = spyCandles[startIdx]?.close ?? spyCandles[0]?.close ?? 0;
     const spyShares       = spyPriceAtStart > 0 ? netCapital / spyPriceAtStart : 0;
@@ -494,10 +538,9 @@ export default function PerformanceV2Page() {
       };
     }
 
-    // EUR/USD series for the EUR chart (Phase 9B)
-    const eurStartIdx  = Math.min(startIdx, eurCandles.length - 1);
+    // EUR/USD series for the EUR chart (Phase 9B). eurStartIdx + eurStart are
+    // computed in the hoisted block above; reused here for the chart + FX deltas.
     const eurData      = eurCandles.slice(eurStartIdx).map(c => ({ date: c.date, label: c.label, rate: c.close }));
-    const eurStart     = eurCandles[eurStartIdx]?.close ?? null;
     const eurNow       = eurCandles[eurCandles.length - 1]?.close ?? null;
     const eurChangePct = eurStart && eurNow ? ((eurNow - eurStart) / eurStart) * 100 : null;
     let currencyImpact = null;
@@ -505,36 +548,8 @@ export default function PerformanceV2Page() {
       currencyImpact = portNow * (1 / eurNow - 1 / eurStart);
     }
 
-    // ── Reconstructed start value (Stage 2b) — drives the Modified Dietz startValue.
-    // holdingsValueUSD: Σ start-held shares × start-date close, skipping tickers
-    // with no available close (surfaced via reconMissing, never valued at 0).
-    // USD→EUR uses eurStart (start-date FX), NOT the latest eurUsd. Start-held
-    // tickers here are US-listed (USD), so closes are USD; EUR-listed start holdings
-    // would need their own conversion (deferred).
-    const reconPrices = startReconPrices?.prices ?? null;
-    const heldTickers = startHeld ? Object.keys(startHeld) : [];
-    const reconBreakdown = [];
-    const reconMissing   = [];
-    let holdingsValueUSD = 0;
-    for (const t of heldTickers) {
-      const shares = startHeld[t];
-      const close  = reconPrices ? reconPrices[t] : undefined;
-      if (close == null) { reconMissing.push(t); reconBreakdown.push({ t, shares, close: null, valueUSD: null }); continue; }
-      const valueUSD = shares * close;
-      holdingsValueUSD += valueUSD;
-      reconBreakdown.push({ t, shares, close, valueUSD });
-    }
-    reconBreakdown.sort((a, b) => (b.valueUSD ?? 0) - (a.valueUSD ?? 0));
-
-    // Null until prices have loaded and we have start cash + a start-date FX rate.
-    // Holdings at the start may be zero (all-cash start) — the loop below then
-    // contributes 0. Falls back to manual cash via ?? below.
-    const reconStartValueUSD =
-      (reconPrices && startCashEur != null && eurStart && eurStart > 0)
-        ? holdingsValueUSD + startCashEur * eurStart
-        : null;
-
-    // Display values (EUR)
+    // Display values (EUR) — reconStartValueUSD / holdingsValueUSD computed in
+    // the hoisted block above startingCashUSD.
     const reconCashEur     = startCashEur;
     const reconHoldingsEur = eurStart && eurStart > 0 ? holdingsValueUSD / eurStart : null;
     const reconTotalEur    = reconStartValueUSD != null && eurStart > 0 ? reconStartValueUSD / eurStart : null;
