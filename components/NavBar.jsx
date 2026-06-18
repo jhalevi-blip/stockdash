@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useUser, useClerk, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
 import PortfolioModal from './PortfolioModal';
 import { startDemo } from '@/lib/startDemo';
+import { resetPostHog } from '@/lib/posthog';
 import {
   migrateIfNeeded, loadUserHoldings, saveUserHoldings, clearHoldingsCache, clearAllForeignData, getCacheOwner, CACHE_KEY,
 } from '@/lib/holdingsStorage';
@@ -55,6 +56,7 @@ export default function NavBar() {
     if (!isLoaded) return;
     if (wasSignedIn.current && !isSignedIn) {
       clearAllForeignData(); // wipe the full personal-data footprint on sign-out
+      resetPostHog();        // rotate analytics distinct_id so the next person isn't attributed to this user
     }
     wasSignedIn.current = isSignedIn ?? false;
   }, [isLoaded, isSignedIn]);
