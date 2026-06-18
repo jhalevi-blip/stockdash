@@ -526,10 +526,11 @@ export default function PerformanceV2Page() {
     }
     reconBreakdown.sort((a, b) => (b.valueUSD ?? 0) - (a.valueUSD ?? 0));
 
-    // Null until prices have loaded AND there's ≥1 start-held ticker (and a start
-    // FX rate to convert the cash leg). Falls back to manual cash via ?? below.
+    // Null until prices have loaded and we have start cash + a start-date FX rate.
+    // Holdings at the start may be zero (all-cash start) — the loop below then
+    // contributes 0. Falls back to manual cash via ?? below.
     const reconStartValueUSD =
-      (reconPrices && heldTickers.length && startCashEur != null && eurStart && eurStart > 0)
+      (reconPrices && startCashEur != null && eurStart && eurStart > 0)
         ? holdingsValueUSD + startCashEur * eurStart
         : null;
 
