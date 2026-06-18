@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
@@ -132,7 +132,7 @@ function MetricCard({ label, value, sub, valueColor }) {
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 export default function PerformanceV2Page() {
   const { user, isLoaded, isSignedIn } = useUser();
-  const { holdings, cash: cashData, error: holdingsError, refresh: holdingsRefresh } = useHoldings();
+  const { holdings, cash: cashData, settings, error: holdingsError, refresh: holdingsRefresh } = useHoldings();
   // ── All 11 state slots declared now (9B/9C consume remaining fields) ──────
   const [rawData,        setRawData]        = useState(null);
   const [dataLoading,    setDataLoading]    = useState(false);
@@ -148,15 +148,41 @@ export default function PerformanceV2Page() {
   // Shape: { loading } | { error } | { prices: {ticker: close}, missing: [ticker] }
   const [startReconPrices, setStartReconPrices] = useState(null);
 
-  /* ── Restore persisted date/cash preferences from localStorage ──────────── */
+  /* ── Hydrate date/cash config from portfolios.settings (Supabase) ─────────
+     One-time seed once the /api/portfolio fetch resolves (surfaced via
+     useHoldings → settings). Guarded by a ref so a later refetch (e.g. after a
+     save) can never re-seed and clobber edits the user just made. The write
+     path lives in the change handlers below — never in this effect. */
+  const settingsHydrated = useRef(false);
   useEffect(() => {
-    const saved = localStorage.getItem('stockdash_start_date');
-    if (saved) setStartDate(saved);
-    const savedCash = localStorage.getItem('starting_cash_eur');
-    if (savedCash) setStartingCash(parseFloat(savedCash) || 0);
-    const savedCashCcy = localStorage.getItem('starting_cash_currency');
-    if (savedCashCcy === 'EUR' || savedCashCcy === 'USD') setCashCurrency(savedCashCcy);
-  }, []);
+    if (settingsHydrated.current || !settings) return;
+    settingsHydrated.current = true;
+    if (typeof settings.startDate === 'string') setStartDate(settings.startDate);
+    if (typeof settings.startingCash === 'number') setStartingCash(settings.startingCash || 0);
+    if (settings.cashCurrency === 'EUR' || settings.cashCurrency === 'USD') setCashCurrency(settings.cashCurrency);
+  }, [settings]);
+
+  /* ── Persist date/cash config to Supabase (debounced ~500ms) ──────────────
+     Called from the change handlers with the new value for the changed field;
+     the other two come from current state. The whole settings blob is sent
+     each time (the upsert replaces portfolios.settings), so all three are
+     always included. POST is settings-only — holdings are never touched. */
+  const settingsSaveTimer = useRef(null);
+  function persistSettings(next) {
+    const payload = {
+      startDate:    next.startDate    !== undefined ? next.startDate    : startDate,
+      startingCash: next.startingCash !== undefined ? next.startingCash : startingCash,
+      cashCurrency: next.cashCurrency !== undefined ? next.cashCurrency : cashCurrency,
+    };
+    clearTimeout(settingsSaveTimer.current);
+    settingsSaveTimer.current = setTimeout(() => {
+      fetch('/api/portfolio-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).catch(() => {});
+    }, 500);
+  }
 
   /* ── Load realized P&L from Supabase (migrate localStorage on first load) ── */
   useEffect(() => {
@@ -601,13 +627,13 @@ export default function PerformanceV2Page() {
   function handleDateSave() {
     if (!dateInput) return;
     setStartDate(dateInput);
-    localStorage.setItem('stockdash_start_date', dateInput);
+    persistSettings({ startDate: dateInput });
     setShowDatePicker(false);
   }
 
   function handleDateClear() {
     setStartDate(null);
-    localStorage.removeItem('stockdash_start_date');
+    persistSettings({ startDate: null }); // null is dropped by the route → clears the stored date
     setDateInput(estimatedDate);
     setShowDatePicker(false);
   }
@@ -734,8 +760,7 @@ export default function PerformanceV2Page() {
                     onChange={e => {
                       const v = parseFloat(e.target.value) || 0;
                       setStartingCash(v);
-                      if (v > 0) localStorage.setItem('starting_cash_eur', String(v));
-                      else localStorage.removeItem('starting_cash_eur');
+                      persistSettings({ startingCash: v });
                     }}
                     style={{
                       background: 'var(--bg-card)', border: '1px solid var(--border-color)',
@@ -751,7 +776,7 @@ export default function PerformanceV2Page() {
                     disabled={reconActive}
                     onClick={() => {
                       setCashCurrency(ccy);
-                      localStorage.setItem('starting_cash_currency', ccy);
+                      persistSettings({ cashCurrency: ccy });
                     }}
                     style={{
                       background: 'none',

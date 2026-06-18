@@ -25,7 +25,7 @@ export async function GET() {
 
   const { data, error } = await sb
     .from('portfolios')
-    .select('holdings')
+    .select('holdings, settings')
     .eq('user_id', userId)
     .single();
 
@@ -39,7 +39,7 @@ export async function GET() {
   const holdings   = raw.filter((h: any) => h?.t !== '__CASH__');
   const cash = cashEntry ? { amount: cashEntry.amount, currency: cashEntry.currency ?? 'USD' } : null;
 
-  return Response.json({ signedIn: true, holdings, cash }, {
+  return Response.json({ signedIn: true, holdings, cash, settings: data?.settings ?? {} }, {
     headers: { 'Cache-Control': 'private, no-store' },
   });
 }
