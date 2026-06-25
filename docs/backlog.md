@@ -1,6 +1,6 @@
 # StockDashes Roadmap
 
-_Last updated: 2026-06-17_
+_Last updated: 2026-06-18_
 
 ## Conventions
 
@@ -49,6 +49,32 @@ User-visible symptom: someone with positions across two brokers (e.g., Saxo + De
 Promoted from the Stage-2 "anon-after-signout cache read" item — now CONFIRMED by the 2026-06-17 security audit. `useHoldings`'s anonymous path (`lib/useHoldings.js:7-12`, `getLocalHoldings`) reads `stockdash_holdings` with no `OWNER_KEY` check; so do 8 components directly — `app/(v2)/{earnings,financial-filings,insider,ownership,peers,ratings-and-shorts,valuation}/page.jsx` and legacy `app/financials/page.jsx`. `clearHoldingsCache()` IS wired to sign-out (`components/NavBar.jsx:57`) but only on an in-tab signed-in→signed-out transition; `wasSignedIn` inits `false` (`NavBar.jsx:39`), so a session ending while the app is unmounted (token expiry / closed tab) leaves the owned cache intact and the next anonymous visitor sees a prior user's tickers on a shared device. Severity: High (sensitive financial data; shared-device scope).
 
 Fix direction: add an `OWNER_KEY` guard inside `getLocalHoldings` (return `[]` when `OWNER_KEY` is a real userId — legit anon users have none, so no false negatives) AND consolidate the 8 direct `stockdash_holdings` reads behind one ownership-aware getter (the "dual-table consolidation" the `financials` TODO references) — the single-getter fix alone does not cover the inline readers.
+
+---
+
+**AI thesis cache can store non-array shape (HARDENING — root cause of fixed white-screen)**
+
+Discovered 2026-06-18. The `/research` white-screen crash (fixed by commit `3257343`, an `Array.isArray` guard on `BulletList` at `app/(v2)/research/page.jsx:503`) was triggered by a cached per-ticker thesis (`research_thesis_<TICKER>` in localStorage) holding `bull`/`bear`/`risks` in a non-array shape. The render is now crash-safe, but the source still allows bad shapes to be written.
+
+Fix: validate/coerce `bull`/`bear`/`risks` to arrays in the `/api/stock-ai-summary` response, and at the localStorage cache write (~`app/(v2)/research/page.jsx:583`), so bad data is never stored.
+
+Priority: low — crash already prevented; this stops silently-empty bullet lists.
+
+---
+
+**Peer-median column always blank (BUG — param typo, cosmetic)**
+
+`app/(v2)/research/page.jsx:1454` (ValuationMetricsCard) fetches `/api/peers?tickers=${ticker}`, but the route reads `ticker` (singular) → 400 → the "Peer Med." column is always empty. Fix: change `tickers=` to `ticker=`. One-line, cosmetic.
+
+---
+
+**PostHog distinct_id not reset on shared-device sign-out (PRIVACY/ANALYTICS HYGIENE)**
+
+Parked from the H2 privacy work (commit `4ad6026`). On the public site, signing out via a full page reload skips the in-app sign-out handler, so PostHog keeps the prior user's `distinct_id` (`user_…`) instead of going anonymous — guest browsing gets attributed to the previous account, and the id lingers in a shared browser. Not a holdings leak.
+
+Fix: have the guest-guard call `resetPostHog()` only when it detects a leftover `user_*` distinct_id (so normal anonymous guests aren't reset, avoiding analytics fragmentation).
+
+Priority: low–medium.
 
 ---
 
