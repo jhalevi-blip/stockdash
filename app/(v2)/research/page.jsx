@@ -500,7 +500,7 @@ function ratingLabel(r) {
 function BulletList({ items }) {
   return (
     <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {items.map((item, i) => (
+      {(Array.isArray(items) ? items : []).map((item, i) => (
         <li key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
           <span style={{
             flexShrink: 0, width: 20, height: 20, borderRadius: '50%',
