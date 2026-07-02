@@ -6,6 +6,7 @@ import Sidebar from './_components/Sidebar';
 import Topbar from './_components/Topbar';
 import MobileNavDrawer from './_components/MobileNavDrawer';
 import PortfolioModal from '@/components/PortfolioModal';
+import InstallPrompt from '@/components/InstallPrompt';
 import { loadUserHoldings, saveUserHoldings } from '@/lib/holdingsStorage';
 
 // V2 layout — owns its own chrome (Sidebar + Topbar) and the
@@ -77,6 +78,7 @@ export default function DashboardV2Layout({ children }) {
       <MobileNavDrawer />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <Topbar onCommand={handleCommand} />
+        <InstallPrompt />
         {children}
       </div>
       {modalOpen && (
