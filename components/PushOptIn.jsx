@@ -95,14 +95,14 @@ export default function PushOptIn() {
   if (subscribed) {
     return (
       <span style={{ ...baseStyle, opacity: 0.6 }} aria-label="Notifications enabled">
-        🔔 Notifications on
+        🔔 <span className="v2-topbar-desktop-only">Notifications on</span>
       </span>
     );
   }
 
   return (
     <button onClick={enable} disabled={busy} style={baseStyle} aria-label="Enable notifications">
-      {busy ? '…' : failed ? '🔕 Try again' : '🔔 Enable notifications'}
+      {busy ? '…' : failed ? '🔕 Try again' : <>🔔 <span className="v2-topbar-desktop-only">Enable notifications</span></>}
     </button>
   );
 }
