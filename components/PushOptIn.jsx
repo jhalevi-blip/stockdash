@@ -77,6 +77,35 @@ export default function PushOptIn() {
     setBusy(false);
   }
 
+  async function disable() {
+    if (busy) return;
+    if (!window.confirm('Turn off daily portfolio notifications?')) return;
+    setBusy(true);
+    setFailed(false);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      // Capture the endpoint before unsubscribe() invalidates the object.
+      const endpoint = sub?.endpoint;
+      if (sub) await sub.unsubscribe();
+      // Remove the server row only when we know which endpoint to delete;
+      // no subscription (edge case) means nothing to clean up.
+      if (endpoint) {
+        const res = await fetch('/api/push-subscription', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint }),
+        });
+        if (!res.ok) throw new Error('delete failed');
+      }
+      setSubscribed(false);
+    } catch (e) {
+      console.error('[push] disable failed', e);
+      setFailed(true);
+    }
+    setBusy(false);
+  }
+
   const baseStyle = {
     display: 'flex',
     alignItems: 'center',
@@ -94,9 +123,9 @@ export default function PushOptIn() {
 
   if (subscribed) {
     return (
-      <span style={{ ...baseStyle, opacity: 0.6 }} aria-label="Notifications enabled">
-        🔔 <span className="v2-topbar-desktop-only">Notifications on</span>
-      </span>
+      <button onClick={disable} disabled={busy} style={{ ...baseStyle, opacity: 0.6, cursor: 'pointer' }} aria-label="Turn off notifications">
+        {busy ? '…' : failed ? '🔕 Try again' : <>🔔 <span className="v2-topbar-desktop-only">Notifications on</span></>}
+      </button>
     );
   }
 
