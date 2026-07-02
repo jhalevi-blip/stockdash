@@ -1,6 +1,6 @@
 # StockDashes Roadmap
 
-_Last updated: 2026-06-18_
+_Last updated: 2026-07-02_
 
 ## Conventions
 
@@ -41,14 +41,6 @@ Three approaches considered:
 Recommended: C. Deferred to a dedicated session — not a tail-end fix.
 
 User-visible symptom: someone with positions across two brokers (e.g., Saxo + DeGiro, Jonathan's actual setup) cannot upload both at once in the Edit Portfolio modal. They have to upload one, save, re-open, switch to append mode, upload the second.
-
----
-
-**Anonymous holdings cache leak on shared device (BUG — cross-user data exposure, AUDIT-CONFIRMED 2026-06-17 · H2)**
-
-Promoted from the Stage-2 "anon-after-signout cache read" item — now CONFIRMED by the 2026-06-17 security audit. `useHoldings`'s anonymous path (`lib/useHoldings.js:7-12`, `getLocalHoldings`) reads `stockdash_holdings` with no `OWNER_KEY` check; so do 8 components directly — `app/(v2)/{earnings,financial-filings,insider,ownership,peers,ratings-and-shorts,valuation}/page.jsx` and legacy `app/financials/page.jsx`. `clearHoldingsCache()` IS wired to sign-out (`components/NavBar.jsx:57`) but only on an in-tab signed-in→signed-out transition; `wasSignedIn` inits `false` (`NavBar.jsx:39`), so a session ending while the app is unmounted (token expiry / closed tab) leaves the owned cache intact and the next anonymous visitor sees a prior user's tickers on a shared device. Severity: High (sensitive financial data; shared-device scope).
-
-Fix direction: add an `OWNER_KEY` guard inside `getLocalHoldings` (return `[]` when `OWNER_KEY` is a real userId — legit anon users have none, so no false negatives) AND consolidate the 8 direct `stockdash_holdings` reads behind one ownership-aware getter (the "dual-table consolidation" the `financials` TODO references) — the single-getter fix alone does not cover the inline readers.
 
 ---
 
@@ -94,7 +86,7 @@ Priority: low–medium.
 - SEO post #2: Stock Research (DCF/valuation feature) — a wedge-led, shareable piece, counterpart to the published debasement/Theme Research post (content/blog/debasement-trade-scored.md)
 
 **Fixes and hygiene:**
-- **`realized_pnl_${user.id}` sign-out lifecycle (Stage 2)** — Scoped realized data written to `localStorage.setItem(`realized_pnl_${user.id}`, ...)` on import. No cleanup on sign-out. Not a cross-user leak (it's scoped), but data accumulates per userId key indefinitely. Fix: `localStorage.removeItem(`realized_pnl_${user.id}`)` in the sign-out handler (same place `clearHoldingsCache()` should fire). Low priority — only cosmetic until a second user logs in on the same browser.
+- **~~`realized_pnl_${user.id}` sign-out lifecycle (Stage 2)~~ — RESOLVED** — Scoped realized data written to `localStorage.setItem(`realized_pnl_${user.id}`, ...)` on import; previously had no cleanup on sign-out and accumulated per userId key indefinitely. Verified fixed July 2, 2026 — `clearAllForeignData`'s preserve-list (`holdingsStorage.js:117-142`) does not preserve the `realized_pnl_*` prefix, so `GuestDataGuard`'s eager `clearAllForeignData()` on anonymous mount (`GuestDataGuard.jsx:16-18`) now wipes it on guest load, closing the shared-device concern.
 - **Extract realized-summary helper into `lib/realizedSummary.js` (Stage 2)** — `best`/`worst`/`allRealized`/label computation currently duplicated between `UnifiedUpload.jsx` and `performance/page.jsx`. Too small to warrant extraction at 2 callers. Extract when a third consumer appears or when the computation grows (win-rate, median, `totalPnlSinceStart` on the card).
 - **`totalPnlSinceStart` filters on `firstBuy`, not `lastSell` (Stage 2)** — `positionsSinceStart` keeps positions where `firstBuy >= startDate`, which drops any position bought before the window but sold within it. That realized P&L happened in the window but is excluded. The correct filter for a "realized since X" figure is `lastSell >= startDate` (realization date). Pre-existing; low impact until date-range filtering becomes a first-class feature.
 - **Multi-currency cost basis (Stage 2 — mostly shipped)** — The user-facing gap is closed via a display-layer FX conversion: dashboard + performance aggregates render in EUR (USD ÷ live EUR/USD), and cash is folded into Total Portfolio Value; the holdings table's per-share price and per-position cost are intentionally left in USD. The simple USD÷live-FX approach vs exact per-trade Boekingsbedrag differed by only ~0.2%, deemed negligible. 0b1e059, 4251a2b. Remaining scope (low priority): carry a per-position `currency` field through `rows` state, `handleSave`, and `POST /api/portfolio` only if per-position native-currency display is ever wanted.
@@ -143,6 +135,7 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 
 ## Recently Shipped (last 14 days)
 
+- 2026-07-02 — `fix(security)`: H2 shared-device holdings leak closed. Verified fixed July 2, 2026 — `getCachedHoldings()` ownership guard (`holdingsStorage.js:40-41`) + `GuestDataGuard` eager `clearAllForeignData()` on anonymous mount (`GuestDataGuard.jsx:16-18`). All former unscoped readers consolidated behind the getter.
 - 2026-06-17 — `fix(security)`: H1 cost-bomb closed. Gated `/api/ai-summary` behind sign-in (401 when signed out); added a server-enforced daily AI quota to `/api/stock-ai-summary` via the new `ai_usage` table + `increment_ai_usage` RPC (migration `006_ai_usage.sql`, applied in Supabase) — anon 2/day per IP, signed-in 5/day per user, fails open on Supabase error. Verified live: ai-summary → 401, stock-ai-summary → 200/200/429. 1ad22c9.
 - 2026-06-17 — `feat(push)`: daily portfolio-summary push cron — `/api/cron/portfolio-summary` (GET, `CRON_SECRET`-gated, weekend-skip, fx-unavailable guard) sends each subscribed user their standing at last close ("Portfolio €X · ±Y% at last close"), replicating the dashboard's `realPortfolioStats` math server-side; shared send/prune helper `lib/push.js` reused by `/api/push-send`. `vercel.json` cron `0 6 * * *`. Verified live: 200, 2 devices. 294581a, 15288cc.
 - 2026-06-17 — `content(blog)`: published "The Debasement Trade, Scored" (`content/blog/debasement-trade-scored.md`) — wedge-led Theme Research post with embedded scored-candidates screenshot (`public/blog/theme-research-debasement-candidates.png`); TL;DR frontmatter generated. 138ae5c.
