@@ -73,7 +73,7 @@ Priority: low–medium.
 ## Now (this week)
 
 - [ ] **Audit pass** — production smoke test, FMP/Anthropic usage check, Search Console indexing, PostHog D1/D7, backlog hygiene, code health, dev environment.
-- [ ] **SEO post: "How Much of Your Portfolio Should Be in One Stock?"** — concentration deep-dive; pairs with Post #2 on correlation; ~2000 words.
+- [ ] **SEO post: "How Much of Your Portfolio Should Be in One Stock?"** — concentration deep-dive; pairs with the live correlation post; ~2000 words.
 - [ ] **Option-guard mechanism unverified (observability)** — QBTS/15F27P2 and SOFI/21F28C15 leaked into holdings before commits 11db31c (Unicode-slash regex) and 14967f8 (same-day FIFO sort), then disappeared after both shipped — but we never proved which fix (or what combination) actually catches them. The Saxo file's option rows use ASCII U+002F, so the original `includes('/')` guard should have worked but didn't. Could regress on a different broker file. To verify: on the next upload, capture `_debugHoldingsTickers` (deployed at 549563b) from `/api/upload`'s Network response and confirm no `/`-containing tickers reach holdings. If options reappear, the diagnostic narrows the cause. Low priority — modal review surfaces any leak before save — but worth resolving for peace of mind. Cleanup note: the temporary `_debugHoldingsTickers` field (549563b) must be removed from `/api/upload`'s response in the Stage 1 cleanup commit alongside the other `_debug*` fields. **[AUDIT-CONFIRMED 2026-06-17 · M2]** the 2026-06-17 audit verified `_debug`, `_debugTrades`, `_debugMergedAvgCostEcho`, and `_debugHoldingsTickers` all ship in the live `/api/upload` response (`app/api/upload/route.ts:483-487`) — strip all of them here.
 
 ---
@@ -83,7 +83,7 @@ Priority: low–medium.
 **SEO post queue:**
 - SEO post: "Sector Diversification: How to Actually Diversify Your Portfolio" — companion to the correlation post; practical retail-investor angle
 - SEO post: "What Is Beta in Stocks? (And Why It Matters Less Than You Think)" — myth-busting angle; accessible, broad search appeal
-- SEO post #2: Stock Research (DCF/valuation feature) — a wedge-led, shareable piece, counterpart to the published debasement/Theme Research post (content/blog/debasement-trade-scored.md)
+- SEO post #8: Stock Research (DCF/valuation feature) — a wedge-led, shareable piece, counterpart to the published debasement/Theme Research post (content/blog/debasement-trade-scored.md). 7 posts already live (Apr 23 – Jun 17, 2026: portfolio analysis, correlation, Saxo report, AI rating, DeGiro export, DeGiro real return, debasement trade); this DCF/Stock Research piece is #8, still open.
 
 **Fixes and hygiene:**
 - **~~`realized_pnl_${user.id}` sign-out lifecycle (Stage 2)~~ — RESOLVED** — Scoped realized data written to `localStorage.setItem(`realized_pnl_${user.id}`, ...)` on import; previously had no cleanup on sign-out and accumulated per userId key indefinitely. Verified fixed July 2, 2026 — `clearAllForeignData`'s preserve-list (`holdingsStorage.js:117-142`) does not preserve the `realized_pnl_*` prefix, so `GuestDataGuard`'s eager `clearAllForeignData()` on anonymous mount (`GuestDataGuard.jsx:16-18`) now wipes it on guest load, closing the shared-device concern.
@@ -98,6 +98,8 @@ Priority: low–medium.
 - **Fix malformed Cache-Control on `/api/institutional`** — `stale-while-revalidate` has no value (invalid header). 5-min fix.
 - **Retention diagnostic re-evaluate** — Check PostHog D1/D7/WAU around 2026-05-05 when there are 10+ days of capture data and signed-up users have enough tenure to show a signal.
 - **Rotate 3 vendor keys flagged by Vercel** — RESEND_API_KEY, CLERK_SECRET_KEY (Production), FINNHUB_API_KEY are stored as plain (non-Sensitive) env vars. Rotate each at its source dashboard (Resend / Clerk / Finnhub), save new value in Vercel as Sensitive type, redeploy, verify dependent routes. Low urgency (single-operator Vercel account), flagged 2026-07-02.
+- **Old Vercel preview domain indexed** — stockdash-app.vercel.app is indexed by search engines alongside stockdashes.com (duplicate content, splits any SEO signal). Fix: permanent redirect from *.vercel.app to stockdashes.com (Next.js middleware or vercel.json redirect on host match), or at minimum canonical tags. Flagged 2026-07-02.
+- **Unquoted YAML dates in two blog posts** — degiro-export-guide.md:4 and degiro-real-return.md:4 have unquoted dates parsed as JS Date objects; app/blog/[slug]/opengraph-image.tsx:26 formatDate calls .split() on them → TypeError when the OG route ships. Fix: quote both dates (or coerce in formatDate). Only bites once OG routes are committed/deployed.
 
 **Security & code-quality audit follow-ups (2026-06-17):**
 - **[M1] `/api/usage` unauthenticated info disclosure** — `app/api/usage/route.ts:5` GET has no `auth()`; returns Finnhub/FMP consumption counts plus configured limits/alert thresholds (`lib/apiUsage.ts:75-90`) — recon for timing an abuse run against the AI routes. Gate behind `auth()` (ideally admin-only) or drop the public endpoint.
