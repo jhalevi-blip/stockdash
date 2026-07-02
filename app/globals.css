@@ -305,6 +305,8 @@ body:has(.app-sidebar) { padding-left: 200px; }
     transition: transform 200ms ease;
     overflow-y: auto;
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    /* iOS PWA standalone: keep drawer content below the status bar */
+    padding-top: env(safe-area-inset-top, 0px);
   }
   .v2-drawer.v2-drawer--open {
     transform: translateX(0);
