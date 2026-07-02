@@ -321,6 +321,15 @@ body:has(.app-sidebar) { padding-left: 200px; }
   }
 }
 
+/* iOS PWA standalone: push topbar + burger below the status bar (no-op in browser tabs) */
+.v2-topbar {
+  padding-top: calc(10px + env(safe-area-inset-top, 0px)) !important;
+}
+
+.v2-hamburger {
+  top: calc(14px + env(safe-area-inset-top, 0px));
+}
+
 /* === V2 MOBILE COMPONENT FITS === */
 @media (max-width: 768px) {
   .v2-allocation-donut {
