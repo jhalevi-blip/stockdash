@@ -515,6 +515,16 @@ function BulletList({ items }) {
   );
 }
 
+// Maps an AI route's error/quota response to a friendly, user-safe message.
+// Shared by the thesis (setError) and quick-action (setQuickResult) paths so the
+// two can't drift; never surfaces the raw error code (e.g. 'generation_failed').
+function friendlyAiError(status, json) {
+  if (status === 429 || json?.error === 'Daily limit reached') {
+    return 'Daily AI limit reached — resets at midnight UTC.';
+  }
+  return "Couldn't generate an answer right now. Please try again.";
+}
+
 // thesis + setThesis are lifted to ResearchPageInner so DCFCalculator can read thesis.dcfInputs
 function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings, savedCash, thesis, setThesis, resolvedRevenue, priorAnnualRevenue }) {
   const usageKey   = `research_thesis_usage_${userId ?? 'anon'}`;
@@ -576,7 +586,7 @@ function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings,
       });
       const json = await res.json();
       if (json.error) {
-        setError(json.message ?? 'Generation failed');
+        setError(friendlyAiError(res.status, json));
       } else {
         setThesis(json);
         setGeneratedAt(new Date());
@@ -627,7 +637,12 @@ function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings,
         }),
       });
       const json = await res.json();
-      setQuickResult({ prompt, response: json.response ?? json.error ?? 'No response' });
+      setQuickResult({
+        prompt,
+        response: (!res.ok || json.error || !json.response)
+          ? friendlyAiError(res.status, json)
+          : json.response,
+      });
     } catch {
       setQuickResult({ prompt, response: 'Network error.' });
     }

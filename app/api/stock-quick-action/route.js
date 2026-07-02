@@ -43,6 +43,32 @@ export async function POST(request) {
   let cashInput     = body.cash;
 
   const { userId } = await auth();
+
+  // Server-enforced daily quota before the (expensive) Anthropic + news calls.
+  // Mirrors app/api/stock-ai-summary/route.js:326-351 — anon by IP (2/day),
+  // signed-in by userId (5/day). Fail open on any Supabase error.
+  const identity = userId
+    ? `user:${userId}`
+    : `ip:${request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'}`;
+  const dailyLimit = userId ? 5 : 2;
+  const day = new Date().toISOString().slice(0, 10); // UTC YYYY-MM-DD
+
+  const sbQuota = getSupabaseAdmin();
+  if (sbQuota) {
+    try {
+      const { data: count, error } = await sbQuota.rpc('increment_ai_usage', { p_identity: identity, p_day: day });
+      if (error) {
+        console.error('[stock-quick-action] quota check failed, failing open:', error.message);
+      } else if (typeof count === 'number' && count > dailyLimit) {
+        return Response.json({ error: 'Daily limit reached' }, { status: 429 });
+      }
+    } catch (e) {
+      console.error('[stock-quick-action] quota check threw, failing open:', e);
+    }
+  } else {
+    console.error('[stock-quick-action] Supabase unavailable, failing open on quota');
+  }
+
   if (userId) {
     const sb = getSupabaseAdmin();
     if (sb) {
