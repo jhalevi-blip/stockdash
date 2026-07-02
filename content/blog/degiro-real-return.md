@@ -1,7 +1,7 @@
 ---
 title: "DeGiro Doesn't Show Your Real Return — Here's How to Calculate It"
 slug: degiro-real-return
-date: 2026-06-04
+date: '2026-06-04'
 description: >-
   DeGiro shows you a green number, not your real return. Here's what it leaves
   out — currency, cash-flow timing, realized vs unrealized — and how to find the

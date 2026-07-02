@@ -1,7 +1,7 @@
 ---
 title: "How to Export Your Transaction History from DeGiro (And What Every Column Means)"
 slug: degiro-export-guide
-date: 2026-06-03
+date: '2026-06-03'
 description: >-
   The exact 2026 steps to export your full DeGiro history from one file, what
   every column means, and the traps that quietly break most return calculations.
