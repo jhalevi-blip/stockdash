@@ -44,15 +44,18 @@ function StatusChip({ status }) {
 }
 
 export default function ThesisSignals() {
-  const [signals, setSignals] = useState(null); // null = loading, [] = empty, [...] = data
-  const [error,   setError]   = useState(false);
+  const [signals,     setSignals]     = useState(null); // null = loading, [] = empty, [...] = data
+  const [errorStatus, setErrorStatus] = useState(null); // null | HTTP status number | 'network'
 
   useEffect(() => {
     let cancelled = false;
     fetch('/api/thesis-signals')
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((r) => {
+        if (!r.ok) { const e = new Error(`HTTP ${r.status}`); e.status = r.status; throw e; }
+        return r.json();
+      })
       .then((json) => { if (!cancelled) setSignals(Array.isArray(json.signals) ? json.signals : []); })
-      .catch(() => { if (!cancelled) { setError(true); setSignals([]); } });
+      .catch((e) => { if (!cancelled) { setErrorStatus(e.status ?? 'network'); setSignals([]); } });
     return () => { cancelled = true; };
   }, []);
 
@@ -94,7 +97,11 @@ export default function ThesisSignals() {
 
       {signals !== null && signals.length === 0 && (
         <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '8px 0' }}>
-          {error ? "Couldn't load signals. Please try again later." : 'No data yet — first run pending.'}
+          {errorStatus == null
+            ? 'No data yet — first run pending.'
+            : typeof errorStatus === 'number'
+              ? `Couldn't load signals (HTTP ${errorStatus}).`
+              : "Couldn't load signals. Please try again later."}
         </div>
       )}
 
