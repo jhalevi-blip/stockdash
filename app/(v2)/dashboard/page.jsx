@@ -11,6 +11,7 @@ import HoldingsTable from './_components/HoldingsTable';
 import AllocationDonut from './_components/AllocationDonut';
 import MoversList from './_components/MoversList';
 import PortfolioAISummary from '@/components/PortfolioAISummary';
+import ThesisSignals from './_components/ThesisSignals';
 import EarningsList from './_components/EarningsList';
 import NewsFeed from './_components/NewsFeed';
 import InsiderActivity from './_components/InsiderActivity';
@@ -478,6 +479,9 @@ export default function DashboardV2Page() {
           isSignedIn={!!isSignedIn}
         />
       )}
+
+      {/* 5b. AI Thesis Signals (experimental) — renders directly after the AI summary */}
+      <ThesisSignals />
 
       {/* 6. Earnings · News · Insider — 3-column feed row */}
       <div className="dv2-feed-grid">
