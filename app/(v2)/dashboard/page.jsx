@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import Card from '@/app/(v2)/_components/Card';
@@ -18,6 +18,7 @@ import QuickJumpTiles from './_components/QuickJumpTiles';
 import { PORTFOLIO, HOLDINGS, AI_SUMMARY, PORTFOLIO_SPARK, ALLOCATION } from './_lib/mockData';
 import { fmtCurrency, fmtSigned, fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
 import { useHoldings } from '@/lib/useHoldings';
+import { holdingsSignature } from '@/lib/holdingsStorage';
 
 const SECTOR_COLORS = {
   'Technology':             '#58a6ff',
@@ -116,8 +117,18 @@ export default function DashboardV2Page() {
 
   // Fetch 1-year daily prices for all held tickers and compute portfolio value per day.
   // Runs after holdings are known. Skips if holdings is empty/null (mock/demo case).
+  const prevHistSigRef = useRef(null);
   useEffect(() => {
     if (!holdings?.length) return;
+
+    // D2: when the held tickers/shares change (e.g. optimistic cache → network
+    // reconcile), clear the previous portfolio's chart line first so it isn't
+    // shown against the new holdings while the new series is fetched.
+    const sig = holdingsSignature(holdings);
+    if (prevHistSigRef.current !== null && prevHistSigRef.current !== sig) {
+      setHistory(null);
+    }
+    prevHistSigRef.current = sig;
 
     const tickers = [...new Set(holdings.map(h => h.t))];
 
