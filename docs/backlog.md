@@ -1,6 +1,6 @@
 # StockDashes Roadmap
 
-_Last updated: 2026-07-02_
+_Last updated: 2026-07-08_
 
 ## Conventions
 
@@ -100,6 +100,11 @@ Priority: low–medium.
 - **Old Vercel preview domain indexed** — stockdash-app.vercel.app is indexed by search engines alongside stockdashes.com (duplicate content, splits any SEO signal). Fix: permanent redirect from *.vercel.app to stockdashes.com (Next.js middleware or vercel.json redirect on host match), or at minimum canonical tags. Flagged 2026-07-02.
 - **~~Unquoted YAML dates in two blog posts~~ — RESOLVED** — degiro-export-guide.md:4 and degiro-real-return.md:4 had unquoted dates parsed as JS Date objects; app/blog/[slug]/opengraph-image.tsx:26 formatDate calls .split() on them → TypeError when the OG route ships. Fixed 2026-07-02 in 2cdebde (same commit as the OG system) — both dates quoted, verified rendering 200/image/png on the previously-broken route before ship.
 
+**Performance (from 2026-07-08 session — see docs/perf-audit.md):**
+- **Perf fix 5: SW app-shell caching** — add a `fetch` handler to `public/sw.js`: cache-first for immutable `/_next/static/*`, stale-while-revalidate for the app shell. Requires a versioned cache name + kill-switch plan; bad SW caches stick on user devices. Deferred from the July 8 perf session; do this last, slowly. Ref: docs/perf-audit.md §4.
+- **Stale market clock in topbar** — shows "May 4, 2026" while the dashboard timestamp is correct. Investigate the data source for the market open/date display.
+- **Real-time price updates (polling)** — refetch `/api/prices` every 60s while the tab is visible, pause when hidden, show a "last updated" timestamp. Consider splitting the Finnhub metric call off the hot quote path first (audit §3 rank 2).
+
 **Security & code-quality audit follow-ups (2026-06-17):**
 - **[M1] `/api/usage` unauthenticated info disclosure** — `app/api/usage/route.ts:5` GET has no `auth()`; returns Finnhub/FMP consumption counts plus configured limits/alert thresholds (`lib/apiUsage.ts:75-90`) — recon for timing an abuse run against the AI routes. Gate behind `auth()` (ideally admin-only) or drop the public endpoint.
 - **[M3] "EU-hosted, never sold" claim vs. third-party data flow** — storage is EU (Supabase; PostHog `eu.i.posthog.com`), but per-position holdings transit to Anthropic (US — `app/api/ai-summary/route.js:273` sends "User Position: N shares at avg cost…") and tickers to Finnhub/FMP/Yahoo (US). Tighten wording (e.g. "stored in the EU") or add a sub-processor disclosure. Claims-accuracy; no code change.
@@ -138,6 +143,11 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 
 ## Recently Shipped (last 14 days)
 
+- 2026-07-08 — `perf(earnings)`: Yahoo crumb handshake cached in module memory (4h TTL) + retry on 401/403. 9837d83.
+- 2026-07-08 — `perf`: CookieHub moved to `afterInteractive` + posthog-js lazy-loaded (dynamic import, off the critical path). 7056de6.
+- 2026-07-08 — `perf`: recharts loaded via `next/dynamic` (ssr:false) across all 5 chart routes — off the critical path, no longer in route entry bundles. e3559b8.
+- 2026-07-08 — `perf(dashboard)`: optimistic holdings hydration — owner-checked cache seed + signature dedupe so ticker fetches start before the /api/portfolio round-trip. 36a1a5f.
+- All four verified in production including the H2 shared-device regression test. Audit: docs/perf-audit.md.
 - 2026-07-02 — `content(blog)`: post #8 live — Nike DCF wedge post (nike-dcf-what-the-market-believes), TL;DR, embedded calculator screenshot, internal links, OG card. e328be1.
 - 2026-07-02 — `feat(blog)`: OG image system shipped (built May 4, uncommitted since) — dynamic per-post preview cards via app/blog/[slug]/opengraph-image.tsx + blog-index card, vendored Inter fonts (SIL OFL, license included), quoted YAML dates in the two DeGiro posts. All 7 posts now have branded share cards. Verified live in production and in a real Discord embed. 2cdebde.
 - 2026-07-02 — `feat(pwa)`: install prompt shipped — dismissible banner for signed-in mobile-web users (components/InstallPrompt.jsx, mounted below Topbar in app/(v2)/layout.jsx). iOS branch: Share → Add to Home Screen instructions; Chromium branch: captured beforeinstallprompt + native prompt on tap. Per-user dismissal flag. Verified on device: iOS Safari shows banner, dismiss persists, hidden in standalone/desktop/signed-out. 915f1db.
