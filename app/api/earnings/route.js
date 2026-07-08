@@ -1,6 +1,14 @@
 export const dynamic = 'force-dynamic';
 
-async function fetchYahooCrumb() {
+// ── Yahoo crumb handshake (cookie + crumb), cached in module memory ──────────
+// The handshake is two uncached fetches; a crumb stays valid for hours, so we
+// reuse it across requests for up to 4h instead of re-handshaking every call.
+const CRUMB_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+let crumbCache = null;    // { crumb, cookie, expiresAt } | null
+let crumbInFlight = null; // Promise<auth|null> | null — dedupes concurrent refreshes
+
+// Raw handshake — no caching. Callers go through getYahooCrumb().
+async function fetchFreshYahooCrumb() {
   try {
     const homeRes = await fetch('https://finance.yahoo.com/', {
       headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' },
@@ -23,20 +31,55 @@ async function fetchYahooCrumb() {
   }
 }
 
+// Drop the cached crumb so the next getYahooCrumb() re-handshakes.
+function invalidateCrumb() {
+  crumbCache = null;
+}
+
+// Return a valid { crumb, cookie } — from cache when fresh, otherwise re-handshake.
+// Concurrent refreshes share a single in-flight handshake to avoid a stampede.
+async function getYahooCrumb({ forceRefresh = false } = {}) {
+  if (!forceRefresh && crumbCache && crumbCache.expiresAt > Date.now()) {
+    return crumbCache;
+  }
+  if (!crumbInFlight) {
+    crumbInFlight = (async () => {
+      const fresh = await fetchFreshYahooCrumb();
+      crumbCache = fresh ? { ...fresh, expiresAt: Date.now() + CRUMB_TTL_MS } : null;
+      return crumbCache;
+    })().finally(() => { crumbInFlight = null; });
+  }
+  return crumbInFlight;
+}
+
+function calendarEventsUrl(ticker, auth) {
+  const crumbQ = auth ? `&crumb=${encodeURIComponent(auth.crumb)}` : '';
+  return `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents${crumbQ}`;
+}
+
+function calendarEventsInit(auth) {
+  return {
+    headers: {
+      'User-Agent': 'Mozilla/5.0',
+      'Accept': 'application/json',
+      ...(auth ? { 'Cookie': auth.cookie } : {}),
+    },
+    next: { revalidate: 86400 },
+  };
+}
+
 async function fetchEarningsDate(ticker, auth) {
   try {
-    const crumbQ = auth ? `&crumb=${encodeURIComponent(auth.crumb)}` : '';
-    const res = await fetch(
-      `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents${crumbQ}`,
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0',
-          'Accept': 'application/json',
-          ...(auth ? { 'Cookie': auth.cookie } : {}),
-        },
-        next: { revalidate: 86400 },
+    let res = await fetch(calendarEventsUrl(ticker, auth), calendarEventsInit(auth));
+    // A cached crumb can be rejected (expired/rotated) — refresh once and retry.
+    if ((res.status === 401 || res.status === 403) && auth) {
+      invalidateCrumb();
+      const fresh = await getYahooCrumb({ forceRefresh: true });
+      if (fresh) {
+        auth = fresh;
+        res = await fetch(calendarEventsUrl(ticker, auth), calendarEventsInit(auth));
       }
-    );
+    }
     if (!res.ok) return null;
     const data = await res.json();
     const earnings = data?.quoteSummary?.result?.[0]?.calendarEvents?.earnings;
@@ -72,7 +115,7 @@ export async function GET(request) {
 
   if (!tickers.length) return Response.json([]);
 
-  const auth = await fetchYahooCrumb();
+  const auth = await getYahooCrumb();
 
   const results = await Promise.all(
     tickers.map(async ticker => {
