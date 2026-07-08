@@ -1,15 +1,23 @@
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
-import {
-  AreaChart, Area, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid,
-} from 'recharts';
+import dynamic from 'next/dynamic';
 import SignupGate from '@/components/SignupGate';
 import DemoPrompt from '@/components/DemoPrompt';
 import UnifiedUpload from '@/components/UnifiedUpload';
 import { useHoldings } from '@/lib/useHoldings';
 import InfoTooltip from '@/components/InfoTooltip';
+
+// recharts loads in an async chunk (after paint), off the route's critical path.
+// PortTooltip / EurTooltip moved into this module (used only by these charts).
+const PortfolioVsSpyChart = dynamic(
+  () => import('./_components/PerfCharts').then(m => m.PortfolioVsSpyChart),
+  { ssr: false, loading: () => <div style={{ height: 220 }} /> },
+);
+const EurUsdChart = dynamic(
+  () => import('./_components/PerfCharts').then(m => m.EurUsdChart),
+  { ssr: false, loading: () => <div style={{ height: 160 }} /> },
+);
 
 /* ─── Formatters ─────────────────────────────────────────────────────────── */
 const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
@@ -67,40 +75,6 @@ function StatCard({ label, value, sub, valueColor }) {
       {sub != null && (
         <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>{sub}</div>
       )}
-    </div>
-  );
-}
-
-/* ─── PortTooltip ────────────────────────────────────────────────────────── */
-function PortTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{
-      background: 'var(--bg-card)', border: '1px solid var(--border-strong)',
-      borderRadius: 8, padding: '10px 14px', fontSize: 12,
-    }}>
-      <div style={{ color: 'var(--text-secondary)', marginBottom: 6 }}>{label}</div>
-      {payload.map((p, i) => (
-        <div key={i} style={{ color: p.color, fontWeight: 600, lineHeight: 1.7 }}>
-          {p.name}: {p.value >= 0 ? '+' : ''}{p.value?.toFixed(2)}%
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ─── EurTooltip ─────────────────────────────────────────────────────────── */
-function EurTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{
-      background: 'var(--bg-card)', border: '1px solid var(--border-strong)',
-      borderRadius: 8, padding: '10px 14px', fontSize: 12,
-    }}>
-      <div style={{ color: 'var(--text-secondary)', marginBottom: 6 }}>{label}</div>
-      <div style={{ color: payload[0].color, fontWeight: 600 }}>
-        EUR/USD: {payload[0].value?.toFixed(4)}
-      </div>
     </div>
   );
 }
@@ -1029,26 +1003,7 @@ export default function PerformanceV2Page() {
                   {error ? `Error: ${error}` : 'Loading chart…'}
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-                    <defs>
-                      <linearGradient id="perfPortGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#58a6ff" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="#58a6ff" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="perfSpyGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#4ade80" stopOpacity={0.2} />
-                        <stop offset="100%" stopColor="#4ade80" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} interval={xInterval} />
-                    <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} tickFormatter={v => `${v >= 0 ? '+' : ''}${v.toFixed(0)}%`} width={52} domain={['auto', 'auto']} />
-                    <Tooltip content={<PortTooltip />} />
-                    <Area type="monotone" dataKey="portfolio" name="Portfolio"   stroke="#58a6ff" strokeWidth={2} fill="url(#perfPortGrad)" dot={false} activeDot={{ r: 4 }} />
-                    <Area type="monotone" dataKey="spy"       name="SPY Mirror" stroke="#4ade80" strokeWidth={2} fill="url(#perfSpyGrad)"  dot={false} activeDot={{ r: 4 }} />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <PortfolioVsSpyChart data={chartData} xInterval={xInterval} />
               )}
               <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 12 }}>
                 <span style={{ color: '#58a6ff', fontWeight: 600 }}>
@@ -1145,21 +1100,7 @@ export default function PerformanceV2Page() {
                   {error ? `Error: ${error}` : 'Loading chart…'}
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={160}>
-                  <AreaChart data={eurData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-                    <defs>
-                      <linearGradient id="eurGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid horizontal={true} vertical={false} stroke="var(--border-color)" strokeOpacity={0.5} strokeDasharray="0" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} interval={eurXInt} />
-                    <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} tickFormatter={v => v.toFixed(3)} width={52} domain={['auto', 'auto']} />
-                    <Tooltip content={<EurTooltip />} />
-                    <Area type="monotone" dataKey="rate" name="EUR/USD" stroke="#f59e0b" strokeWidth={2} fill="url(#eurGrad)" dot={false} activeDot={{ r: 4 }} />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <EurUsdChart data={eurData} eurXInt={eurXInt} />
               )}
             </div>
 
