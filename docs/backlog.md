@@ -141,6 +141,7 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 
 ## Recently Shipped (last 14 days)
 
+- 2026-07-10 — `fix(webhooks)`: Clerk `user.deleted` cascade (48d4073) verified end-to-end — throwaway signup → portfolio saved → user deleted in Clerk → confirmed all Supabase rows removed.
 - 2026-07-10 — `fix(topbar)`: live market status + ET clock replacing the hardcoded mock ("May 4, 2026 · 4:00 PM ET" that never updated and always said "Market open"). New pure `lib/marketStatus.js` computes open/closed from ET (Mon–Fri 09:30–16:00, 2026 NYSE holidays + half-days), no tz library; Topbar ticks the ET clock per minute with a mount gate to avoid hydration mismatch. Renders on all `(v2)` pages. de477a4.
 - 2026-07-09 — `perf(prices)`: split the Finnhub 52-week metric call off the hot quote path — `/api/prices` now costs 1 Finnhub call/ticker (quote only). 52W range served from `/api/valuation`'s existing 3600s metric fetch (zero new calls); research page reads 52W from `metrics`; orphaned top-level `components/HoldingsTable.jsx` deleted; `/api/prices` cache headers reconciled to a single 60s TTL across the route and `next.config.js`. c3d9db1.
 - 2026-07-09 — `feat(dashboard)`: 60s live price polling — refetch `/api/prices` every 60s while the tab is visible, pause on hidden (`visibilitychange`), immediate refetch on refocus, silent poll-failure handling (keeps last good prices), and a muted "Updated HH:MM:SS" timestamp under the holdings table. Dashboard only. 6f42a53.
