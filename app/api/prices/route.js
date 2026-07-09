@@ -15,7 +15,7 @@ export async function GET(request) {
 
   const results = await Promise.all(
     holdings.map(async h => {
-      const quote = await fetch(`https://finnhub.io/api/v1/quote?symbol=${h.t}&token=${key}`, { next: { revalidate: 60 } }).then(r => r.json());
+      const quote = await fetch(`https://finnhub.io/api/v1/quote?symbol=${h.t}&token=${key}`, { cache: 'no-store' }).then(r => r.json());
       return {
         ticker: h.t,
         price: quote.c > 0 ? quote.c : quote.pc,
