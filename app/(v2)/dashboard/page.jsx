@@ -52,6 +52,9 @@ export default function DashboardV2Page() {
   // Real holdings + cash — Supabase-authoritative, listens to portfolio-saved event
   const { holdings, cash: cashData, error, refresh } = useHoldings();
   const [prices,   setPrices]   = useState({});
+  // Timestamp (ms) of the last successful prices fetch — drives the "Updated …"
+  // label under the holdings table. null until the first successful load.
+  const [pricesUpdatedAt, setPricesUpdatedAt] = useState(null);
   const [history,  setHistory]  = useState(null); // [{ date, value }] — full 1-year daily series
   // Live EUR/USD (USD per EUR, ≈1.16). null until loaded → aggregates show a brief
   // loading state rather than flashing USD figures as if they were EUR. USD→EUR = ÷ eurUsd.
@@ -64,18 +67,53 @@ export default function DashboardV2Page() {
   const cashCurrency = cashData?.currency ?? 'USD';
   const { user, isLoaded, isSignedIn } = useUser();
 
-  // Prices: re-fetch whenever holdings change (useHoldings updates trigger this)
+  // Prices: initial fetch on holdings change, then poll every 60s while the tab
+  // is visible. Reuses the exact same endpoint + response handling as before.
+  //  - Initial load keeps its original error behavior: blank prices on failure.
+  //  - Polls are silent on failure: keep the last good prices + timestamp.
+  //  - No polling while the tab is hidden; on return to foreground we refetch
+  //    once immediately, then resume the interval.
+  // Re-running (holdings change / unmount) tears down interval + listener first.
   useEffect(() => {
     if (!holdings?.length) return;
     const tickers = holdings.map(x => x.t).join(',');
-    fetch(`/api/prices?tickers=${tickers}`)
-      .then(r => r.json())
-      .catch(() => [])
-      .then(priceArr => {
-        const priceMap = {};
-        if (Array.isArray(priceArr)) priceArr.forEach(p => { priceMap[p.ticker] = p; });
-        setPrices(priceMap);
-      });
+    const url = `/api/prices?tickers=${tickers}`;
+
+    // Shared success path — identical to the original effect's state update,
+    // plus the timestamp used by the "Updated …" label.
+    const commit = priceArr => {
+      const priceMap = {};
+      if (Array.isArray(priceArr)) priceArr.forEach(p => { priceMap[p.ticker] = p; });
+      setPrices(priceMap);
+      setPricesUpdatedAt(Date.now());
+    };
+
+    // Initial load — unchanged: on failure blank prices (no timestamp update).
+    fetch(url).then(r => r.json()).then(commit).catch(() => setPrices({}));
+
+    // Poll tick — swallow failures so a bad poll never blanks prices/timestamp.
+    const poll = () => { fetch(url).then(r => r.json()).then(commit).catch(() => {}); };
+
+    let interval = null;
+    const start = () => { if (interval == null) interval = setInterval(poll, 60000); };
+    const stop  = () => { if (interval != null) { clearInterval(interval); interval = null; } };
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();               // never poll in the background
+      } else {
+        poll();               // immediate refresh on return to foreground
+        start();              // then resume the 60s cadence
+      }
+    };
+
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [holdings]);
 
   // Live EUR/USD rate (last close of EURUSD=X) — used to display portfolio
@@ -434,7 +472,11 @@ export default function DashboardV2Page() {
 
       {/* 4. Holdings + side rail */}
       <div className="dv2-holdings-grid">
-        <Card title="Holdings" eyebrow="Live">
+        <Card
+          title="Holdings"
+          eyebrow="Live"
+          footer={pricesUpdatedAt ? `Updated ${new Date(pricesUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : undefined}
+        >
           {/* Use real enriched rows when available; fall back to mock for demo/anonymous visitors */}
           <HoldingsTable rows={enrichedRows.length > 0 ? enrichedRows : HOLDINGS} onRowClick={(r) => router.push(`/research?ticker=${r.ticker}`)} />
         </Card>
