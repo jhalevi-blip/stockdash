@@ -5,10 +5,22 @@ import { useRouter } from 'next/navigation';
 import { useUser, SignInButton, SignUpButton, UserButton } from '@clerk/nextjs';
 import Dot from './Dot';
 import PushOptIn from '@/components/PushOptIn';
-import { PORTFOLIO } from '@/app/(v2)/dashboard/_lib/mockData';
+import { getMarketStatus } from '@/lib/marketStatus';
 
 const RECENT_KEY = 'recent_research_tickers';
 const MAX_RECENT = 5;
+
+// Live ET clock label, e.g. "Jul 10, 2026 · 10:47 AM ET". Date and time are
+// formatted separately so we can join them with the same "·" the topbar uses.
+function formatEtClock(date) {
+  const d = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric',
+  }).format(date);
+  const t = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true,
+  }).format(date);
+  return `${d} · ${t} ET`;
+}
 
 function getRecent() {
   try { return JSON.parse(localStorage.getItem(RECENT_KEY)) ?? []; } catch { return []; }
@@ -29,10 +41,20 @@ export default function Topbar({ onCommand }) {
   const [loading,     setLoading]     = useState(false);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [recent,      setRecent]      = useState([]);
+  // Live clock instant. null until mounted so the market-status/clock render is
+  // gated behind a client-only value — avoids an SSR/client hydration mismatch.
+  const [now,         setNow]         = useState(null);
 
   const inputRef    = useRef(null);
   const debounceRef = useRef(null);
   const containerRef = useRef(null);
+
+  // Live ET clock + market status — set on mount, then tick once a minute.
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(id);
+  }, []);
 
   // Global ⌘K / Ctrl+K to open
   useEffect(() => {
@@ -118,6 +140,10 @@ export default function Topbar({ onCommand }) {
     ? results
     : recent.map(s => ({ symbol: s, name: 'Recent', exchange: '' }));
 
+  // Computed only once mounted (now !== null); until then we render a neutral placeholder.
+  const marketStatus = now ? getMarketStatus(now) : null;
+  const etClock      = now ? formatEtClock(now)   : null;
+
   return (
     <>
       {/* Topbar */}
@@ -163,11 +189,19 @@ export default function Topbar({ onCommand }) {
           </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
-          <span className="v2-topbar-desktop-only" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Dot color="var(--positive)" /> Market open
-          </span>
-          <span className="v2-topbar-desktop-only" style={{ color: 'var(--text-muted)' }}>·</span>
-          <span className="v2-topbar-desktop-only" style={{ fontVariantNumeric: 'tabular-nums' }}>{PORTFOLIO.asOf}</span>
+          {marketStatus ? (
+            <>
+              <span className="v2-topbar-desktop-only" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Dot color={marketStatus.isOpen ? 'var(--positive)' : 'var(--text-muted)'} /> {marketStatus.label}
+              </span>
+              <span className="v2-topbar-desktop-only" style={{ color: 'var(--text-muted)' }}>·</span>
+              <span className="v2-topbar-desktop-only" style={{ fontVariantNumeric: 'tabular-nums' }}>{etClock}</span>
+            </>
+          ) : (
+            <span className="v2-topbar-desktop-only" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
+              <Dot color="var(--text-muted)" /> —
+            </span>
+          )}
         </div>
         <button onClick={() => onCommand?.('editPortfolio')} style={{
           background: 'transparent',
