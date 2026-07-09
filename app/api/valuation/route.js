@@ -84,6 +84,8 @@ export async function GET(request) {
           grossMargin: m?.grossMarginTTM                       ?? null,
           marketCap:   m?.marketCapitalization                 ?? null,
           beta:        m?.beta                                 ?? null,
+          week52High:  m?.['52WeekHigh']                        ?? null,
+          week52Low:   m?.['52WeekLow']                         ?? null,
         };
       } catch {
         return { ticker: h.t, name: h.n };

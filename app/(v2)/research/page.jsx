@@ -2171,7 +2171,7 @@ function ResearchPageInner() {
     },
     {
       label: '52W Range',
-      value: quote?.week52High != null ? `${fmtCurrency(quote.week52Low)} – ${fmtCurrency(quote.week52High)}` : '—',
+      value: metrics?.week52High != null ? `${fmtCurrency(metrics.week52Low)} – ${fmtCurrency(metrics.week52High)}` : '—',
     },
     { label: 'Avg Volume', value: fmtVol(profile?.volAvg) },
   ];

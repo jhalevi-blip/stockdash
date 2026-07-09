@@ -23,9 +23,9 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Prices — live, refresh every 30s
+        // Prices — live, 60s TTL to match the route's Finnhub quote revalidate
         source: '/api/prices',
-        headers: [{ key: 'Cache-Control', value: 's-maxage=30, stale-while-revalidate=60' }],
+        headers: [{ key: 'Cache-Control', value: 's-maxage=60, stale-while-revalidate=30' }],
       },
       {
         // Financials — changes quarterly, cache 7 days

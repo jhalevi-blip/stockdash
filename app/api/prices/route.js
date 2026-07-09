@@ -11,14 +11,11 @@ export async function GET(request) {
   const key = process.env.FINNHUB_API_KEY;
   if (!key) return Response.json({ error: 'Missing API key' }, { status: 500 });
 
-  trackFinnhub(holdings.length * 2); // quote + metric per ticker
+  trackFinnhub(holdings.length); // quote per ticker (52-week metric served by /api/valuation)
 
   const results = await Promise.all(
     holdings.map(async h => {
-      const [quote, metric] = await Promise.all([
-        fetch(`https://finnhub.io/api/v1/quote?symbol=${h.t}&token=${key}`, { next: { revalidate: 60 } }).then(r => r.json()),
-        fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${h.t}&metric=all&token=${key}`, { next: { revalidate: 3600 } }).then(r => r.json()),
-      ]);
+      const quote = await fetch(`https://finnhub.io/api/v1/quote?symbol=${h.t}&token=${key}`, { next: { revalidate: 60 } }).then(r => r.json());
       return {
         ticker: h.t,
         price: quote.c > 0 ? quote.c : quote.pc,
@@ -27,8 +24,6 @@ export async function GET(request) {
         low: quote.l,
         prevClose: quote.pc,
         marketOpen: quote.c > 0,
-        week52High: metric?.metric?.['52WeekHigh'] ?? null,
-        week52Low: metric?.metric?.['52WeekLow'] ?? null,
       };
     })
   );
