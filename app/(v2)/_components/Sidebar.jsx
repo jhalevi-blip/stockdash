@@ -1,13 +1,32 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Logo from './Logo';
 import Dot from './Dot';
 import { NAV_ITEMS } from '../_lib/routes';
+import { getMarketStatus } from '@/lib/marketStatus';
+
+// Compact ET time for the footer status line, e.g. "10:47 AM ET".
+function etTime(date) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true,
+  }).format(date) + ' ET';
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
+
+  // Live market status — mount-gated (null until mounted) to avoid an SSR/client
+  // hydration mismatch, then ticks once a minute. Replaces the old hardcoded clock.
+  const [now, setNow] = useState(null);
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(id);
+  }, []);
+  const status = now ? getMarketStatus(now) : null;
   return (
     <aside className="v2-sidebar" style={{
       width: 208,
@@ -61,8 +80,17 @@ export default function Sidebar() {
         gap: 6,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Dot color="var(--positive)" />
-          <span>Live · 4:00 PM ET</span>
+          {status ? (
+            <>
+              <Dot color={status.isOpen ? 'var(--positive)' : 'var(--text-muted)'} />
+              <span>{status.label} · {etTime(now)}</span>
+            </>
+          ) : (
+            <>
+              <Dot color="var(--text-muted)" />
+              <span>—</span>
+            </>
+          )}
         </div>
         <div style={{ color: 'var(--text-faint, rgba(230,237,243,0.45))' }}>
           Powered by Claude Opus 4.8
