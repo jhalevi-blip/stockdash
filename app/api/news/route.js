@@ -3,6 +3,15 @@ import { trackFinnhub } from '@/lib/apiUsage';
 
 export const dynamic = 'force-dynamic';
 
+// Stable fallback id for articles lacking a Finnhub `id` — djb2 hash of the url.
+// The ranking route maps AI scores back by id, so every article needs one.
+function hashUrl(url) {
+  let h = 5381;
+  const s = String(url ?? '');
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return `u_${(h >>> 0).toString(36)}`;
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const holdings = parseTickers(searchParams);
@@ -10,6 +19,10 @@ export async function GET(request) {
 
   const key = process.env.FINNHUB_API_KEY;
   if (!key) return Response.json({ error: 'Missing API key' }, { status: 500 });
+
+  // Per-ticker article cap. Default 3 (dashboard behavior unchanged); clamp to 1..10.
+  const limitRaw = Number.parseInt(searchParams.get('limit'), 10);
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(10, limitRaw)) : 3;
 
   trackFinnhub(holdings.length); // 1 company-news call per ticker
 
@@ -21,7 +34,8 @@ export async function GET(request) {
     holdings.map(h =>
       fetch(`https://finnhub.io/api/v1/company-news?symbol=${h.t}&from=${from}&to=${to}&token=${key}`, { next: { revalidate: 900 } })
         .then(r => r.json())
-        .then(articles => articles.slice(0, 3).map(a => ({
+        .then(articles => articles.slice(0, limit).map(a => ({
+          id: a.id ?? hashUrl(a.url),
           ticker: h.t,
           headline: a.headline,
           source: a.source,
