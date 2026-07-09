@@ -1,6 +1,6 @@
 # StockDashes Roadmap
 
-_Last updated: 2026-07-09_
+_Last updated: 2026-07-10_
 
 ## Conventions
 
@@ -102,7 +102,6 @@ Priority: low–medium.
 
 **Performance (from 2026-07-08 session — see docs/perf-audit.md):**
 - **Perf fix 5: SW app-shell caching** — add a `fetch` handler to `public/sw.js`: cache-first for immutable `/_next/static/*`, stale-while-revalidate for the app shell. Requires a versioned cache name + kill-switch plan; bad SW caches stick on user devices. Deferred from the July 8 perf session; do this last, slowly. Ref: docs/perf-audit.md §4.
-- **Stale market clock in topbar** — shows "May 4, 2026" while the dashboard timestamp is correct. Investigate the data source for the market open/date display.
 
 **Security & code-quality audit follow-ups (2026-06-17):**
 - **[M1] `/api/usage` unauthenticated info disclosure** — `app/api/usage/route.ts:5` GET has no `auth()`; returns Finnhub/FMP consumption counts plus configured limits/alert thresholds (`lib/apiUsage.ts:75-90`) — recon for timing an abuse run against the AI routes. Gate behind `auth()` (ideally admin-only) or drop the public endpoint.
@@ -142,6 +141,7 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 
 ## Recently Shipped (last 14 days)
 
+- 2026-07-10 — `fix(topbar)`: live market status + ET clock replacing the hardcoded mock ("May 4, 2026 · 4:00 PM ET" that never updated and always said "Market open"). New pure `lib/marketStatus.js` computes open/closed from ET (Mon–Fri 09:30–16:00, 2026 NYSE holidays + half-days), no tz library; Topbar ticks the ET clock per minute with a mount gate to avoid hydration mismatch. Renders on all `(v2)` pages. de477a4.
 - 2026-07-09 — `perf(prices)`: split the Finnhub 52-week metric call off the hot quote path — `/api/prices` now costs 1 Finnhub call/ticker (quote only). 52W range served from `/api/valuation`'s existing 3600s metric fetch (zero new calls); research page reads 52W from `metrics`; orphaned top-level `components/HoldingsTable.jsx` deleted; `/api/prices` cache headers reconciled to a single 60s TTL across the route and `next.config.js`. c3d9db1.
 - 2026-07-09 — `feat(dashboard)`: 60s live price polling — refetch `/api/prices` every 60s while the tab is visible, pause on hidden (`visibilitychange`), immediate refetch on refocus, silent poll-failure handling (keeps last good prices), and a muted "Updated HH:MM:SS" timestamp under the holdings table. Dashboard only. 6f42a53.
 - 2026-07-09 — `fix(prices)`: `no-store` on the Finnhub quote fetch to eliminate compounded cache staleness at market open — the Vercel data-cache SWR was stacking on the CDN `s-maxage`, yielding ~5 min of stale prices right after open. CDN `s-maxage=60, stale-while-revalidate=30` remains the single caching layer. b97e94a.
@@ -174,6 +174,9 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 **Local dev: /api/portfolio returns 500**
 - Likely cause: RLS policy on `portfolios` table doesn't accept Clerk Development user ID format.
 - Workaround: test authenticated routes by shipping to a feature branch and checking on the Vercel preview deployment.
+
+**Market clock holiday calendar — annual update**
+- `lib/marketStatus.js` holds hardcoded NYSE `FULL_HOLIDAYS` and `HALF_DAYS` arrays. They currently cover **2026 only**. Each December, append the next year's dates (one line per date, sectioned by year) or the topbar's open/closed status will be wrong on that year's holidays. The file carries a ⚠️ comment to the same effect.
 
 ---
 
