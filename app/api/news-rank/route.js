@@ -27,10 +27,15 @@ ${thesisBlocks}
 How the investor's holdings map to these theses (verdict per thesis — Benefits / Hurt / Neutral / Mixed):
 ${verdictLines || '(no per-holding classifications available)'}
 
-Score each article 1-10 by importance to THIS investor:
-- 10 = a thesis-defining or position-moving development for a stock they hold or a theme they are built around.
-- 1 = noise (routine PR, minor coverage) irrelevant to their thesis.
-Weight articles about their holdings and their active theses far above generic market chatter. Reward articles that confirm, threaten, or inflect one of the theses.
+Score each article 1-10 by importance to THIS investor. USE THE FULL 1-10 RANGE — scores must differentiate. If every article gets a similar score the ranking has failed its purpose; do not cluster everything around 5-6.
+
+Anchor the scale:
+- 9-10 = thesis-critical: could change an investment decision on a direct holding (major earnings surprise, guidance change, M&A, structural news for a core theme).
+- 7-8 = materially relevant to a holding or one of the active theses.
+- 4-6 = moderately relevant, worth awareness but not decision-moving.
+- 1-3 = noise: aggregator listicles ("N stocks to buy now"), generic market commentary, and articles where the ticker is only incidentally mentioned. These score 1-3 REGARDLESS of ticker match.
+
+Calibrate the distribution: at most ~20% of articles should score 8 or above. Weight articles about their holdings and their active theses far above generic market chatter, and reward articles that confirm, threaten, or inflect one of the theses — but a mere ticker match is not enough for a high score; the article must carry real, thesis-relevant substance.
 
 Output STRICT JSON ONLY — no prose, no markdown, no code fences:
 {"rankings":[{"id":"<article id>","score":<integer 1-10>,"why":"<one line, max ${WHY_CHARS} chars>"}]}
