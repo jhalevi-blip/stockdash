@@ -1,6 +1,6 @@
 # StockDashes Roadmap
 
-_Last updated: 2026-07-08_
+_Last updated: 2026-07-09_
 
 ## Conventions
 
@@ -103,7 +103,6 @@ Priority: low–medium.
 **Performance (from 2026-07-08 session — see docs/perf-audit.md):**
 - **Perf fix 5: SW app-shell caching** — add a `fetch` handler to `public/sw.js`: cache-first for immutable `/_next/static/*`, stale-while-revalidate for the app shell. Requires a versioned cache name + kill-switch plan; bad SW caches stick on user devices. Deferred from the July 8 perf session; do this last, slowly. Ref: docs/perf-audit.md §4.
 - **Stale market clock in topbar** — shows "May 4, 2026" while the dashboard timestamp is correct. Investigate the data source for the market open/date display.
-- **Real-time price updates (polling)** — refetch `/api/prices` every 60s while the tab is visible, pause when hidden, show a "last updated" timestamp. Consider splitting the Finnhub metric call off the hot quote path first (audit §3 rank 2).
 
 **Security & code-quality audit follow-ups (2026-06-17):**
 - **[M1] `/api/usage` unauthenticated info disclosure** — `app/api/usage/route.ts:5` GET has no `auth()`; returns Finnhub/FMP consumption counts plus configured limits/alert thresholds (`lib/apiUsage.ts:75-90`) — recon for timing an abuse run against the AI routes. Gate behind `auth()` (ideally admin-only) or drop the public endpoint.
@@ -143,6 +142,10 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 
 ## Recently Shipped (last 14 days)
 
+- 2026-07-09 — `perf(prices)`: split the Finnhub 52-week metric call off the hot quote path — `/api/prices` now costs 1 Finnhub call/ticker (quote only). 52W range served from `/api/valuation`'s existing 3600s metric fetch (zero new calls); research page reads 52W from `metrics`; orphaned top-level `components/HoldingsTable.jsx` deleted; `/api/prices` cache headers reconciled to a single 60s TTL across the route and `next.config.js`. c3d9db1.
+- 2026-07-09 — `feat(dashboard)`: 60s live price polling — refetch `/api/prices` every 60s while the tab is visible, pause on hidden (`visibilitychange`), immediate refetch on refocus, silent poll-failure handling (keeps last good prices), and a muted "Updated HH:MM:SS" timestamp under the holdings table. Dashboard only. 6f42a53.
+- 2026-07-09 — `fix(prices)`: `no-store` on the Finnhub quote fetch to eliminate compounded cache staleness at market open — the Vercel data-cache SWR was stacking on the CDN `s-maxage`, yielding ~5 min of stale prices right after open. CDN `s-maxage=60, stale-while-revalidate=30` remains the single caching layer. b97e94a.
+- All three verified live during market open; staleness-at-open diagnosed and hardened same day.
 - 2026-07-08 — `perf(earnings)`: Yahoo crumb handshake cached in module memory (4h TTL) + retry on 401/403. 9837d83.
 - 2026-07-08 — `perf`: CookieHub moved to `afterInteractive` + posthog-js lazy-loaded (dynamic import, off the critical path). 7056de6.
 - 2026-07-08 — `perf`: recharts loaded via `next/dynamic` (ssr:false) across all 5 chart routes — off the critical path, no longer in route entry bundles. e3559b8.
@@ -154,16 +157,6 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 - 2026-07-02 — `feat(push)`: subscribed bell now tappable → confirm dialog → pushSubscription.unsubscribe() + DELETE /api/push-subscription; UI flips back to enable state. Verified on device end-to-end (push_subscriptions row removed on unsubscribe, restored on re-enable). f8a7e66.
 - 2026-07-02 — `fix(pwa)`: iOS standalone UI fixes verified on device — topbar + burger offset below status bar (safe-area-inset-top, globals.css), nav drawer safe-area padding, icon-only PushOptIn on mobile to stop avatar clipping. iPhone add-to-home-screen + install verified; push opt-in enabled on device. d75528b, 4b39c59, 5a2b91c. Pending: tomorrow's 08:00 cron push-delivery confirmation. Secrets rotation completed same day: CRON_SECRET + PUSH_SEND_SECRET rotated in Vercel, verified 200/401 against /api/cron/portfolio-summary.
 - 2026-07-02 — `fix(security)`: H2 shared-device holdings leak closed. Verified fixed July 2, 2026 — `getCachedHoldings()` ownership guard (`holdingsStorage.js:40-41`) + `GuestDataGuard` eager `clearAllForeignData()` on anonymous mount (`GuestDataGuard.jsx:16-18`). All former unscoped readers consolidated behind the getter.
-- 2026-06-17 — `fix(security)`: H1 cost-bomb closed. Gated `/api/ai-summary` behind sign-in (401 when signed out); added a server-enforced daily AI quota to `/api/stock-ai-summary` via the new `ai_usage` table + `increment_ai_usage` RPC (migration `006_ai_usage.sql`, applied in Supabase) — anon 2/day per IP, signed-in 5/day per user, fails open on Supabase error. Verified live: ai-summary → 401, stock-ai-summary → 200/200/429. 1ad22c9.
-- 2026-06-17 — `feat(push)`: daily portfolio-summary push cron — `/api/cron/portfolio-summary` (GET, `CRON_SECRET`-gated, weekend-skip, fx-unavailable guard) sends each subscribed user their standing at last close ("Portfolio €X · ±Y% at last close"), replicating the dashboard's `realPortfolioStats` math server-side; shared send/prune helper `lib/push.js` reused by `/api/push-send`. `vercel.json` cron `0 6 * * *`. Verified live: 200, 2 devices. 294581a, 15288cc.
-- 2026-06-17 — `content(blog)`: published "The Debasement Trade, Scored" (`content/blog/debasement-trade-scored.md`) — wedge-led Theme Research post with embedded scored-candidates screenshot (`public/blog/theme-research-debasement-candidates.png`); TL;DR frontmatter generated. 138ae5c.
-- 2026-06-05 — `fix(webhooks)`: Clerk user.deleted E2E verified. Finding: endpoint was never registered on the production Clerk instance and CLERK_WEBHOOK_SIGNING_SECRET was never set in Vercel — the cascade had never fired since shipping (48d4073). Fixed: endpoint registered + secret set; cascade extended to all five user tables (portfolios, portfolio_transactions, portfolio_correlations, user_settings, theme_classifications) in 1a49969. Verified live: user.deleted → 200 → all counts zero.
-- 2026-06-02 — `feat(perf)`: dashboard + performance display all figures in EUR; Total Portfolio Value = holdings + cash (identical on both pages); SPY Mirror, Currency Impact ($→€ label fix), and the start-value column (via start-date FX `eurStart`) converted. 0b1e059, 4251a2b.
-- 2026-06-02 — `feat(perf)`: Realized / Unrealized / Total P&L cards on /performance; Total P&L (≈ €118k) on the dashboard replacing Unrealized, with green/red chip coloring. 4251a2b, b2a70e9, 48ac68a.
-- 2026-06-02 — `feat(realized)`: realized-P&L currency overhaul — EUR via per-trade Boekingsbedrag (net of fees), dropped Saxo sell-legs recovered, AVGO 10:1 split handled; €37,139 verified. 3117bac, 5307bf3.
-- 2026-06-02 — `feat(cash)`: current-cash reconstruction from broker files (DeGiro Saldo / Saxo cashEvents), per-broker, prefilled in the Edit Portfolio modal on Import with manual override. 30a9235, 028127b.
-- 2026-05-28 — `fix(performance)`: re-upload now re-parses fresh — /performance uses UnifiedUpload → /api/upload (no localStorage parse-cache, `private, no-store`, no file-hash cache). Resolves the "stale parsed data after re-upload" bug. ec17105.
-- 2026-05-26 — `fix(parsers/saxo)`: minus-sign Verkoop format (`Verkoop -25 @ …`) handled — optional-negative regex (`-?`) + `Math.abs` on shares, with a regression test. Resolves the silently-dropped sell-rows / over-counted-holdings bug. 3852fa1.
 
 ---
 
