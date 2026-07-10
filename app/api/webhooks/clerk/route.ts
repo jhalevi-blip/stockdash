@@ -71,7 +71,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // Cascade-delete every user-keyed row across all five tables. A delete that
+  // Cascade-delete every user-keyed row across all eight tables. A delete that
   // matches nothing is not an error, so missing rows are tolerated. Failures are
   // isolated — one table erroring must not stop the others — and collected for
   // logging. Signature verification already passed, so we always return 200:
@@ -83,6 +83,7 @@ export async function POST(req: Request) {
     'user_settings',
     'theme_classifications',
     'theme_candidates',
+    'user_themes',
     'push_subscriptions',
   ] as const;
 
