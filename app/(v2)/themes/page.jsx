@@ -304,9 +304,12 @@ function ThemesPageInner() {
     return () => { cancelled = true; };
   }, []);
 
-  // Cached classifications + saved worldview (signed-in only). No auto-scoring.
+  // Cached classifications + saved worldview + per-user themes (signed-in only).
   const [verdictsByTicker, setVerdictsByTicker] = useState({});
   const [worldview, setWorldview] = useState(null); // resolved below
+  const [userThemes, setUserThemes] = useState(null); // null = loading; array once fetched
+  // Post-save extraction lifecycle for the theme cards: 'idle' | 'updating' | 'error'.
+  const [themeUpdateStatus, setThemeUpdateStatus] = useState('idle');
   useEffect(() => {
     if (!isLoaded) return;
     if (!signedIn) { setWorldview(MOCK_WORLDVIEW); return; }
@@ -324,6 +327,10 @@ function ThemesPageInner() {
         if (Array.isArray(j?.classifications)) j.classifications.forEach(c => { map[c.ticker] = c.verdicts; });
         setVerdictsByTicker(map);
       })
+      .catch(() => {});
+    fetch('/api/user-themes', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(j => { if (!cancelled && Array.isArray(j?.themes)) setUserThemes(j.themes); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [isLoaded, signedIn]);
@@ -347,6 +354,20 @@ function ThemesPageInner() {
   const worldviewText = worldview ?? (signedIn ? DEFAULT_WORLDVIEW : MOCK_WORLDVIEW);
   const rows = signedIn ? realRows : MOCK_ROWS;
 
+  // Unified theme list ({ id, name, description, validity }) iterated everywhere.
+  // Signed-out: the static four from theses.js (view→description). Signed-in: the
+  // user's active themes from user_themes (theme_id→id). Retired themes are already
+  // excluded server-side (getOrSeedUserThemes returns active only).
+  const themeList = useMemo(() => {
+    if (!signedIn) {
+      return THESES.map(t => ({ id: t.id, name: t.name, description: t.view, validity: t.validity }));
+    }
+    return (userThemes ?? []).map(t => ({
+      id: t.theme_id, name: t.name, description: t.description, validity: t.validity,
+    }));
+  }, [signedIn, userThemes]);
+  const themesLoading = signedIn && userThemes === null;
+
   // Loading / empty states for the signed-in matrix
   const holdingsLoading = signedIn && holdings === null;
   const noHoldings      = signedIn && Array.isArray(holdings) && holdings.length === 0;
@@ -368,6 +389,7 @@ function ThemesPageInner() {
     const text = draft.trim();
     if (!text || text.length > WORLDVIEW_MAX) return;
     setSavingWv(true);
+    let saved = false;
     try {
       const res = await fetch('/api/user-settings', {
         method: 'PUT',
@@ -379,9 +401,13 @@ function ThemesPageInner() {
         setWorldview(json.worldview);
         setEditing(false);
         setWvHint(true);
+        saved = true;
       }
     } catch {}
     setSavingWv(false);
+    // The save has already succeeded on its own. Extraction runs after, and its
+    // failure must never make the save look failed — runExtraction owns that state.
+    if (saved) runExtraction();
   }
 
   // ── Re-score (concurrency-2 promise pool, no library) ────────────────────────
@@ -460,21 +486,58 @@ function ThemesPageInner() {
     }
   }
 
-  // Panel title — safe for the '_worldview' sentinel (no matching THESES entry).
+  // ── Post-save extraction + cache refresh ─────────────────────────────────────
+  async function refreshThemes() {
+    try {
+      const r = await fetch('/api/user-themes', { cache: 'no-store' });
+      const j = await r.json();
+      if (Array.isArray(j?.themes)) setUserThemes(j.themes);
+    } catch {}
+  }
+  async function refreshClassifications() {
+    try {
+      const r = await fetch('/api/theme-classifications', { cache: 'no-store' });
+      const j = await r.json();
+      const map = {};
+      if (Array.isArray(j?.classifications)) j.classifications.forEach(c => { map[c.ticker] = c.verdicts; });
+      setVerdictsByTicker(map);
+    } catch {}
+  }
+  // Reconcile themes from the just-saved worldview, then refresh the now-stale
+  // views (themes + classifications + candidates). Non-blocking: on any failure
+  // the saved worldview stands and we surface a retryable notice.
+  async function runExtraction() {
+    setThemeUpdateStatus('updating');
+    try {
+      const res = await fetch('/api/theme-extract', { method: 'POST' });
+      if (!res.ok) throw new Error('extraction failed');
+      await Promise.all([refreshThemes(), refreshClassifications()]);
+      // Candidate caches (server rows + local view) are keyed by the old fingerprint.
+      setDiscoverData({});
+      setDiscoverStatus({});
+      setDiscoverError({});
+      setActiveDiscovery(null);
+      setThemeUpdateStatus('idle');
+    } catch {
+      setThemeUpdateStatus('error');
+    }
+  }
+
+  // Panel title — safe for the '_worldview' sentinel (no matching theme entry).
   const activeName = activeDiscovery === '_worldview'
     ? 'Your worldview'
-    : THESES.find(t => t.id === activeDiscovery)?.name;
+    : themeList.find(t => t.id === activeDiscovery)?.name;
 
   // ── Exposure (signed-in): compute once every holding is scored ───────────────
   const allScored = signedIn && realRows.length > 0 && realRows.every(r => verdictsByTicker[r.ticker]);
   const computedExposure = useMemo(() => {
     if (!allScored) return null;
     const totals = {};
-    THESES.forEach(t => { totals[t.id] = { benefits: 0, hurt: 0, neutral: 0 }; });
+    themeList.forEach(t => { totals[t.id] = { benefits: 0, hurt: 0, neutral: 0 }; });
     realRows.forEach(r => {
       const w = r.weightPct ?? 0;
       const v = verdictsByTicker[r.ticker];
-      THESES.forEach(t => {
+      themeList.forEach(t => {
         const verdict = v?.[t.id]?.verdict;
         if (verdict === 'Benefits') totals[t.id].benefits += w;
         else if (verdict === 'Hurt') totals[t.id].hurt += w;
@@ -483,7 +546,7 @@ function ThemesPageInner() {
       });
     });
     const out = {};
-    THESES.forEach(t => {
+    themeList.forEach(t => {
       out[t.id] = {
         benefitsPct: Math.round(totals[t.id].benefits),
         hurtPct:     Math.round(totals[t.id].hurt),
@@ -491,13 +554,13 @@ function ThemesPageInner() {
       };
     });
     return out;
-  }, [allScored, realRows, verdictsByTicker]);
+  }, [allScored, realRows, verdictsByTicker, themeList]);
 
   if (!isLoaded) {
     return <main style={{ padding: '18px 20px', color: 'var(--text-muted)', fontSize: 13 }}>Loading…</main>;
   }
 
-  const totalCols = 2 + THESES.length;
+  const totalCols = 2 + themeList.length;
 
   // Cell content for a given row × thesis, honoring transient scoring status.
   function cellContent(row, thesisId) {
@@ -595,7 +658,7 @@ function ThemesPageInner() {
     }}>
       {/* Page-scoped responsive rules: @media + !important per repo convention */}
       <style>{`
-        .themes-thesis-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+        .themes-thesis-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
         .themes-matrix-desktop { display: block; }
         .themes-matrix-mobile { display: none; }
         @media (max-width: 640px) {
@@ -770,46 +833,82 @@ function ThemesPageInner() {
         </div>
       )}
 
-      {/* b) Four thesis cards */}
-      <div className="themes-thesis-grid">
-        {THESES.map(t => (
-          <div key={t.id} style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-color)',
-            borderRadius: 8,
-            padding: '14px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            minWidth: 0,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{t.name}</span>
-              <span style={{
-                fontSize: 9, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
-                padding: '2px 7px', borderRadius: 999,
-                color: 'var(--positive)', border: '1px solid var(--positive)', background: 'transparent',
-              }}>{t.validity}</span>
-            </div>
-            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.55, color: 'var(--text-secondary)' }}>{t.view}</p>
-            {renderTemperature(t.id)}
-            <button
-              type="button"
-              onClick={() => discoverCandidates(t.id)}
-              disabled={discoverStatus[t.id] === 'loading'}
-              style={{
-                marginTop: 4,
-                fontFamily: FONT, fontSize: 12, fontWeight: 600,
-                padding: '6px 14px', borderRadius: 6,
-                border: '1px solid var(--accent)',
-                background: 'var(--accent)', color: '#fff',
-                cursor: discoverStatus[t.id] === 'loading' ? 'not-allowed' : 'pointer',
-                opacity: discoverStatus[t.id] === 'loading' ? 0.7 : 1,
-              }}
-            >{discoverStatus[t.id] === 'loading' ? 'Finding…' : 'Discover candidates'}</button>
-          </div>
-        ))}
-      </div>
+      {/* b) Theme cards */}
+      {signedIn && themeUpdateStatus === 'updating' && (
+        <div style={{
+          fontSize: 12, color: 'var(--accent-cyan)',
+          background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+          borderRadius: 8, padding: '10px 14px',
+        }}>Updating your themes…</div>
+      )}
+      {signedIn && themeUpdateStatus === 'error' && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+          fontSize: 12, color: 'var(--warn)',
+          background: 'var(--bg-card)', border: '1px solid var(--warn)',
+          borderRadius: 8, padding: '10px 14px',
+        }}>
+          <span>Worldview saved; theme update failed.</span>
+          <button
+            type="button"
+            onClick={runExtraction}
+            style={{
+              fontFamily: FONT, fontSize: 12, fontWeight: 600,
+              padding: '5px 12px', borderRadius: 6,
+              border: '1px solid var(--warn)', background: 'transparent',
+              color: 'var(--warn)', cursor: 'pointer',
+            }}
+          >Retry</button>
+        </div>
+      )}
+      {themesLoading ? (
+        <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+          Loading your themes…
+        </div>
+      ) : (
+        <div className="themes-thesis-grid">
+          {themeList.map(t => {
+            const vColor = t.validity === 'WOBBLING' ? 'var(--warn)' : 'var(--positive)';
+            return (
+              <div key={t.id} style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 8,
+                padding: '14px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                minWidth: 0,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{t.name}</span>
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+                    padding: '2px 7px', borderRadius: 999,
+                    color: vColor, border: `1px solid ${vColor}`, background: 'transparent',
+                  }}>{t.validity}</span>
+                </div>
+                <p style={{ margin: 0, fontSize: 12, lineHeight: 1.55, color: 'var(--text-secondary)' }}>{t.description}</p>
+                {renderTemperature(t.id)}
+                <button
+                  type="button"
+                  onClick={() => discoverCandidates(t.id)}
+                  disabled={discoverStatus[t.id] === 'loading'}
+                  style={{
+                    marginTop: 4,
+                    fontFamily: FONT, fontSize: 12, fontWeight: 600,
+                    padding: '6px 14px', borderRadius: 6,
+                    border: '1px solid var(--accent)',
+                    background: 'var(--accent)', color: '#fff',
+                    cursor: discoverStatus[t.id] === 'loading' ? 'not-allowed' : 'pointer',
+                    opacity: discoverStatus[t.id] === 'loading' ? 0.7 : 1,
+                  }}
+                >{discoverStatus[t.id] === 'loading' ? 'Finding…' : 'Discover candidates'}</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* b2) Discover candidates panel (full width, one thesis at a time) */}
       {activeDiscovery && (
@@ -900,7 +999,7 @@ function ThemesPageInner() {
                   </p>
                   {c.themes && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                      {THESES.map(t => {
+                      {themeList.map(t => {
                         const v = c.themes[t.id];
                         const color = VERDICT_COLOR[v] ?? 'var(--text-muted)';
                         return (
@@ -944,12 +1043,12 @@ function ThemesPageInner() {
                   <tr>
                     <th style={headerCell('left')}>Ticker</th>
                     <th style={headerCell('right')}>Weight</th>
-                    {THESES.map(t => <th key={t.id} style={headerCell('center')}>{t.name}</th>)}
+                    {themeList.map(t => <th key={t.id} style={headerCell('center')}>{t.name}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map(row => {
-                    const expandedThesis = THESES.find(t => expanded === keyOf(row.ticker, t.id));
+                    const expandedThesis = themeList.find(t => expanded === keyOf(row.ticker, t.id));
                     const showExpand = expandedThesis && row.verdicts?.[expandedThesis.id]
                       && !(signedIn && scoreStatus[row.ticker]);
                     return (
@@ -961,7 +1060,7 @@ function ThemesPageInner() {
                             </span>
                           </td>
                           <td style={cellBase('right')}>{fmtWeight(row.weightPct)}</td>
-                          {THESES.map(t => (
+                          {themeList.map(t => (
                             <td key={t.id} style={{ ...cellBase('center'), textAlign: 'center' }}>
                               {cellContent(row, t.id)}
                             </td>
@@ -1010,7 +1109,7 @@ function ThemesPageInner() {
                       </span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {THESES.map(t => {
+                      {themeList.map(t => {
                         const v = row.verdicts ? row.verdicts[t.id] : null;
                         const showExpand = v && !status && expanded === keyOf(row.ticker, t.id);
                         return (
@@ -1041,7 +1140,7 @@ function ThemesPageInner() {
         {signedIn ? (
           computedExposure ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {THESES.map(t => (
+              {themeList.map(t => (
                 <ExposureBar key={t.id} name={t.name} exposure={computedExposure[t.id]} />
               ))}
             </div>
@@ -1052,7 +1151,7 @@ function ThemesPageInner() {
           )
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {THESES.map(t => (
+            {themeList.map(t => (
               <ExposureBar key={t.id} name={t.name} exposure={MOCK_EXPOSURE[t.id]} />
             ))}
           </div>
@@ -1089,7 +1188,7 @@ function ThemesPageInner() {
         textAlign: 'center',
         color: 'var(--text-muted)',
       }}>
-        Not financial advice. Theses reflect a configurable worldview.
+        Not financial advice. Themes reflect a configurable worldview.
       </div>
     </main>
   );

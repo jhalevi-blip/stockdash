@@ -82,15 +82,21 @@ export async function POST(request) {
   const sb = getSupabaseAdmin();
   if (!sb) return Response.json({ error: 'Supabase not configured' }, { status: 500 });
 
-  // ── Cache read: fresh (<60 min) row wins unless force:true ─────────────────
+  // Per-user active themes + fingerprint: part of the cache identity (a theme
+  // change busts the ranking cache) and used to build the prompt below.
+  const themes = await getOrSeedUserThemes(sb, userId);
+  const fingerprint = activeThemeFingerprint(themes);
+
+  // ── Cache read: fresh (<60 min) AND same theme set wins unless force:true ──
   if (!force) {
     try {
       const { data: existing } = await sb
         .from('news_rankings')
-        .select('ranking, created_at')
+        .select('ranking, created_at, theme_fingerprint')
         .eq('user_id', userId)
         .single();
       if (existing?.created_at &&
+          existing.theme_fingerprint === fingerprint &&
           (Date.now() - new Date(existing.created_at).getTime()) < CACHE_TTL_MS) {
         return Response.json({
           rankings: Array.isArray(existing.ranking) ? existing.ranking : [],
@@ -105,11 +111,8 @@ export async function POST(request) {
   if (!key) return Response.json({ error: 'AI service unavailable' }, { status: 500 });
 
   // ── Server-side context (degrade gracefully) ──────────────────────────────
-  // Per-user active themes; classifications are filtered to the current theme-set
-  // fingerprint so stale (pre-change) verdicts are ignored rather than misattributed.
-  const themes = await getOrSeedUserThemes(sb, userId);
-  const fingerprint = activeThemeFingerprint(themes);
-
+  // Classifications are filtered to the current theme-set fingerprint so stale
+  // (pre-change) verdicts are ignored rather than misattributed.
   let worldview = DEFAULT_WORLDVIEW;
   try {
     const { data } = await sb.from('user_settings').select('worldview').eq('user_id', userId).single();
@@ -198,7 +201,7 @@ export async function POST(request) {
   const rankedAt = new Date().toISOString();
   try {
     await sb.from('news_rankings').upsert(
-      { user_id: userId, ranking: rankings, article_ids: articles.map(a => a.id), created_at: rankedAt },
+      { user_id: userId, ranking: rankings, article_ids: articles.map(a => a.id), created_at: rankedAt, theme_fingerprint: fingerprint },
       { onConflict: 'user_id' },
     );
   } catch { /* cache write failed — still return the fresh ranking below */ }
