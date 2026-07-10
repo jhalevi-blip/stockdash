@@ -1,6 +1,17 @@
-// Fixed thesis set for /themes (Theme Research). The classifier scores each
-// holding against these four theses. Bump THESIS_VERSION whenever the thesis
-// text or set changes so cached classifications can be invalidated.
+// Fixed thesis set for /themes (Theme Research).
+//
+// MIGRATION STATUS (dynamic themes, Gate 4a): the backend routes now read per-user
+// themes from user_themes (see lib/userThemes.js). What remains here:
+//   • DEFAULT_WORLDVIEW — ACTIVE: worldview fallback used across routes + pages, and
+//     the source of the seeded default worldview.
+//   • VERDICTS          — ACTIVE: the verdict enum, still shared by all routes.
+//   • THESES            — LEGACY: only page.jsx + mockData.js still import it; the
+//     four entries are mirrored into the seeded defaults in lib/userThemes.js.
+//     Removed when the UI moves to per-user themes (Gate 4b).
+//   • CALIBRATION       — LEGACY: used by theme-classify ONLY for the pristine
+//     default set (isPristineDefaultSet); keyed by the default theme ids.
+//   • THESIS_VERSION    — LEGACY/DEAD: superseded by per-theme version and the
+//     active-set fingerprint (activeThemeFingerprint). No remaining importers.
 
 export const THESIS_VERSION = 'v1-2026-06-04';
 

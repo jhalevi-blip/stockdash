@@ -1,24 +1,17 @@
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import {
-  THESES, THESIS_VERSION, CALIBRATION, DEFAULT_WORLDVIEW, VERDICTS,
-} from '@/app/(v2)/themes/_lib/theses';
+import { getOrSeedUserThemes, activeThemeFingerprint, isPristineDefaultSet } from '@/lib/userThemes';
+import { CALIBRATION, DEFAULT_WORLDVIEW, VERDICTS } from '@/app/(v2)/themes/_lib/theses';
 
-// Scores one ticker against the four fixed theses. Calibration tickers are served
-// from the static map (no model call); everything else goes through Claude with
-// forced tool use. Follows the error/validation pattern of stock-ai-summary.
+// Scores one ticker against the user's macro themes (user_themes). Scoring guidance
+// comes from each theme's own `guidance` column. The portfolio-owner calibration map
+// applies ONLY when the user still has the untouched four defaults; once themes are
+// edited/extracted it is omitted. Forced tool use, error pattern from stock-ai-summary.
 export const dynamic = 'force-dynamic';
 
 const TICKER_RE = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 
-// Per-thesis scoring guidance injected into the system prompt.
-const GUIDANCE = {
-  'debasement': "Beneficiaries: hard assets, pricing power, nominal-asset owners, energy/commodity producers, crypto exposure. The mechanism is SUPPRESSED real rates and financial repression — never apply 'high rates hurt X' logic. Victims: long-duration cash flows with no pricing power.",
-  'strong-ai': "Beneficiaries: compute, power infrastructure, AI-native operators that consume their own efficiency gains. Victims: businesses whose product AI deflates or replaces.",
-  'k-shaped': "The top decile spends through anything; the bottom half trades down or exits. In trade-down-able goods both ends win and the MIDDLE is the victim. In threshold goods (housing, new cars) the bottom buyer exits entirely, so the entry tier is the victim. Mid-premium brands sold to ordinary people are the classic victim.",
-  'instability': "Beneficiaries: direct revenue from defense, security, cyber, energy security. Victims: China-sourced supply chains, conflict-exposed logistics. A company merely operating globally is Neutral, not Hurt.",
-};
-
+// Generic per-theme verdict shape; the tool's property set is built per request.
 const thesisProp = {
   type: 'object',
   required: ['verdict', 'rationale'],
@@ -28,38 +21,40 @@ const thesisProp = {
   },
 };
 
-const classifyTool = {
-  name: 'classify_against_theses',
-  description: 'Score one stock against the four fixed macro theses.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      'debasement':  thesisProp,
-      'strong-ai':   thesisProp,
-      'k-shaped':    thesisProp,
-      'instability': thesisProp,
+function buildClassifyTool(themes) {
+  const properties = {};
+  for (const t of themes) properties[t.theme_id] = thesisProp;
+  return {
+    name: 'classify_against_theses',
+    description: "Score one stock against the user's macro themes.",
+    input_schema: {
+      type: 'object',
+      properties,
+      required: themes.map(t => t.theme_id),
     },
-    required: ['debasement', 'strong-ai', 'k-shaped', 'instability'],
-  },
-};
+  };
+}
 
-function buildSystem(worldview) {
-  const thesisBlocks = THESES.map(t =>
-    `${t.name}: ${t.view}\nScoring guidance: ${GUIDANCE[t.id]}`
+function buildSystem(worldview, themes, includeCalibration) {
+  const thesisBlocks = themes.map(t =>
+    `${t.name}: ${t.description}\nScoring guidance: ${t.guidance}`
   ).join('\n\n');
 
-  const calibration = Object.entries(CALIBRATION).map(([tk, v]) =>
-    `${tk}: ` + THESES.map(t => `${t.name} = ${v[t.id].verdict} (${v[t.id].rationale})`).join('; ')
-  ).join('\n');
+  let calibrationBlock = '';
+  if (includeCalibration) {
+    // Safe: includeCalibration is true only for the pristine default set, whose
+    // theme_ids are exactly the CALIBRATION keys.
+    const calibration = Object.entries(CALIBRATION).map(([tk, v]) =>
+      `${tk}: ` + themes.map(t => `${t.name} = ${v[t.theme_id].verdict} (${v[t.theme_id].rationale})`).join('; ')
+    ).join('\n');
+    calibrationBlock = `\n\nCalibrated examples from the portfolio owner — match their judgment style and logic:\n${calibration}`;
+  }
 
-  return `You score one stock against four fixed macro theses for a worldview-driven portfolio dashboard.
+  return `You score one stock against the user's macro themes for a worldview-driven portfolio dashboard.
 
 ${thesisBlocks}
 
-The user's worldview, which should tilt ambiguous calls: ${worldview}
-
-Calibrated examples from the portfolio owner — match their judgment style and logic:
-${calibration}
+The user's worldview, which should tilt ambiguous calls: ${worldview}${calibrationBlock}
 
 Use 'Mixed' only when there are two real opposing forces; use 'Neutral' when exposure is simply not dominant.`;
 }
@@ -77,11 +72,18 @@ export async function POST(request) {
 
   const now = new Date().toISOString();
 
+  // Per-user active themes (lazy-seeds the four defaults for untouched users).
+  const themes = await getOrSeedUserThemes(sb, userId);
+  const fingerprint = activeThemeFingerprint(themes);
+  const pristine = isPristineDefaultSet(themes);
+
   // ── Calibration fast-path: no Anthropic call ──────────────────────────────
-  if (CALIBRATION[ticker]) {
+  // Only valid while the user still has the untouched defaults (calibration verdicts
+  // are keyed by the default theme ids).
+  if (pristine && CALIBRATION[ticker]) {
     const verdicts = CALIBRATION[ticker];
     const { error } = await sb.from('theme_classifications').upsert(
-      { user_id: userId, ticker, thesis_version: THESIS_VERSION, verdicts, computed_at: now },
+      { user_id: userId, ticker, thesis_version: fingerprint, verdicts, computed_at: now },
       { onConflict: 'user_id,ticker' },
     );
     if (error) return Response.json({ error: error.message }, { status: 500 });
@@ -99,6 +101,8 @@ export async function POST(request) {
     if (data?.worldview) worldview = data.worldview;
   } catch {}
 
+  const classifyTool = buildClassifyTool(themes);
+
   let res, raw;
   try {
     res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -111,7 +115,7 @@ export async function POST(request) {
       body: JSON.stringify({
         model: 'claude-opus-4-8',
         max_tokens: 1200,
-        system: buildSystem(worldview),
+        system: buildSystem(worldview, themes, pristine),
         tools: [classifyTool],
         tool_choice: { type: 'tool', name: 'classify_against_theses' },
         messages: [{ role: 'user', content: `Score the stock with ticker ${ticker}.` }],
@@ -132,13 +136,13 @@ export async function POST(request) {
   }
 
   const verdicts = toolUse.input;
-  const allValid = THESES.every(t => verdicts[t.id] && VERDICTS.includes(verdicts[t.id].verdict));
+  const allValid = themes.every(t => verdicts[t.theme_id] && VERDICTS.includes(verdicts[t.theme_id].verdict));
   if (!allValid) {
     return Response.json({ error: 'generation_failed', message: 'Invalid verdict in output' }, { status: 500 });
   }
 
   const { error } = await sb.from('theme_classifications').upsert(
-    { user_id: userId, ticker, thesis_version: THESIS_VERSION, verdicts, computed_at: now },
+    { user_id: userId, ticker, thesis_version: fingerprint, verdicts, computed_at: now },
     { onConflict: 'user_id,ticker' },
   );
   if (error) return Response.json({ error: error.message }, { status: 500 });

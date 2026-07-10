@@ -1,9 +1,10 @@
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
-import { THESES, THESIS_VERSION, DEFAULT_WORLDVIEW } from '@/app/(v2)/themes/_lib/theses';
+import { getOrSeedUserThemes, activeThemeFingerprint } from '@/lib/userThemes';
+import { DEFAULT_WORLDVIEW } from '@/app/(v2)/themes/_lib/theses';
 
 // Ranks a batch of news articles by importance to ONE signed-in investor, given
-// their worldview, the four fixed theses, and how their holdings map to them.
+// their worldview, their per-user themes, and how their holdings map to them.
 // Result is cached per-user in `news_rankings` with a 60-minute TTL (no per-call
 // quota — the TTL bounds spend). No market-data calls, so nothing is tracked to
 // Finnhub. Modeled on theme-classify (worldview + Supabase) and stock-quick-action
@@ -15,13 +16,13 @@ const SUMMARY_CHARS  = 200;
 const WHY_CHARS      = 120;
 const CACHE_TTL_MS   = 60 * 60 * 1000; // 60 min
 
-function buildSystem(worldview, verdictLines) {
-  const thesisBlocks = THESES.map(t => `- ${t.name} (${t.id}): ${t.view}`).join('\n');
-  return `You rank financial news articles by how much they matter to ONE specific investor, judged against their macro worldview, a fixed set of theses, and how their holdings map to those theses.
+function buildSystem(worldview, verdictLines, themes) {
+  const thesisBlocks = themes.map(t => `- ${t.name}: ${t.description}`).join('\n');
+  return `You rank financial news articles by how much they matter to ONE specific investor, judged against their macro worldview, their set of themes, and how their holdings map to those themes.
 
 The investor's worldview: ${worldview}
 
-The four theses they invest around:
+The themes they invest around:
 ${thesisBlocks}
 
 How the investor's holdings map to these theses (verdict per thesis — Benefits / Hurt / Neutral / Mixed):
@@ -104,6 +105,11 @@ export async function POST(request) {
   if (!key) return Response.json({ error: 'AI service unavailable' }, { status: 500 });
 
   // ── Server-side context (degrade gracefully) ──────────────────────────────
+  // Per-user active themes; classifications are filtered to the current theme-set
+  // fingerprint so stale (pre-change) verdicts are ignored rather than misattributed.
+  const themes = await getOrSeedUserThemes(sb, userId);
+  const fingerprint = activeThemeFingerprint(themes);
+
   let worldview = DEFAULT_WORLDVIEW;
   try {
     const { data } = await sb.from('user_settings').select('worldview').eq('user_id', userId).single();
@@ -116,7 +122,7 @@ export async function POST(request) {
       .from('theme_classifications')
       .select('ticker, verdicts')
       .eq('user_id', userId)
-      .eq('thesis_version', THESIS_VERSION);
+      .eq('thesis_version', fingerprint);
     if (Array.isArray(data)) data.forEach(r => { verdictsByTicker[r.ticker] = r.verdicts; });
   } catch { /* verdicts optional */ }
 
@@ -125,7 +131,7 @@ export async function POST(request) {
     .filter(t => t && verdictsByTicker[t])
     .map(t => {
       const v = verdictsByTicker[t];
-      const parts = THESES.map(th => `${th.name}=${v?.[th.id]?.verdict ?? '—'}`).join(', ');
+      const parts = themes.map(th => `${th.name}=${v?.[th.theme_id]?.verdict ?? '—'}`).join(', ');
       return `${t}: ${parts}`;
     })
     .join('\n');
@@ -147,7 +153,7 @@ export async function POST(request) {
       body: JSON.stringify({
         model: 'claude-opus-4-8',
         max_tokens: 3000,
-        system: buildSystem(worldview, verdictLines),
+        system: buildSystem(worldview, verdictLines, themes),
         messages: [{ role: 'user', content: userMessage }],
       }),
     });

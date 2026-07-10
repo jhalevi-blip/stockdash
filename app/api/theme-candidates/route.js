@@ -2,88 +2,94 @@ import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { trackFMP } from '@/lib/apiUsage';
 import { fetchDailyCloses } from '@/lib/fmpHistory';
-import {
-  THESES, THESIS_VERSION, DEFAULT_WORLDVIEW, VERDICTS,
-} from '@/app/(v2)/themes/_lib/theses';
+import { getOrSeedUserThemes, activeThemeFingerprint } from '@/lib/userThemes';
+import { DEFAULT_WORLDVIEW, VERDICTS } from '@/app/(v2)/themes/_lib/theses';
 
 // Discover Candidates: proposes ~10 liquid tickers across the cap spectrum that benefit from one
-// thesis (excluding current holdings), each FMP-validated before display. Mirrors the
+// theme (excluding current holdings), each FMP-validated before display. Mirrors the
 // Opus / forced-tool-use / error-handling pattern of theme-classify exactly.
+// Themes are per-user (user_themes), no longer the hardcoded THESES.
 export const dynamic = 'force-dynamic';
 
 const TICKER_RE = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 
-// Per-thesis verdict properties, built from THESES so the schema stays in sync.
-const themeProps = {};
-for (const t of THESES) {
-  themeProps[t.id] = { type: 'string', enum: VERDICTS, description: `Verdict for the ${t.name} thesis` };
-}
-
-const candidatesTool = {
-  name: 'propose_candidates',
-  description: 'Propose liquid stocks across the market-cap spectrum that fit a macro thesis.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      candidates: {
-        type: 'array',
-        items: {
-          type: 'object',
-          required: ['ticker', 'rationale', 'themes'],
-          properties: {
-            ticker:    { type: 'string', description: 'US-listed ticker symbol' },
-            rationale: { type: 'string', description: 'One sentence, max ~20 words' },
-            themes: {
-              type: 'object',
-              properties: themeProps,
-              required: THESES.map(t => t.id),
+// Verdict-per-theme tool schema, built per request from the user's active themes.
+function buildCandidatesTool(themes) {
+  const themeProps = {};
+  for (const t of themes) {
+    themeProps[t.theme_id] = { type: 'string', enum: VERDICTS, description: `Verdict for the ${t.name} theme` };
+  }
+  return {
+    name: 'propose_candidates',
+    description: 'Propose liquid stocks across the market-cap spectrum that fit a macro theme.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        candidates: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['ticker', 'rationale', 'themes'],
+            properties: {
+              ticker:    { type: 'string', description: 'US-listed ticker symbol' },
+              rationale: { type: 'string', description: 'One sentence, max ~20 words' },
+              themes: {
+                type: 'object',
+                properties: themeProps,
+                required: themes.map(t => t.theme_id),
+              },
             },
           },
         },
       },
+      required: ['candidates'],
     },
-    required: ['candidates'],
-  },
-};
+  };
+}
 
-function buildSystem(thesis, worldview, exclude) {
+function buildSystem(theme, worldview, exclude, allThemes) {
   const excludeBlock = exclude.length
     ? `Exclude these tickers (already held): ${exclude.join(', ')}.`
     : 'There are no tickers to exclude.';
 
-  return `You propose stock candidates for one fixed macro thesis in a worldview-driven portfolio dashboard.
+  return `You propose stock candidates for one macro theme in a worldview-driven portfolio dashboard.
 
-Thesis — ${thesis.name}: ${thesis.view}
+Theme — ${theme.name}: ${theme.description}
+What benefits, is neutral, or is hurt: ${theme.guidance}
 
 The user's worldview, which should tilt ambiguous calls: ${worldview}
 
-Propose 10-12 liquid, publicly-traded tickers that would clearly BENEFIT from this thesis playing out, given the user's worldview. Spread them across the market-cap spectrum: include several mid-caps (roughly $2B-$50B) and one or two smaller but still liquid names alongside larger caps — explicitly avoid an all-mega-cap list. ${excludeBlock} Each candidate needs a one-line rationale in a concise, finance-literate voice — the same verdict style used elsewhere in the dashboard (max ~20 words, no hedging filler).
+Propose 10-12 liquid, publicly-traded tickers that would clearly BENEFIT from this theme playing out, given the user's worldview. Spread them across the market-cap spectrum: include several mid-caps (roughly $2B-$50B) and one or two smaller but still liquid names alongside larger caps — explicitly avoid an all-mega-cap list. ${excludeBlock} Each candidate needs a one-line rationale in a concise, finance-literate voice — the same verdict style used elsewhere in the dashboard (max ~20 words, no hedging filler).
 
-For each candidate, also assign a verdict for all four theses — ${THESES.map(t => t.name).join(', ')} — using only these values: ${VERDICTS.join(', ')}. Most candidates will not benefit from every thesis; Neutral and Mixed are expected and correct, so do not inflate everything to Benefits.`;
+For each candidate, also assign a verdict for all of the user's themes — ${allThemes.map(t => t.name).join(', ')} — using only these values: ${VERDICTS.join(', ')}. Most candidates will not benefit from every theme; Neutral and Mixed are expected and correct, so do not inflate everything to Benefits.`;
 }
 
-function buildWorldviewSystem(theses, worldview, exclude) {
+function buildWorldviewSystem(themes, worldview, exclude) {
   const excludeBlock = exclude.length
     ? `Exclude these tickers (already held): ${exclude.join(', ')}.`
     : 'There are no tickers to exclude.';
 
-  const thesisBlock = theses.map(t => `${t.name}: ${t.view}`).join('\n');
+  // themes arrive in priority order (lower priority = more important, listed first).
+  const themeBlock = themes.map((t, i) => `${i + 1}. ${t.name}: ${t.description} — ${t.guidance}`).join('\n');
 
   return `You propose stock candidates that fit an entire worldview in a worldview-driven portfolio dashboard.
 
-The four fixed macro theses:
-${thesisBlock}
+The user's macro themes, in priority order (most important first):
+${themeBlock}
 
-The user's worldview, which ties these theses together: ${worldview}
+The user's worldview, which ties these themes together: ${worldview}
 
-Propose 10-12 liquid, publicly-traded tickers that are net beneficiaries of the worldview as a whole — each should benefit from two or more of the theses above and not be materially hurt by the others. Rank them by overall fit (best fit first). Spread them across the market-cap spectrum: include several mid-caps (roughly $2B-$50B) and one or two smaller but still liquid names alongside larger caps — explicitly avoid an all-mega-cap list. ${excludeBlock} Each candidate needs a one-line rationale in a concise, finance-literate voice — the same verdict style used elsewhere in the dashboard (max ~20 words, no hedging filler) — noting which theses it rides.
+Propose 10-12 liquid, publicly-traded tickers that are net beneficiaries of the worldview as a whole — each should benefit from two or more of the themes above and not be materially hurt by the others. Weight selection toward the higher-priority themes (those listed first): a candidate that rides the top themes is preferable to one that only fits lower-priority themes. Rank them by overall fit (best fit first). Spread them across the market-cap spectrum: include several mid-caps (roughly $2B-$50B) and one or two smaller but still liquid names alongside larger caps — explicitly avoid an all-mega-cap list. ${excludeBlock} Each candidate needs a one-line rationale in a concise, finance-literate voice — the same verdict style used elsewhere in the dashboard (max ~20 words, no hedging filler) — noting which themes it rides.
 
-For each candidate, also assign a verdict for all four theses — ${theses.map(t => t.name).join(', ')} — using only these values: ${VERDICTS.join(', ')}. Most candidates will not benefit from every thesis; Neutral and Mixed are expected and correct, so do not inflate everything to Benefits.`;
+For each candidate, also assign a verdict for all of the user's themes — ${themes.map(t => t.name).join(', ')} — using only these values: ${VERDICTS.join(', ')}. Most candidates will not benefit from every theme; Neutral and Mixed are expected and correct, so do not inflate everything to Benefits.`;
 }
 
 export async function POST(request) {
   const { userId } = await auth();
   if (!userId) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const sb = getSupabaseAdmin();
+  if (!sb) return Response.json({ error: 'Supabase not configured' }, { status: 500 });
 
   const body = await request.json();
   const thesisKey = typeof body.thesisKey === 'string' ? body.thesisKey : '';
@@ -95,12 +101,17 @@ export async function POST(request) {
         .filter(t => TICKER_RE.test(t))
     : [];
 
-  const isWorldview = thesisKey === '_worldview';
-  const thesis = THESES.find(t => t.id === thesisKey);
-  if (!isWorldview && !thesis) return Response.json({ error: 'Invalid thesisKey' }, { status: 400 });
+  // Per-user active themes (lazy-seeds the four defaults for untouched users).
+  const themes = await getOrSeedUserThemes(sb, userId);
 
-  const sb = getSupabaseAdmin();
-  if (!sb) return Response.json({ error: 'Supabase not configured' }, { status: 500 });
+  const isWorldview = thesisKey === '_worldview';
+  const theme = themes.find(t => t.theme_id === thesisKey);
+  if (!isWorldview && !theme) return Response.json({ error: 'Invalid thesisKey' }, { status: 400 });
+
+  // Cache identity: the '_worldview' aggregate depends on the whole active set, so
+  // it uses the set fingerprint; a single theme uses only its own version (its
+  // candidates need re-generating only when THAT theme's meaning changes).
+  const cacheVersion = isWorldview ? activeThemeFingerprint(themes) : String(theme.version);
 
   const now = new Date().toISOString();
   const excludeSet = new Set(exclude);
@@ -113,7 +124,7 @@ export async function POST(request) {
         .select('candidates')
         .eq('user_id', userId)
         .eq('thesis_key', thesisKey)
-        .eq('thesis_version', THESIS_VERSION)
+        .eq('thesis_version', cacheVersion)
         .single();
       if (data?.candidates) {
         return Response.json({ thesisKey, candidates: data.candidates, source: 'cache' });
@@ -132,6 +143,8 @@ export async function POST(request) {
     if (data?.worldview) worldview = data.worldview;
   } catch {}
 
+  const candidatesTool = buildCandidatesTool(themes);
+
   let res, raw;
   try {
     res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -145,13 +158,13 @@ export async function POST(request) {
         model: 'claude-opus-4-8',
         max_tokens: 2000,
         system: isWorldview
-          ? buildWorldviewSystem(THESES, worldview, exclude)
-          : buildSystem(thesis, worldview, exclude),
+          ? buildWorldviewSystem(themes, worldview, exclude)
+          : buildSystem(theme, worldview, exclude, themes),
         tools: [candidatesTool],
         tool_choice: { type: 'tool', name: 'propose_candidates' },
         messages: [{ role: 'user', content: isWorldview
           ? 'Propose candidates across the full worldview.'
-          : `Propose candidates for the ${thesis.name} thesis.` }],
+          : `Propose candidates for the ${theme.name} theme.` }],
       }),
     });
     raw = await res.json();
@@ -182,11 +195,11 @@ export async function POST(request) {
     if (!TICKER_RE.test(ticker) || excludeSet.has(ticker) || seen.has(ticker)) continue;
     seen.add(ticker);
     // Build a complete, valid verdict object — default to Neutral for anything missing/invalid.
-    const themes = {};
-    for (const t of THESES) {
-      themes[t.id] = VERDICTS.includes(c.themes?.[t.id]) ? c.themes[t.id] : 'Neutral';
+    const themeVerdicts = {};
+    for (const t of themes) {
+      themeVerdicts[t.theme_id] = VERDICTS.includes(c.themes?.[t.theme_id]) ? c.themes[t.theme_id] : 'Neutral';
     }
-    cleaned.push({ ticker, rationale: c.rationale, themes });
+    cleaned.push({ ticker, rationale: c.rationale, themes: themeVerdicts });
   }
 
   if (cleaned.length === 0) {
@@ -244,7 +257,7 @@ export async function POST(request) {
 
   // ── Persist + return ──────────────────────────────────────────────────────────
   const { error } = await sb.from('theme_candidates').upsert(
-    { user_id: userId, thesis_key: thesisKey, thesis_version: THESIS_VERSION, candidates, computed_at: now },
+    { user_id: userId, thesis_key: thesisKey, thesis_version: cacheVersion, candidates, computed_at: now },
     { onConflict: 'user_id,thesis_key,thesis_version' },
   );
   if (error) return Response.json({ error: error.message }, { status: 500 });
