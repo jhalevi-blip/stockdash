@@ -85,13 +85,13 @@ const nextConfig = {
         source: '/api/stock-intel-preview',
         headers: [{ key: 'Cache-Control', value: 's-maxage=86400, stale-while-revalidate=3600' }],
       },
-      {
-        // Remaining API routes — cache 4 hours
-        // Excludes user-scoped and intentionally uncached routes.
-        // Add to the lookahead when creating new auth-gated routes.
-        source: '/api/:path((?!portfolio|holdings|usage|ai-summary|funds).*)',
-        headers: [{ key: 'Cache-Control', value: 's-maxage=14400, stale-while-revalidate=3600' }],
-      },
+      // CDN caching is OPT-IN. There is intentionally NO catch-all rule here.
+      // A route gets shared/CDN caching ONLY if it is listed explicitly above
+      // (public, non-auth routes) or sets its own Cache-Control header in the
+      // handler (which takes precedence over these rules). Auth-gated and
+      // user-scoped routes must NEVER receive s-maxage by default — a shared
+      // directive on per-user data risks stale reads and cross-user leaks — so
+      // they are simply omitted and fall through to the handler's own headers.
     ];
   },
 };
