@@ -1,6 +1,6 @@
 # StockDashes Roadmap
 
-_Last updated: 2026-07-10_
+_Last updated: 2026-07-21_
 
 ## Conventions
 
@@ -56,7 +56,7 @@ Priority: low — crash already prevented; this stops silently-empty bullet list
 
 **Peer-median column always blank (BUG — param typo, cosmetic)**
 
-`app/(v2)/research/page.jsx:1454` (ValuationMetricsCard) fetches `/api/peers?tickers=${ticker}`, but the route reads `ticker` (singular) → 400 → the "Peer Med." column is always empty. Fix: change `tickers=` to `ticker=`. One-line, cosmetic.
+`app/(v2)/research/page.jsx:1454` (ValuationMetricsCard) fetches `/api/peers?tickers=${ticker}`, but the route reads `ticker` (singular) → 400 → the "Peer Med." column is always empty. Fix: change `tickers=` to `ticker=`. One-line, cosmetic. **Resolution:** fold into the 🟠-tier helper migration (see Next → Fixes and hygiene) rather than fixing standalone — same silent-failure family.
 
 ---
 
@@ -72,7 +72,8 @@ Priority: low–medium.
 
 ## Now (this week)
 
-- [ ] **Audit pass** — production smoke test, FMP/Anthropic usage check, Search Console indexing, PostHog D1/D7, backlog hygiene, code health, dev environment.
+- [ ] **Migrate `/api/institutional` onto helper lib + shared crumb** — failure must produce *absence* (uncached at CDN), not all-null fields merged into a 24h-pinned 200. Supersedes the old "malformed Cache-Control on `/api/institutional`" fix (resolved as part of this migration).
+- [ ] **Migrate `/api/sectors` onto helper lib** — trivial; already FMP; currently caches an empty map for 24h on failure.
 - [ ] **SEO post: "How Much of Your Portfolio Should Be in One Stock?"** — concentration deep-dive; pairs with the live correlation post; ~2000 words.
 - [ ] **Option-guard mechanism unverified (observability)** — QBTS/15F27P2 and SOFI/21F28C15 leaked into holdings before commits 11db31c (Unicode-slash regex) and 14967f8 (same-day FIFO sort), then disappeared after both shipped — but we never proved which fix (or what combination) actually catches them. The Saxo file's option rows use ASCII U+002F, so the original `includes('/')` guard should have worked but didn't. Could regress on a different broker file. To verify: on the next upload, capture `_debugHoldingsTickers` (deployed at 549563b) from `/api/upload`'s Network response and confirm no `/`-containing tickers reach holdings. If options reappear, the diagnostic narrows the cause. Low priority — modal review surfaces any leak before save — but worth resolving for peace of mind. Cleanup note: the temporary `_debugHoldingsTickers` field (549563b) must be removed from `/api/upload`'s response in the Stage 1 cleanup commit alongside the other `_debug*` fields. **[AUDIT-CONFIRMED 2026-06-17 · M2]** the 2026-06-17 audit verified `_debug`, `_debugTrades`, `_debugMergedAvgCostEcho`, and `_debugHoldingsTickers` all ship in the live `/api/upload` response (`app/api/upload/route.ts:483-487`) — strip all of them here.
 
@@ -94,12 +95,17 @@ Priority: low–medium.
 - **AMD empty data cards** — On the Stock Intel page for AMD specifically, valuation, short interest, and insider activity cards sometimes render empty even though data is available. Persists across full page refreshes (unlike the data-race fix shipped 2026-04-28, which was session-level). Noticed during QA 2026-04-28. ⚠️ Production bug on a named stock page — promote to Now if it recurs or affects other tickers.
 - **Supabase schema migrations** — Document `portfolios` and `api_usage` table schemas as versioned `.sql` files in `db/migrations/`. Currently schemas exist only as comments in `app/api/portfolio/route.ts` and `lib/apiUsage.ts`. `portfolio_correlations` already done (migration 001).
 - **Supabase pg_dump backups** — Set up monthly `pg_dump` of the Supabase database. Options: cron job on any always-on machine, GitHub Actions scheduled workflow, or Supabase PITR. Belt-and-suspenders against data loss and vendor risk.
-- **Fix malformed Cache-Control on `/api/institutional`** — `stale-while-revalidate` has no value (invalid header). 5-min fix.
 - **Retention diagnostic re-evaluate** — Check PostHog D1/D7/WAU around 2026-05-05 when there are 10+ days of capture data and signed-up users have enough tenure to show a signal.
 - **Rotate 3 vendor keys flagged by Vercel** — RESEND_API_KEY, CLERK_SECRET_KEY (Production), FINNHUB_API_KEY are stored as plain (non-Sensitive) env vars. Rotate each at its source dashboard (Resend / Clerk / Finnhub), save new value in Vercel as Sensitive type, redeploy, verify dependent routes. Low urgency (single-operator Vercel account), flagged 2026-07-02.
 - **Old Vercel preview domain indexed** — stockdash-app.vercel.app is indexed by search engines alongside stockdashes.com (duplicate content, splits any SEO signal). Fix: permanent redirect from *.vercel.app to stockdashes.com (Next.js middleware or vercel.json redirect on host match), or at minimum canonical tags. Flagged 2026-07-02.
 - **~~Unquoted YAML dates in two blog posts~~ — RESOLVED** — degiro-export-guide.md:4 and degiro-real-return.md:4 had unquoted dates parsed as JS Date objects; app/blog/[slug]/opengraph-image.tsx:26 formatDate calls .split() on them → TypeError when the OG route ships. Fixed 2026-07-02 in 2cdebde (same commit as the OG system) — both dates quoted, verified rendering 200/image/png on the previously-broken route before ship.
 - **News page polish** — tie-break the ranked sort by time within equal scores (currently `b.time - a.time` only kicks in on exact score ties — confirm it holds across the ranked band), and handle display of new/unranked articles that arrive after a cached ranking (step 4 from the design: articles present in `/api/news` but absent from the cached `news_rankings` set currently fall to the bottom unranked until the 60-min TTL lapses or a force-refresh). Low priority — cosmetic ordering, not correctness.
+- **`/api/short-interest`: add `price-target-consensus`, drop Yahoo leg** — `price-target-consensus` is the only source of `targetHigh`/`targetLow` on our FMP tier; add it and delete the Yahoo fallback leg. Migrate `/api/short-interest-data` onto helpers + shared crumb in the same pass — kills the last two duplicated crumb copies.
+- **`/api/earnings-history` + `/api/financials` onto helpers** — decide the partial-merge policy: a failed source leg ⇒ response marked partial ⇒ no CDN pin. Currently a failed leg silently narrows the merged data and the narrowed result gets cached.
+- **🟠-tier route migrations (mechanical, a few per session)** — `valuation-history`, `ticker-search`, `peers`, `stock-intel-preview`, `valuation`, `insider`, `news`, `most-traded`, `analyst-ratings`, `prices`, `chart`. Supersedes `[L2]` below (`/api/prices` per-fetch try/catch) — covered by the migration. Also folds in the peer-median param-typo fix (see Critical bugs).
+- **Earnings widget `slice(0, 6)` cap decision** — hides a third of a 12-holding calendar, and date-ties at the cut resolve arbitrarily. Options: raise the cap / scroll / date-window. Real-user-visible — candidate for promotion to Now once the P1 migrations clear.
+- **Remove dead `s-maxage` header on `/api/ai-summary` POST** — inert (Vercel doesn't CDN-cache POST) and misleading.
+- **Search Console: request indexing for both new blog post URLs** — `how-to-know-when-to-sell-a-stock` and `what-makes-a-real-moat-intuitive-surgical-case-study` (if not yet done).
 
 **Performance (from 2026-07-08 session — see docs/perf-audit.md):**
 - **Perf fix 5: SW app-shell caching** — add a `fetch` handler to `public/sw.js`: cache-first for immutable `/_next/static/*`, stale-while-revalidate for the app shell. Requires a versioned cache name + kill-switch plan; bad SW caches stick on user devices. Deferred from the July 8 perf session; do this last, slowly. Ref: docs/perf-audit.md §4.
@@ -109,7 +115,7 @@ Priority: low–medium.
 - **[M3] "EU-hosted, never sold" claim vs. third-party data flow** — storage is EU (Supabase; PostHog `eu.i.posthog.com`), but per-position holdings transit to Anthropic (US — `app/api/ai-summary/route.js:273` sends "User Position: N shares at avg cost…") and tickers to Finnhub/FMP/Yahoo (US). Tighten wording (e.g. "stored in the EU") or add a sub-processor disclosure. Claims-accuracy; no code change.
 - **[M4] Sync-risk duplication (drift)** — portfolio value/P&L math now lives in both `app/(v2)/dashboard/page.jsx:258-288` and `app/api/cron/portfolio-summary/route.js`; the EURUSD fetch lives in both `app/api/chart/route.js` and the cron's `fetchEurUsd`. Extract a shared `lib/portfolioMath.js` + a `getEurUsd()` helper consumed by both (mirrors the `lib/push.js` extraction). Already caused the ~€423 FX gap this session.
 - **[L1] `user-settings` GET missing `no-store`** — `app/api/user-settings/route.js:26` returns the per-user `worldview` with no `Cache-Control`, unlike the other user-scoped GETs. Add `private, no-store`.
-- **[L2] `/api/prices` no per-fetch try/catch** — `app/api/prices/route.js:16-34`: a single malformed Finnhub response rejects the whole `Promise.all` and 500s the request. Guard per-ticker like the cron's `fetchQuotes` does.
+- **[L2] `/api/prices` no per-fetch try/catch** — `app/api/prices/route.js:16-34`: a single malformed Finnhub response rejects the whole `Promise.all` and 500s the request. Guard per-ticker like the cron's `fetchQuotes` does. **Superseded** — folded into the 🟠-tier helper migration above; the per-ticker guard comes with `fetchExternal`.
 - **[L3] Grids not using `minmax(0, 1fr)`** — plain `1fr`/`repeat(n,1fr)` can overflow on mobile: `app/(landing)/_components/` (`DTMidCards.jsx:23`, `DTStockIntel.jsx:121`, `DTSummaryStrip.jsx:15`, `DTCapabilityStrip.jsx:14`) and `app/(v2)/research/page.jsx:710,1104,2465,2471,2480`. Verify per-case (some have responsive wrappers), then switch the genuinely mobile-multi-column ones.
 - **[L4] `theme-temperatures` recompute has no lock** — `app/api/theme-temperatures/route.js:13` is correctly unauth (global, non-user data), but a >24h-stale cache triggers a full FMP recompute with no in-flight lock (thundering herd). Add an advisory lock or cron-precompute if FMP spend matters. Low.
 - **[L5] Cron GET performs side effects** — `/api/cron/portfolio-summary` GET sends pushes (non-idempotent; each manual hit re-sends). `CRON_SECRET`-gated, so a semantic nit, not a vuln.
@@ -142,6 +148,12 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 
 ## Recently Shipped (last 14 days)
 
+- 2026-07-21 — `content(blog)`: post #3 live — "How to Know When to Sell a Stock" (`how-to-know-when-to-sell-a-stock`).
+- 2026-07-21 — `content(blog)`: post #4 live — "What Makes a Real Moat? Intuitive Surgical as a Case Study" (`what-makes-a-real-moat-intuitive-surgical-case-study`); completes the 3-post internal-link cluster (sell-thesis ↔ moat ↔ diversification).
+- 2026-07-21 — `fix(earnings)`: `/api/earnings` rewritten Yahoo→FMP (dae49c4) — per-symbol calls, every failure path logged, failures never cached at any layer (module or CDN). Fixes the silent PHM/AMD omission from the Upcoming Earnings widget.
+- 2026-07-21 — `feat(earnings)`: estimated revenue added to the Upcoming Earnings widget (241f0b2).
+- 2026-07-21 — `chore(audit)`: full API-route audit — 49 routes, risk-ranked. April auth-cache item re-verified clean: all auth-gated GETs carry `private, no-store`.
+- 2026-07-21 — `feat(lib)`: shared helper lib landed, not yet wired (7af34da) — `lib/externalFetch.js` (logged, no-store fetch + `cachedJson`), `lib/successCache.js` (success-only module cache), `lib/yahooCrumb.js` (hardened shared crumb).
 - 2026-07-10 — `feat(news)`: `/api/news` gained a per-ticker `limit` param + stable article ids (Finnhub `id`, url-hash fallback); new `/api/news-rank` ranks articles against the user's worldview via Opus 4.8, with context from `user_settings.worldview` + static THESES + `theme_classifications` verdicts. 60-min Supabase cache (`news_rankings` table, created via SQL Editor), force-refresh escape hatch, no per-call quota (TTL-bounded). 30b42ff.
 - 2026-07-10 — `feat(news)`: `/news` page — ranked article list with score badges, per-article "why it matters" lines, worldview header, refresh button, and a time-sorted fallback when ranking is unavailable; nav registration across ROUTES / NAV_ITEMS / AppShell AUTH_PATHS. Bundled `fix(sidebar)`: live market status replacing the second hardcoded "4:00 PM ET" clock (same `getMarketStatus` mount-gated pattern as the topbar). f5ca441.
 - 2026-07-10 — `fix(news-rank)`: scoring calibration — anchored 1–10 bands, listicle/incidental-mention demotion to 1–3, ~20% cap on 8+. Verified: score spread now 4–8 vs the previous flat 6s. 2918679.
@@ -156,12 +168,6 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 - 2026-07-08 — `perf`: recharts loaded via `next/dynamic` (ssr:false) across all 5 chart routes — off the critical path, no longer in route entry bundles. e3559b8.
 - 2026-07-08 — `perf(dashboard)`: optimistic holdings hydration — owner-checked cache seed + signature dedupe so ticker fetches start before the /api/portfolio round-trip. 36a1a5f.
 - All four verified in production including the H2 shared-device regression test. Audit: docs/perf-audit.md.
-- 2026-07-02 — `content(blog)`: post #8 live — Nike DCF wedge post (nike-dcf-what-the-market-believes), TL;DR, embedded calculator screenshot, internal links, OG card. e328be1.
-- 2026-07-02 — `feat(blog)`: OG image system shipped (built May 4, uncommitted since) — dynamic per-post preview cards via app/blog/[slug]/opengraph-image.tsx + blog-index card, vendored Inter fonts (SIL OFL, license included), quoted YAML dates in the two DeGiro posts. All 7 posts now have branded share cards. Verified live in production and in a real Discord embed. 2cdebde.
-- 2026-07-02 — `feat(pwa)`: install prompt shipped — dismissible banner for signed-in mobile-web users (components/InstallPrompt.jsx, mounted below Topbar in app/(v2)/layout.jsx). iOS branch: Share → Add to Home Screen instructions; Chromium branch: captured beforeinstallprompt + native prompt on tap. Per-user dismissal flag. Verified on device: iOS Safari shows banner, dismiss persists, hidden in standalone/desktop/signed-out. 915f1db.
-- 2026-07-02 — `feat(push)`: subscribed bell now tappable → confirm dialog → pushSubscription.unsubscribe() + DELETE /api/push-subscription; UI flips back to enable state. Verified on device end-to-end (push_subscriptions row removed on unsubscribe, restored on re-enable). f8a7e66.
-- 2026-07-02 — `fix(pwa)`: iOS standalone UI fixes verified on device — topbar + burger offset below status bar (safe-area-inset-top, globals.css), nav drawer safe-area padding, icon-only PushOptIn on mobile to stop avatar clipping. iPhone add-to-home-screen + install verified; push opt-in enabled on device. d75528b, 4b39c59, 5a2b91c. Pending: tomorrow's 08:00 cron push-delivery confirmation. Secrets rotation completed same day: CRON_SECRET + PUSH_SEND_SECRET rotated in Vercel, verified 200/401 against /api/cron/portfolio-summary.
-- 2026-07-02 — `fix(security)`: H2 shared-device holdings leak closed. Verified fixed July 2, 2026 — `getCachedHoldings()` ownership guard (`holdingsStorage.js:40-41`) + `GuestDataGuard` eager `clearAllForeignData()` on anonymous mount (`GuestDataGuard.jsx:16-18`). All former unscoped readers consolidated behind the getter.
 
 ---
 
@@ -194,3 +200,5 @@ User-selectable investing style (Conservative / Balanced / Aggressive) that chan
 Reference: May 26 2026 portfolio audit. Jonathan said he had 359 AMD shares after a sale; the analysis computed 459. Initial response was to argue and propose explanations for why he might be wrong. The honest path was to audit the parser, which revealed Saxo's inconsistent Verkoop formatting. 41 sell rows across 15 tickers were missing from holdings calculations. Without Jonathan pushing back, this parser bug — also affecting StockDashes production — would have stayed live, and a blog post built on the wrong AI analysis would have shipped with factually incorrect numbers.
 
 Operational consequence: if a user says "this number is wrong," the first move is audit, not argue.
+
+**Failures must be loud:** external-data routes log every failure path and never cache failures (module or CDN); the UI surfaces gaps rather than silently dropping items. A cached empty/partial 200 is indistinguishable from real data and silently corrupts what the user sees — the PHM/AMD earnings omission is the canonical example. Reference implementation: `/api/earnings` post-`dae49c4` + `lib/externalFetch.js`.
