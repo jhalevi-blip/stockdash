@@ -13,6 +13,21 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+// Compact currency: 3942035000 -> "$3.94B", 77829220 -> "$77.83M".
+// Up to 2 decimals, trailing zeros stripped ("$4.5B", "$3B").
+// A null or zero estimate is skipped (returns null) rather than shown as "$0".
+function formatRevenue(v) {
+  if (v == null || v === 0) return null;
+  const abs = Math.abs(v);
+  const [num, suffix] =
+    abs >= 1e9 ? [v / 1e9, 'B'] :
+    abs >= 1e6 ? [v / 1e6, 'M'] :
+    abs >= 1e3 ? [v / 1e3, 'K'] :
+                 [v, ''];
+  const s = num.toFixed(2).replace(/\.?0+$/, '');
+  return `$${s}${suffix}`;
+}
+
 export default function EarningsList({ tickers }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -62,6 +77,7 @@ export default function EarningsList({ tickers }) {
         const days = daysUntil(e.date);
         const urgent = days <= 7;
         const soon = days > 7 && days <= 14;
+        const rev = formatRevenue(e.revenueEstimate);
         const accentColor = urgent ? 'var(--negative)'
                           : soon   ? '#f0b429'
                           : 'var(--accent, #58a6ff)';
@@ -97,6 +113,7 @@ export default function EarningsList({ tickers }) {
               {e.epsEstimate != null && (
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                   Est. EPS ${e.epsEstimate.toFixed(2)}
+                  {rev && ` · Rev ${rev}`}
                 </div>
               )}
             </div>

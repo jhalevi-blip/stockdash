@@ -24,7 +24,7 @@ async function fetchNextEarnings(symbol, key, today) {
   const hit = earningsCache.get(symbol);
   if (hit && hit.expiresAt > Date.now()) {
     return hit.result
-      ? { symbol, date: hit.result.date, hour: null, epsEstimate: hit.result.epsEstimate, noData: false }
+      ? { symbol, date: hit.result.date, hour: null, epsEstimate: hit.result.epsEstimate, revenueEstimate: hit.result.revenueEstimate, noData: false }
       : { symbol, noData: true };
   }
 
@@ -59,13 +59,13 @@ async function fetchNextEarnings(symbol, key, today) {
     .sort((a, b) => a.date.localeCompare(b.date))[0];
 
   const result = next
-    ? { date: next.date, epsEstimate: next.epsEstimated ?? null }
+    ? { date: next.date, epsEstimate: next.epsEstimated ?? null, revenueEstimate: next.revenueEstimated ?? null }
     : null; // valid response with no upcoming earnings — safe to cache
 
   earningsCache.set(symbol, { result, expiresAt: Date.now() + CACHE_TTL_MS });
 
   return result
-    ? { symbol, date: result.date, hour: null, epsEstimate: result.epsEstimate, noData: false }
+    ? { symbol, date: result.date, hour: null, epsEstimate: result.epsEstimate, revenueEstimate: result.revenueEstimate, noData: false }
     : { symbol, noData: true };
 }
 
