@@ -1,109 +1,72 @@
+import { trackFMP } from '@/lib/apiUsage';
+
 export const dynamic = 'force-dynamic';
 
-// ── Yahoo crumb handshake (cookie + crumb), cached in module memory ──────────
-// The handshake is two uncached fetches; a crumb stays valid for hours, so we
-// reuse it across requests for up to 4h instead of re-handshaking every call.
-const CRUMB_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
-let crumbCache = null;    // { crumb, cookie, expiresAt } | null
-let crumbInFlight = null; // Promise<auth|null> | null — dedupes concurrent refreshes
+const FMP_EARNINGS = 'https://financialmodelingprep.com/stable/earnings';
 
-// Raw handshake — no caching. Callers go through getYahooCrumb().
-async function fetchFreshYahooCrumb() {
+// Only SUCCESSFUL lookups are cached, in module memory, for 6h. Transport/HTTP/
+// parse errors are never stored, so a failed fetch can never be served stale
+// (this is what let Yahoo serve `noData` for hours after a date was confirmed).
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h
+const earningsCache = new Map(); // symbol -> { result, expiresAt }   result: {date,epsEstimate} | null
+
+function todayISO() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// Next confirmed earnings for one symbol from FMP's per-symbol stable/earnings.
+// FMP returns rows newest-first; limit=8 comfortably covers the one upcoming
+// quarter (verified: PHM/AMD return the future row at index 0 within 8 rows).
+// Success  -> { symbol, date, hour:null, epsEstimate, noData:false }
+// No future date (valid 200) -> { symbol, noData:true }        (cached)
+// Any error -> { symbol, noData:true, _error:true }            (NOT cached, logged)
+async function fetchNextEarnings(symbol, key, today) {
+  const hit = earningsCache.get(symbol);
+  if (hit && hit.expiresAt > Date.now()) {
+    return hit.result
+      ? { symbol, date: hit.result.date, hour: null, epsEstimate: hit.result.epsEstimate, noData: false }
+      : { symbol, noData: true };
+  }
+
+  const url = `${FMP_EARNINGS}?symbol=${symbol}&limit=8&apikey=${key}`;
+  let res;
   try {
-    const homeRes = await fetch('https://finance.yahoo.com/', {
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' },
-      redirect: 'follow',
-      cache: 'no-store',
-    });
-    const rawCookies = homeRes.headers.getSetCookie?.() ?? [];
-    const cookie = rawCookies.map(c => c.split(';')[0]).join('; ');
-
-    const crumbRes = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', {
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/plain', 'Cookie': cookie },
-      cache: 'no-store',
-    });
-    if (!crumbRes.ok) return null;
-    const crumb = await crumbRes.text();
-    if (!crumb || crumb.includes('{')) return null;
-    return { crumb: crumb.trim(), cookie };
-  } catch {
-    return null;
+    res = await fetch(url, { cache: 'no-store' }); // never cache at the fetch layer; we cache successes ourselves
+  } catch (err) {
+    console.error(`[earnings] FMP fetch failed for ${symbol}:`, err);
+    return { symbol, noData: true, _error: true };
   }
-}
-
-// Drop the cached crumb so the next getYahooCrumb() re-handshakes.
-function invalidateCrumb() {
-  crumbCache = null;
-}
-
-// Return a valid { crumb, cookie } — from cache when fresh, otherwise re-handshake.
-// Concurrent refreshes share a single in-flight handshake to avoid a stampede.
-async function getYahooCrumb({ forceRefresh = false } = {}) {
-  if (!forceRefresh && crumbCache && crumbCache.expiresAt > Date.now()) {
-    return crumbCache;
+  if (!res.ok) {
+    console.error(`[earnings] FMP ${res.status} for ${symbol}`);
+    return { symbol, noData: true, _error: true };
   }
-  if (!crumbInFlight) {
-    crumbInFlight = (async () => {
-      const fresh = await fetchFreshYahooCrumb();
-      crumbCache = fresh ? { ...fresh, expiresAt: Date.now() + CRUMB_TTL_MS } : null;
-      return crumbCache;
-    })().finally(() => { crumbInFlight = null; });
-  }
-  return crumbInFlight;
-}
 
-function calendarEventsUrl(ticker, auth) {
-  const crumbQ = auth ? `&crumb=${encodeURIComponent(auth.crumb)}` : '';
-  return `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=calendarEvents${crumbQ}`;
-}
-
-function calendarEventsInit(auth) {
-  return {
-    headers: {
-      'User-Agent': 'Mozilla/5.0',
-      'Accept': 'application/json',
-      ...(auth ? { 'Cookie': auth.cookie } : {}),
-    },
-    next: { revalidate: 86400 },
-  };
-}
-
-async function fetchEarningsDate(ticker, auth) {
+  let rows;
   try {
-    let res = await fetch(calendarEventsUrl(ticker, auth), calendarEventsInit(auth));
-    // A cached crumb can be rejected (expired/rotated) — refresh once and retry.
-    if ((res.status === 401 || res.status === 403) && auth) {
-      invalidateCrumb();
-      const fresh = await getYahooCrumb({ forceRefresh: true });
-      if (fresh) {
-        auth = fresh;
-        res = await fetch(calendarEventsUrl(ticker, auth), calendarEventsInit(auth));
-      }
-    }
-    if (!res.ok) return null;
-    const data = await res.json();
-    const earnings = data?.quoteSummary?.result?.[0]?.calendarEvents?.earnings;
-    if (!earnings) return null;
-
-    const dates = earnings.earningsDate ?? [];
-    if (!dates.length) return null;
-
-    const today = new Date().toISOString().split('T')[0];
-    // earningsDate is an array (sometimes a range of two dates); take the earliest future one
-    let nextDate = null;
-    for (const d of dates) {
-      const dateStr = d.fmt ?? new Date(d.raw * 1000).toISOString().split('T')[0];
-      if (dateStr >= today) { nextDate = dateStr; break; }
-    }
-    if (!nextDate) return null;
-
-    return {
-      date: nextDate,
-      epsEstimate: earnings.earningsAverage?.raw ?? null,
-    };
-  } catch {
-    return null;
+    rows = await res.json();
+  } catch (err) {
+    console.error(`[earnings] FMP bad JSON for ${symbol}:`, err);
+    return { symbol, noData: true, _error: true };
   }
+  if (!Array.isArray(rows)) {
+    console.error(`[earnings] FMP unexpected shape for ${symbol}:`, JSON.stringify(rows).slice(0, 200));
+    return { symbol, noData: true, _error: true };
+  }
+
+  // earliest row dated today or later
+  const next = rows
+    .filter(r => r.date && r.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+
+  const result = next
+    ? { date: next.date, epsEstimate: next.epsEstimated ?? null }
+    : null; // valid response with no upcoming earnings — safe to cache
+
+  earningsCache.set(symbol, { result, expiresAt: Date.now() + CACHE_TTL_MS });
+
+  return result
+    ? { symbol, date: result.date, hour: null, epsEstimate: result.epsEstimate, noData: false }
+    : { symbol, noData: true };
 }
 
 export async function GET(request) {
@@ -115,28 +78,37 @@ export async function GET(request) {
 
   if (!tickers.length) return Response.json([]);
 
-  const auth = await getYahooCrumb();
+  const key = process.env.FMP_API_KEY;
+  if (!key) {
+    console.error('[earnings] FMP_API_KEY not configured');
+    // Missing config is a server error — don't pin it at the CDN.
+    return Response.json(
+      tickers.map(symbol => ({ symbol, noData: true })),
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
 
-  const results = await Promise.all(
-    tickers.map(async ticker => {
-      const d = await fetchEarningsDate(ticker, auth);
-      if (!d) return { symbol: ticker, noData: true };
-      return {
-        symbol:      ticker,
-        date:        d.date,
-        hour:        null,
-        epsEstimate: d.epsEstimate,
-        noData:      false,
-      };
-    })
-  );
+  trackFMP(tickers.length).catch(() => {});
 
+  const today = todayISO();
+  const results = await Promise.all(tickers.map(t => fetchNextEarnings(t, key, today)));
+
+  // If ANY ticker hit a transport/HTTP/parse error, the response is partial —
+  // don't let the CDN pin it; the next request retries the failed ticker fresh.
+  const hasError = results.some(r => r._error);
+
+  // Preserve the shape the component expects: {symbol,date,hour,epsEstimate,noData}
+  // for hits, {symbol,noData:true} for misses. Strip the internal _error flag.
   const sorted = [
     ...results.filter(r => !r.noData).sort((a, b) => a.date.localeCompare(b.date)),
-    ...results.filter(r =>  r.noData),
+    ...results.filter(r =>  r.noData).map(({ symbol }) => ({ symbol, noData: true })),
   ];
 
   return Response.json(sorted, {
-    headers: { 'Cache-Control': 's-maxage=3600, stale-while-revalidate=300' },
+    headers: {
+      'Cache-Control': hasError
+        ? 'no-store'                                   // error-containing → never pinned, retry fresh
+        : 's-maxage=3600, stale-while-revalidate=300', // all-good → unchanged
+    },
   });
 }
