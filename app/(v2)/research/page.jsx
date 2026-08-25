@@ -4,6 +4,8 @@ import { Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'rea
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import dynamic from 'next/dynamic';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import Card from '@/app/(v2)/_components/Card';
 import PortfolioModal from '@/components/PortfolioModal';
 import InfoTooltip from '@/components/InfoTooltip';
@@ -356,6 +358,23 @@ function friendlyAiError(status, json) {
   return json?.detail ? `${base}\n\n[dev] ${json.detail}` : base;
 }
 
+// Quick-action answers come back as markdown (## headers, **bold**, lists), so
+// render them instead of dumping raw text. There is no shared markdown component
+// on this page to reuse — the thesis card renders structured JSON, not markdown —
+// so this uses the same react-markdown + remark-gfm the blog/privacy pages use,
+// with a compact components map sized to the small inline panel (13px, muted).
+const QUICK_MD_COMPONENTS = {
+  p:      ({ children }) => <p style={{ margin: '0 0 8px', lineHeight: 1.6 }}>{children}</p>,
+  ul:     ({ children }) => <ul style={{ margin: '0 0 8px', paddingLeft: 18 }}>{children}</ul>,
+  ol:     ({ children }) => <ol style={{ margin: '0 0 8px', paddingLeft: 18 }}>{children}</ol>,
+  li:     ({ children }) => <li style={{ marginBottom: 4, lineHeight: 1.6 }}>{children}</li>,
+  strong: ({ children }) => <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{children}</strong>,
+  h1:     ({ children }) => <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: '4px 0 6px' }}>{children}</div>,
+  h2:     ({ children }) => <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: '4px 0 6px' }}>{children}</div>,
+  h3:     ({ children }) => <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: '4px 0 6px' }}>{children}</div>,
+  a:      ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-cyan)' }}>{children}</a>,
+};
+
 // thesis + setThesis are lifted to ResearchPageInner so DCFCalculator can read thesis.dcfInputs
 function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings, savedCash, thesis, setThesis, resolvedRevenue, priorAnnualRevenue }) {
   const usageKey   = `research_thesis_usage_${userId ?? 'anon'}`;
@@ -669,9 +688,11 @@ function ThesisHero({ ticker, quote, metrics, isSignedIn, userId, savedHoldings,
               {quickLoading ? (
                 <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Generating…</span>
               ) : (
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
-                  {quickResult.response}
-                </p>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={QUICK_MD_COMPONENTS}>
+                    {quickResult.response}
+                  </ReactMarkdown>
+                </div>
               )}
             </div>
             <button
