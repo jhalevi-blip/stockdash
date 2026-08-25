@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { FLAGSHIP_LABEL } from '@/lib/aiModels';
 
 const STORAGE_KEY_ANON = 'portfolio_ai_usage_anon';
 const STORAGE_KEY_USER = 'portfolio_ai_usage_user';
@@ -295,7 +296,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
             color: 'var(--text-muted)', border: '1px solid var(--border-color)',
             borderRadius: 3, padding: '1px 6px', textTransform: 'uppercase',
           }}>
-            Powered by Claude Opus 4.8
+            Powered by Claude {FLAGSHIP_LABEL}
           </span>
         </div>
 
