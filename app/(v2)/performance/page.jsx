@@ -358,22 +358,20 @@ export default function PerformanceV2Page() {
     return () => { cancelled = true; };
   }, [startHeld, reconStartDate]);
 
-  /* ── Full stats useMemo — all fields computed now ────────────────────────
-     9A renders:  portNow, spyMirrorNow, vsSpyPct, portReturn, spyReturn,
-                  adjustedCostBasis, totalCostBasis, netCapital,
-                  startingCashUSD, realizedGainsUSD, hasRealizedData, twr
-     9B consumes: chartData, eurData, portfolioBeta, eurNow, eurStart,
-                  eurChangePct, currencyImpact, vsSpyAmt
+  /* ── Display-stats useMemo (weekly candles) ──────────────────────────────
+     Renders: Portfolio Value €, Unrealized/Total P&L, Beta, EUR/USD + currency
+     impact, and the start-value reconstruction card. Performance return metrics
+     (TWR chart, vs-SPY, MWR, € mirror) come from usePerformanceLedger instead.
      ─────────────────────────────────────────────────────────────────────── */
-  // NOTE (Phase 3 cleanup): the memo still computes the legacy `chartData` array
-  // internally; it is no longer consumed (the chart now comes from usePerformanceLedger).
-  // Left in place for now to keep this diff focused on the chart/card swap + pin removal.
+  // Legacy display stats only: EUR figures, beta, currency impact, P&L, and the
+  // start-value reconstruction. The performance chart / TWR / MWR / vs-SPY now come
+  // from usePerformanceLedger; the old weekly-candle series + its pins are gone.
   const { eurData, stats } = useMemo(() => {
-    if (!rawData || !holdings?.length) return { chartData: [], eurData: [], stats: null };
+    if (!rawData || !holdings?.length) return { eurData: [], stats: null };
 
     const { spyCandles, eurCandles, valArr, tickerCandles, livePrices = {} } = rawData;
     const spyLen = spyCandles.length;
-    if (!spyLen) return { chartData: [], eurData: [], stats: null };
+    if (!spyLen) return { eurData: [], stats: null };
 
     const eurUsd         = eurCandles[eurCandles.length - 1]?.close ?? 1;
     const totalCostBasis = holdings.reduce((sum, h) => sum + h.s * h.c, 0);
@@ -457,70 +455,6 @@ export default function PerformanceV2Page() {
       if (price != null) portNow += h.s * price;
     });
 
-    function portValAt(i) {
-      let v = 0;
-      holdings.forEach(h => {
-        const tc = tickerCandles[h.t];
-        if (!tc.length) return;
-        v += h.s * (tc[Math.min(Math.round((i / spyLen) * tc.length), tc.length - 1)]?.close ?? h.c);
-      });
-      return v;
-    }
-
-    const realizedGainsUSD   = (realizedData?.totalPnl ?? 0) * eurUsd;
-    const totalCostWithGains = adjustedCostBasis + realizedGainsUSD;
-    const netCapital         = totalCostWithGains;
-
-    const spyPriceAtStart = spyCandles[startIdx]?.close ?? spyCandles[0]?.close ?? 0;
-    const spyShares       = spyPriceAtStart > 0 ? netCapital / spyPriceAtStart : 0;
-
-    // Build chart points from startIdx to end
-    const chartPoints = [];
-    for (let i = startIdx; i < spyLen; i++) {
-      chartPoints.push({
-        date:      spyCandles[i].date,
-        label:     spyCandles[i].label,
-        portfolio: portValAt(i),
-        spy:       spyShares * spyCandles[i].close,
-      });
-    }
-
-    // Append live "today" point when today is after the last weekly candle
-    const liveSpyPrice   = livePrices['SPY'] ?? null;
-    const today          = new Date().toISOString().slice(0, 10);
-    const todayLabel     = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const lastCandleDate = spyCandles[spyLen - 1]?.date ?? '';
-    if (portNow > 0 && liveSpyPrice && today > lastCandleDate) {
-      chartPoints.push({ date: today, label: todayLabel, portfolio: portNow, spy: spyShares * liveSpyPrice });
-    }
-
-    const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
-    const portReturn   = totalCostWithGains > 0 ? ((portNow - totalCostWithGains) / totalCostWithGains) * 100 : null;
-
-    // Normalize to % return (both lines start at 0%)
-    const portBase = netCapital;
-    const spyBase  = chartPoints[0]?.spy ?? netCapital;
-    let chartData  = portBase > 0 && spyBase > 0
-      ? chartPoints.map(p => ({
-          date:      p.date,
-          label:     p.label,
-          portfolio: (p.portfolio / portBase - 1) * 100,
-          spy:       (p.spy       / spyBase  - 1) * 100,
-        }))
-      : [];
-
-    // Shift so both lines start exactly at 0% on the start date
-    if (chartData.length > 0 && chartData[0].portfolio != null) {
-      const portOffset = chartData[0].portfolio;
-      const spyOffset  = chartData[0].spy;
-      chartData = chartData.map(p => ({
-        ...p,
-        portfolio: p.portfolio - portOffset,
-        spy:       p.spy       - spyOffset,
-      }));
-    }
-
-
     // EUR/USD series for the EUR chart (Phase 9B). eurStartIdx + eurStart are
     // computed in the hoisted block above; reused here for the chart + FX deltas.
     const eurData      = eurCandles.slice(eurStartIdx).map(c => ({ date: c.date, label: c.label, rate: c.close }));
@@ -547,35 +481,6 @@ export default function PerformanceV2Page() {
     });
     const portfolioBeta = totalMktCap > 0 ? weightedBeta / totalMktCap : null;
 
-    const vsSpyAmt  = spyMirrorNow != null ? portNow - spyMirrorNow : null;
-    const spyStart  = chartPoints[0]?.spy ?? netCapital;
-    const spyReturn = spyStart > 0 && spyMirrorNow != null ? ((spyMirrorNow - spyStart) / spyStart) * 100 : null;
-    const vsSpyPct  = portReturn != null && spyReturn != null ? portReturn - spyReturn : null;
-
-    // Modified Dietz — deposit-timing-adjusted return.
-    // MDR = (EndValue - StartValue - ΣDeposits) / (StartValue + Σ(Deposit × WeightRemaining))
-    // Weight W_i = (T - t_i) / T where T = total candles in period, t_i = candles elapsed at deposit.
-    let twr = null;
-    const twrDeposits = (realizedData?.deposits ?? [])
-      .filter(d => d.date && d.amountEur > 0)
-      .sort((a, b) => a.date < b.date ? -1 : 1)
-      .map(d => ({ amountUSD: d.amountEur * eurUsd, idx: findCandleByDate(spyCandles, d.date) }))
-      .filter(d => d.idx > startIdx && d.idx < spyLen - 1);
-
-    if (twrDeposits.length > 0) {
-      const T           = (spyLen - 1) - startIdx;
-      // Stage 2b: prefer the reconstructed start value (cash + start-held holdings);
-      // fall back to manual starting cash until start-date prices have loaded.
-      const startValue  = reconStartValueUSD ?? startingCashUSD;
-      const totalDep    = twrDeposits.reduce((s, d) => s + d.amountUSD, 0);
-      const weightedDep = twrDeposits.reduce((s, d) => {
-        const t_i = d.idx - startIdx;
-        return s + d.amountUSD * ((T - t_i) / T);
-      }, 0);
-      const denom = startValue + weightedDep;
-      if (denom > 0) twr = ((portNow - startValue - totalDep) / denom) * 100;
-    }
-
     // ── Display-layer EUR figures (USD→EUR = ÷ eurUsd; cashData is the live cash
     // balance). These feed the cards only — no return computation depends on them.
     const holdingsValueEur    = portNow / eurUsd;
@@ -586,28 +491,19 @@ export default function PerformanceV2Page() {
     const unrealizedEur       = (portNow - totalCostBasis) / eurUsd; // matches the dashboard
     const realizedEur         = realizedData?.totalPnl ?? 0;         // already EUR
     const totalPnlEur         = realizedEur + unrealizedEur;
-    const spyMirrorEur        = spyMirrorNow != null ? spyMirrorNow / eurUsd : null;
-    const adjustedCostBasisEur = adjustedCostBasis / eurUsd;
-    const netCapitalEur        = netCapital / eurUsd;
-    const realizedGainsEur     = realizedGainsUSD / eurUsd;
 
     return {
-      chartData,
       eurData,
       stats: {
-        portNow, spyMirrorNow, vsSpyAmt, vsSpyPct, portReturn, spyReturn,
-        twr, portfolioBeta, eurNow, eurStart, eurChangePct, currencyImpact,
-        totalCostBasis, adjustedCostBasis, startingCashUSD, netCapital,
-        realizedGainsUSD, hasRealizedData: realizedData != null,
-        // Stage 2b reconstructed start value (drives startValue above) + display fields.
+        portNow, adjustedCostBasis, portfolioBeta,
+        eurNow, eurStart, eurChangePct, currencyImpact,
+        // Stage 2b reconstructed start value + display fields.
         // reconStartDate is intentionally NOT returned here — the render reads the
         // top-level reconStartDate const so this memo need not depend on it.
         reconStartValueUSD, reconCashEur, reconHoldingsEur, reconTotalEur,
         reconHoldingsValueUSD: holdingsValueUSD, reconBreakdown, reconMissing,
-        // Stage 2: display-layer EUR figures for the cards (holdings + cash, P&L block).
-        holdingsValueEur, currentCashEur, portfolioValueEur, unrealizedEur,
-        realizedEur, totalPnlEur, spyMirrorEur, adjustedCostBasisEur,
-        netCapitalEur, realizedGainsEur,
+        // Display-layer EUR figures for the cards (holdings + cash, P&L block).
+        holdingsValueEur, currentCashEur, portfolioValueEur, unrealizedEur, totalPnlEur,
       },
     };
   }, [rawData, holdings, cashData, startDate, realizedData, startingCash, cashCurrency, startHeld, startCashEur, startReconPrices]);
