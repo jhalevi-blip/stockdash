@@ -1,5 +1,6 @@
 import { auth } from '@clerk/nextjs/server';
 import { summarizeCorrelationMatrix } from '@/lib/correlation';
+import { CLAUDE_MODELS } from '@/lib/aiModels';
 
 export const dynamic = 'force-dynamic';
 
@@ -286,7 +287,7 @@ export async function POST(request) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-0',
+          model: CLAUDE_MODELS.flagship,
           max_tokens: 400,
           messages: [{ role: 'user', content: prompt }],
         }),
@@ -326,7 +327,7 @@ Generate 2-3 takeaways using the generate_correlation_takeaways tool.`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
+          model: CLAUDE_MODELS.fast,
           max_tokens: 300,
           system: CORRELATION_TAKEAWAYS_SYSTEM_PROMPT,
           tools: [generateCorrelationTakeawaysTool],
@@ -416,7 +417,7 @@ User's browser locale: ${userLang || 'en'}`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
-          model: 'claude-opus-4-8',
+          model: CLAUDE_MODELS.flagship,
           max_tokens: 1500,
           system: PORTFOLIO_SYSTEM_PROMPT,
           tools: [generatePortfolioSummaryTool],
@@ -494,7 +495,7 @@ User's browser locale: ${userLang || 'en'}`;
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: CLAUDE_MODELS.fast,
         max_tokens: 500,
         messages: [{ role: 'user', content: `Analyze these news headlines for ${symbol} and respond with JSON only:\n${newsText}\n\n{"summary":"2-3 sentence summary","sentiment":"BULLISH or BEARISH or NEUTRAL","keyPoint":"one key insight"}` }],
       }),
@@ -541,7 +542,7 @@ User's browser locale: ${userLang || 'en'}`;
   }
 
   const anthropicBody = {
-    model: 'claude-haiku-4-5-20251001',
+    model: CLAUDE_MODELS.fast,
     max_tokens: 600,
     messages: [{
       role: 'user',

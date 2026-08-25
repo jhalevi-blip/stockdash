@@ -1,5 +1,6 @@
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { CLAUDE_MODELS } from '@/lib/aiModels';
 
 export const dynamic = 'force-dynamic';
 
@@ -362,7 +363,7 @@ export async function POST(request) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-8',
+        model: CLAUDE_MODELS.flagship,
         max_tokens: 2000,
         system: SYSTEM_PROMPT,
         tools: [generateStockSummaryTool],

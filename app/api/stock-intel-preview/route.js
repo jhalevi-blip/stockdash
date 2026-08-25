@@ -1,3 +1,5 @@
+import { CLAUDE_MODELS } from '@/lib/aiModels';
+
 export const dynamic = 'force-dynamic';
 
 const SYMBOL = 'NVDA';
@@ -38,7 +40,7 @@ async function fetchAiAnalysis(anthropicKey, target) {
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: CLAUDE_MODELS.fast,
       max_tokens: 350,
       messages: [{
         role: 'user',

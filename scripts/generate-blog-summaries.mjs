@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
+import { CLAUDE_MODELS } from '../lib/aiModels.js';
 
 const POSTS_DIR = path.join(process.cwd(), 'content/blog');
 const FORCE     = process.argv.includes('--force');
@@ -64,7 +65,7 @@ async function generateSummary(postBody) {
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'claude-opus-4-8',
+      model: CLAUDE_MODELS.flagship,
       max_tokens: 1500,
       system: SYSTEM_PROMPT,
       tools: [TOOL],

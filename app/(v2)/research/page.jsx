@@ -344,7 +344,16 @@ function friendlyAiError(status, json) {
   if (status === 429 || json?.error === 'Daily limit reached') {
     return 'Daily AI limit reached — resets at midnight UTC.';
   }
-  return "Couldn't generate an answer right now. Please try again.";
+  // Prefer the short reason category the AI routes now return (e.g.
+  // "AI service unavailable" vs "Request failed" vs "AI model unavailable")
+  // so different failures no longer look identical. In dev, the route also
+  // passes through `detail` (the raw upstream error) — surface it so we're
+  // never blind to the underlying cause from the browser.
+  const reason = typeof json?.reason === 'string' ? json.reason : null;
+  const base = reason
+    ? `Couldn't generate an answer — ${reason}. Please try again.`
+    : "Couldn't generate an answer right now. Please try again.";
+  return json?.detail ? `${base}\n\n[dev] ${json.detail}` : base;
 }
 
 // thesis + setThesis are lifted to ResearchPageInner so DCFCalculator can read thesis.dcfInputs

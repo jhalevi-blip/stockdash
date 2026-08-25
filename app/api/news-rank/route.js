@@ -1,5 +1,6 @@
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { CLAUDE_MODELS } from '@/lib/aiModels';
 import { getOrSeedUserThemes, activeThemeFingerprint } from '@/lib/userThemes';
 import { DEFAULT_WORLDVIEW } from '@/app/(v2)/themes/_lib/theses';
 
@@ -154,7 +155,7 @@ export async function POST(request) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-8',
+        model: CLAUDE_MODELS.flagship,
         max_tokens: 3000,
         system: buildSystem(worldview, verdictLines, themes),
         messages: [{ role: 'user', content: userMessage }],

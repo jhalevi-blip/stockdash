@@ -1,8 +1,27 @@
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { trackFinnhub } from '@/lib/apiUsage';
+import { CLAUDE_MODELS } from '@/lib/aiModels';
 
 export const dynamic = 'force-dynamic';
+
+const IS_DEV = process.env.NODE_ENV !== 'production';
+
+// Maps an Anthropic API failure to a short, user-safe reason category so
+// different failures stop looking identical in the UI ("AI service unavailable"
+// vs "Request failed" vs "AI model unavailable"). Never leak raw internals here.
+function anthropicReason(status, raw) {
+  const type = raw?.error?.type;
+  const msg  = raw?.error?.message ?? '';
+  if (/credit|billing|balance|quota/i.test(msg))              return 'AI service unavailable (billing)';
+  if (status === 401 || type === 'authentication_error')      return 'AI service unavailable (auth)';
+  if (status === 403 || type === 'permission_error')          return 'AI service unavailable (auth)';
+  if (status === 404 || type === 'not_found_error')           return 'AI model unavailable';
+  if (status === 429 || type === 'rate_limit_error')          return 'AI service busy';
+  if (status === 400 || type === 'invalid_request_error')     return 'Request failed';
+  if (status >= 500)                                          return 'AI service unavailable';
+  return 'Request failed';
+}
 
 // The "Why is this moving today?" chip is special-cased: for it (and only it)
 // we fetch recent company news server-side and ground the answer in real
@@ -190,7 +209,7 @@ export async function POST(request) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model:      'claude-sonnet-4-0',
+        model:      CLAUDE_MODELS.quick,
         max_tokens: 400,
         system,
         messages:   [{ role: 'user', content: userMessage }],
@@ -198,14 +217,36 @@ export async function POST(request) {
     });
     const raw = await res.json();
     if (!res.ok) {
+      const reason = anthropicReason(res.status, raw);
+      // Always log the REAL upstream error (status + type + message) so a dead
+      // model string / bad key / billing issue is never hidden behind a generic
+      // "Couldn't generate" ever again.
+      console.error(
+        `[stock-quick-action] Anthropic ${res.status} (${raw?.error?.type ?? 'unknown'}) for model ${CLAUDE_MODELS.quick}: ${raw?.error?.message ?? 'no message'} — reason=${reason}`
+      );
       return Response.json(
-        { error: 'generation_failed', message: raw.error?.message ?? 'API error' },
-        { status: 500 }
+        {
+          error:  'generation_failed',
+          reason,
+          status: res.status,
+          // In dev, pass the raw upstream error through to the client so we can
+          // debug from the browser without tailing server logs.
+          ...(IS_DEV ? { detail: `Anthropic ${res.status} ${raw?.error?.type ?? ''}: ${raw?.error?.message ?? ''}`.trim() } : {}),
+        },
+        { status: 502 }
       );
     }
     const text = raw.content?.find(b => b.type === 'text')?.text ?? '';
     return Response.json({ response: text });
-  } catch {
-    return Response.json({ error: 'network' }, { status: 500 });
+  } catch (e) {
+    console.error('[stock-quick-action] Anthropic request threw:', e?.message ?? e);
+    return Response.json(
+      {
+        error:  'network',
+        reason: 'AI service unavailable',
+        ...(IS_DEV ? { detail: String(e?.message ?? e) } : {}),
+      },
+      { status: 502 }
+    );
   }
 }
