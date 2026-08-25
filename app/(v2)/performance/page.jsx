@@ -123,14 +123,9 @@ export default function PerformanceV2Page() {
   // Shape: { loading } | { error } | { prices: {ticker: close}, missing: [ticker] }
   const [startReconPrices, setStartReconPrices] = useState(null);
 
-  // Phase 1 preview (?perfmodel=ledger): single-model daily-ledger TWR chart,
-  // rendered ALONGSIDE the legacy chart for verification before it replaces it.
-  // Flips to default (and the legacy chart + both endpoint pins get deleted)
-  // once verified. All math is in lib/performance/ledger.js.
-  const [ledgerMode, setLedgerMode] = useState(false);
-  useEffect(() => {
-    setLedgerMode(new URLSearchParams(window.location.search).get('perfmodel') === 'ledger');
-  }, []);
+  // Single-model daily-ledger performance (chart + vs-SPY + MWR + € mirror).
+  // All math is in lib/performance/ledger.js; this hook fetches daily closes and
+  // builds the ledger. The legacy weekly-candle chart + its endpoint pins are gone.
   const perf = usePerformanceLedger({
     realizedData,
     currentCashEur: realizedData?.currentCash?.amountEur ?? 0,
@@ -370,7 +365,10 @@ export default function PerformanceV2Page() {
      9B consumes: chartData, eurData, portfolioBeta, eurNow, eurStart,
                   eurChangePct, currencyImpact, vsSpyAmt
      ─────────────────────────────────────────────────────────────────────── */
-  const { chartData, eurData, stats } = useMemo(() => {
+  // NOTE (Phase 3 cleanup): the memo still computes the legacy `chartData` array
+  // internally; it is no longer consumed (the chart now comes from usePerformanceLedger).
+  // Left in place for now to keep this diff focused on the chart/card swap + pin removal.
+  const { eurData, stats } = useMemo(() => {
     if (!rawData || !holdings?.length) return { chartData: [], eurData: [], stats: null };
 
     const { spyCandles, eurCandles, valArr, tickerCandles, livePrices = {} } = rawData;
@@ -496,11 +494,6 @@ export default function PerformanceV2Page() {
       chartPoints.push({ date: today, label: todayLabel, portfolio: portNow, spy: spyShares * liveSpyPrice });
     }
 
-    // Pin last point to live price so chart endpoint matches stat cards
-    if (portNow > 0 && chartPoints.length > 0) {
-      chartPoints[chartPoints.length - 1].portfolio = portNow;
-    }
-
     const spyMirrorNow = chartPoints[chartPoints.length - 1]?.spy ?? null;
     const portReturn   = totalCostWithGains > 0 ? ((portNow - totalCostWithGains) / totalCostWithGains) * 100 : null;
 
@@ -527,13 +520,6 @@ export default function PerformanceV2Page() {
       }));
     }
 
-    // Pin last chart point to portReturn so line endpoint matches legend
-    if (chartData.length > 0 && portReturn != null) {
-      chartData[chartData.length - 1] = {
-        ...chartData[chartData.length - 1],
-        portfolio: portReturn,
-      };
-    }
 
     // EUR/USD series for the EUR chart (Phase 9B). eurStartIdx + eurStart are
     // computed in the hoisted block above; reused here for the chart + FX deltas.
@@ -655,7 +641,6 @@ export default function PerformanceV2Page() {
   // Stage 2b: the reconstructed start value is driving the return whenever it
   // resolved to a number — the manual "Starting cash" field is then not used.
   const reconActive = s?.reconStartValueUSD != null;
-  const xInterval = Math.max(1, Math.floor((chartData.length - 1) / 5));
   const eurXInt   = Math.max(1, Math.floor((eurData.length   - 1) / 5));
 
   /* ── Render ──────────────────────────────────────────────────────────────── */
@@ -972,118 +957,84 @@ export default function PerformanceV2Page() {
                 valueColor={s && s.portNow >= s.adjustedCostBasis ? 'var(--positive)' : s ? 'var(--negative)' : undefined}
               />
               <StatCard
-                label="SPY Mirror"
-                value={s ? `€${fmt(s.spyMirrorEur)}` : '…'}
-                sub={
-                  s == null ? null :
-                  s.hasRealizedData && s.realizedGainsUSD > 0
-                    ? `Based on €${fmt(s.adjustedCostBasisEur, 0)} net capital + €${fmt(s.realizedGainsEur, 0)} reinvested gains · SPY ${fmtD(s.spyReturn, 1)}`
-                    : s.hasRealizedData
-                    ? `Based on €${fmt(s.netCapitalEur, 0)} net capital deployed · SPY ${fmtD(s.spyReturn, 1)}`
-                    : s.spyReturn != null ? `SPY return: ${fmtD(s.spyReturn, 1)}` : null
-                }
+                label="If invested in SPY"
+                value={perf.ready && perf.mirrorEur != null ? `€${fmt(perf.mirrorEur)}` : '…'}
+                sub={perf.ready
+                  ? `Your deposits into SPY (total return)${perf.mirrorMwrPct != null ? ` · ${fmtD(perf.mirrorMwrPct, 1)} MWR` : ''}`
+                  : null}
               />
               <StatCard
                 label="vs SPY"
-                value={s?.vsSpyPct == null ? '—' : (s.vsSpyPct >= 0 ? '+' : '') + s.vsSpyPct.toFixed(1) + '%'}
-                sub={s?.portReturn != null && s?.spyReturn != null ? `Portfolio ${fmtD(s.portReturn, 1)} · SPY ${fmtD(s.spyReturn, 1)}` : null}
-                valueColor={s ? clr(s.vsSpyPct) : undefined}
+                value={perf.ready && perf.vsSpyPct != null ? (perf.vsSpyPct >= 0 ? '+' : '') + perf.vsSpyPct.toFixed(1) + '%' : '—'}
+                sub={perf.ready && perf.twrPct != null && perf.spyPct != null ? `Portfolio TWR ${fmtD(perf.twrPct, 1)} · SPY ${fmtD(perf.spyPct, 1)}` : null}
+                valueColor={perf.ready ? clr(perf.vsSpyPct) : undefined}
               />
-              {s?.twr != null && (
+              {perf.ready && perf.mwrPct != null && (
                 <InfoTooltip text={
                   <>
                     <div style={{ fontWeight: 600, marginBottom: 8 }}>
-                      Time-Weighted Return (Modified Dietz)
+                      Money-Weighted Return (XIRR)
                     </div>
                     <div style={{ marginBottom: 8 }}>
-                      Your investment performance, adjusted for when you added money. Unlike the chart's return on cost basis, TWR isolates how well your investment decisions performed — not how big your portfolio grew from deposits.
+                      Your actual return on the money you invested, accounting for how much you added and when. The chart shows time-weighted return (removes deposit timing, comparable to the index); this includes it.
                     </div>
                     <div style={{ fontStyle: 'italic', color: 'var(--text-secondary)', fontSize: 12 }}>
-                      Example: depositing €10K right before a rally inflates simple returns. TWR corrects for this.
+                      MWR above the chart's TWR means your deposit timing helped; below means it hurt.
                     </div>
                   </>
                 }>
                   <StatCard
-                    label="Time-Weighted Return*"
-                    value={(s.twr >= 0 ? '+' : '') + s.twr.toFixed(1) + '%'}
-                    sub="Modified Dietz — adjusted for deposit timing"
-                    valueColor={clr(s.twr)}
+                    label="Your return (MWR)"
+                    value={(perf.mwrPct >= 0 ? '+' : '') + perf.mwrPct.toFixed(1) + '%'}
+                    sub="Money-weighted (XIRR) — includes deposit timing"
+                    valueColor={clr(perf.mwrPct)}
                   />
                 </InfoTooltip>
               )}
             </div>
 
-            {/* ── NEW MODEL preview (?perfmodel=ledger) — alongside the legacy chart ── */}
-            {ledgerMode && (
-              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--accent)', borderRadius: 10, padding: '20px 24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
-                    Invested holdings vs SPY — TWR{' '}
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: '.05em' }}>NEW MODEL (PREVIEW)</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {[['default', `Since ${startDate ?? estimatedDate ?? '2025-07-01'}`], ['inception', 'Inception']].map(([r, lbl]) => (
-                      <button key={r} onClick={() => perf.setRange(r)} style={{
-                        background: perf.range === r ? 'var(--bg-hover)' : 'transparent',
-                        border: '1px solid ' + (perf.range === r ? 'var(--accent)' : 'var(--border-color)'),
-                        color: perf.range === r ? 'var(--text-primary)' : 'var(--text-secondary)',
-                        fontSize: 11, padding: '3px 9px', borderRadius: 4, cursor: 'pointer', fontWeight: 500,
-                      }}>{lbl}</button>
-                    ))}
-                  </div>
+            {/* ── Invested holdings vs SPY (TWR) — single daily-ledger model ── */}
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 10, padding: '20px 24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Invested holdings vs SPY
+                  <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 8 }}>time-weighted · total return · cash excluded</span>
                 </div>
-                {perf.loading || !perf.ready ? (
-                  <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
-                    Building daily ledger…
-                  </div>
-                ) : !perf.integrity?.ok ? (
-                  <div style={{ padding: 16, border: '1px solid var(--negative)', borderRadius: 8, color: 'var(--negative)', fontSize: 13, lineHeight: 1.5 }}>
-                    Can't show this range — {perf.integrity?.reason}. Reconstruction from trades is incomplete for this window; upload the missing transaction history or use a later start date.
-                  </div>
-                ) : (
-                  <>
-                    <PortfolioVsSpyChart data={perf.chartData} xInterval={Math.max(1, Math.floor((perf.chartData.length - 1) / 5))} />
-                    <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 12 }}>
-                      <span style={{ color: '#58a6ff', fontWeight: 600 }}>— Portfolio TWR ({fmtD(perf.twrPct, 1)})</span>
-                      <span style={{ color: '#4ade80', fontWeight: 600 }}>— SPY total return ({fmtD(perf.spyPct, 1)})</span>
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>
-                      vs SPY <strong style={{ color: clr(perf.vsSpyPct) }}>{fmtD(perf.vsSpyPct, 1)}</strong> (= chart endpoint gap, no pin) · Money-weighted return (XIRR) <strong>{fmtD(perf.mwrPct, 1)}</strong> · Value €{fmt(perf.terminalEur, 0)}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-                      Time-weighted return since {perf.D0}, cash excluded. Deposits don't move the line. TWR removes deposit timing (comparable to the index); MWR includes it — they differ when your timing helped or hurt.
-                    </div>
-                  </>
-                )}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {[['default', `Since ${startDate ?? estimatedDate ?? '2025-07-01'}`], ['inception', 'Inception']].map(([r, lbl]) => (
+                    <button key={r} onClick={() => perf.setRange(r)} style={{
+                      background: perf.range === r ? 'var(--bg-hover)' : 'transparent',
+                      border: '1px solid ' + (perf.range === r ? 'var(--accent)' : 'var(--border-color)'),
+                      color: perf.range === r ? 'var(--text-primary)' : 'var(--text-secondary)',
+                      fontSize: 11, padding: '3px 9px', borderRadius: 4, cursor: 'pointer', fontWeight: 500,
+                    }}>{lbl}</button>
+                  ))}
+                </div>
               </div>
-            )}
-
-            {/* ── Portfolio vs SPY AreaChart ───────────────────────────────── */}
-            <div style={{
-              background: 'var(--bg-card)', border: '1px solid var(--border-color)',
-              borderRadius: 10, padding: '20px 24px',
-            }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>
-                Portfolio vs SPY {ledgerMode && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>(legacy)</span>}
-              </div>
-              {dataLoading || !chartData.length ? (
+              {perf.loading ? (
                 <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
-                  {error ? `Error: ${error}` : 'Loading chart…'}
+                  Building daily ledger…
+                </div>
+              ) : !perf.ready ? (
+                <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
+                  Upload your transaction history to see time-weighted performance.
+                </div>
+              ) : !perf.integrity?.ok ? (
+                <div style={{ padding: 16, border: '1px solid var(--negative)', borderRadius: 8, color: 'var(--negative)', fontSize: 13, lineHeight: 1.5 }}>
+                  Can't show this range — {perf.integrity?.reason}. Reconstruction from your trades is incomplete for this window; upload the missing transaction history or use a later start date.
                 </div>
               ) : (
-                <PortfolioVsSpyChart data={chartData} xInterval={xInterval} />
+                <>
+                  <PortfolioVsSpyChart data={perf.chartData} xInterval={Math.max(1, Math.floor((perf.chartData.length - 1) / 5))} />
+                  <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 12 }}>
+                    <span style={{ color: '#58a6ff', fontWeight: 600 }}>— Portfolio TWR ({fmtD(perf.twrPct, 1)})</span>
+                    <span style={{ color: '#4ade80', fontWeight: 600 }}>— SPY total return ({fmtD(perf.spyPct, 1)})</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                    Time-weighted return since {perf.D0}, cash excluded. Deposits don't move the line. TWR removes deposit timing (comparable to the index); your money-weighted return (below) includes it — they differ when your timing helped or hurt.
+                  </div>
+                </>
               )}
-              <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 12 }}>
-                <span style={{ color: '#58a6ff', fontWeight: 600 }}>
-                  — Portfolio {s?.portReturn != null ? `(${s.portReturn >= 0 ? '+' : ''}${s.portReturn.toFixed(1)}%)` : ''}
-                </span>
-                <span style={{ color: '#4ade80', fontWeight: 600 }}>
-                  — SPY Mirror {s?.spyReturn != null ? `(${s.spyReturn >= 0 ? '+' : ''}${s.spyReturn.toFixed(1)}%)` : ''}
-                </span>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-                Chart shows % return since the start date. Both lines are normalized to 0% at the start date.
-              </div>
             </div>
 
             {/* ── Metric cards: Beta, EUR/USD Rate, Currency Impact, Outperformance ── */}
@@ -1112,12 +1063,6 @@ export default function PerformanceV2Page() {
                                               'Headwind (USD strengthened)'
                 }
                 valueColor={s?.currencyImpact != null ? clr(s.currencyImpact) : undefined}
-              />
-              <MetricCard
-                label={s?.vsSpyPct != null && s.vsSpyPct >= 0 ? 'Outperforming' : 'Underperforming'}
-                value={s?.vsSpyPct == null ? '—' : (s.vsSpyPct >= 0 ? '+' : '') + s.vsSpyPct.toFixed(1) + '%'}
-                sub="vs SPY since start"
-                valueColor={s ? clr(s.vsSpyPct) : undefined}
               />
               {realizedData && (() => {
                 const { positions = [], partialPositions = [], totalPnl } = realizedData;
