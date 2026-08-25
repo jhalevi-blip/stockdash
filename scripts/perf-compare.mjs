@@ -6,6 +6,7 @@ import fs from 'fs';
 import {
   carryForwardLookup, sharesAt, sharesGate, buildDailyLedger,
   twrSeries, spyTwrSeries, xirr,
+  windowIntegrity, unpricedHeldTickers, negativeShareTickers,
 } from '../lib/performance/ledger.js';
 
 const env = Object.fromEntries(
@@ -64,6 +65,10 @@ function runWindow(D0, label, { showOld = false } = {}) {
   const dates = spineAll.filter(d => d >= D0 && d <= TODAY);
   const tickers = tickersHeldFrom(D0);
   const rows = buildDailyLedger({ dates, tickers, legs, closeOf, fxOf, dividends });
+  const integ = windowIntegrity(rows, {
+    unpricedTickers: unpricedHeldTickers(dates, tickers, legs, closeOf),
+    negativeTickers: negativeShareTickers(dates, tickers, legs),
+  });
   const twr = twrSeries(rows), spy = spyTwrSeries(dates, spyAdjOf, fxOf);
   const twrAt = Object.fromEntries(twr.map(x => [x.date, x.twrPct]));
   const spyAt = Object.fromEntries(spy.map(x => [x.date, x.twrPct]));
@@ -100,6 +105,7 @@ function runWindow(D0, label, { showOld = false } = {}) {
   // sample ~12 evenly-spaced
   const sample = []; for (let i = 0; i <= 11; i++) sample.push(dates[Math.round(i * (dates.length - 1) / 11)]);
   console.log(`\n===== ${label}: ${D0} → ${TODAY} | ${dates.length} days | ${tickers.length} tickers | unpriced-day rows ${badPriced} =====`);
+  console.log(`INTEGRITY GATE: ${integ.ok ? 'PASS — displayable' : 'DEGRADE → banner: "' + integ.reason + '"'}`);
   if (lateStart.length) console.log('⚠️ thin history:', lateStart.join('; '));
   console.log(`date        |${showOld ? ' OLD % |' : ''} NEW TWR % | SPY TWR % |    H(d) €`);
   for (const d of [...new Set(sample)]) {
