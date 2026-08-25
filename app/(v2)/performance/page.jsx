@@ -290,6 +290,14 @@ export default function PerformanceV2Page() {
   }, [hasReconData, realizedData, reconStartDate]);
 
   // Cash at start (EUR): sum of every cashEvent dated strictly before the start date.
+  //
+  // ⚠️ cashEvents does NOT reconcile to a cash balance for multi-currency DeGiro
+  // accounts. Non-EUR (USD) legs are skipped upstream (lib/brokers/degiro.ts), so
+  // the running Σ cashEvents drifts far from the real balance. Verified Aug 2026 on
+  // production data: Σ cashEvents = €124,007 vs actual currentCash = €876. This
+  // makes startCashEur (and any V = holdings + Σ cashEvents) unreliable here.
+  // For the single-model rebuild: use the `deposits` array for external flows and
+  // `currentCash` for the terminal balance — never Σ cashEvents as a cash source.
   const startCashEur = useMemo(() => {
     if (!hasReconData || !reconStartDate) return null;
     let sum = 0;
