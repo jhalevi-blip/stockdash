@@ -1,3 +1,5 @@
+import { FLAGSHIP_LABEL } from '@/lib/aiModels';
+
 export default function DTAISummary({ summary }) {
   if (!summary) return null;
 
@@ -38,7 +40,7 @@ export default function DTAISummary({ summary }) {
             color: '#6e7681', border: '1px solid #1c232c',
             borderRadius: 3, padding: '1px 5px', textTransform: 'uppercase',
           }}>
-            Claude Opus 4.8
+            Claude {FLAGSHIP_LABEL}
           </span>
         </div>
         <span style={{ fontSize: 9, color: '#6e7681' }}>Just now</span>

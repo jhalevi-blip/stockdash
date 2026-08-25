@@ -7,6 +7,7 @@ import DTHoldingsTable from './DTHoldingsTable';
 import DTStockIntel from './DTStockIntel';
 import DTMidCards from './DTMidCards';
 import DTStickyCTA from './DTStickyCTA';
+import { FLAGSHIP_LABEL } from '@/lib/aiModels';
 
 export default function DTerminalHero() {
   const [selectedTicker, setSelectedTicker] = useState('NVDA');  // NVDA per brief
@@ -38,7 +39,7 @@ export default function DTerminalHero() {
           textTransform: 'uppercase',
           marginBottom: 16,
         }}>
-          Powered by Claude Opus 4.8
+          Powered by Claude {FLAGSHIP_LABEL}
         </span>
 
         {/* H1 */}

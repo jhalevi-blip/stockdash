@@ -7,6 +7,7 @@ import Logo from './Logo';
 import Dot from './Dot';
 import { NAV_ITEMS } from '../_lib/routes';
 import { getMarketStatus } from '@/lib/marketStatus';
+import { FLAGSHIP_LABEL } from '@/lib/aiModels';
 
 // Compact ET time for the footer status line, e.g. "10:47 AM ET".
 function etTime(date) {
@@ -93,7 +94,7 @@ export default function Sidebar() {
           )}
         </div>
         <div style={{ color: 'var(--text-faint, rgba(230,237,243,0.45))' }}>
-          Powered by Claude Opus 4.8
+          Powered by Claude {FLAGSHIP_LABEL}
         </div>
       </div>
     </aside>

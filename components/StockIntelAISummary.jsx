@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { track } from '@/lib/posthog';
 import { getAttribution } from '@/lib/attribution';
+import { FLAGSHIP_LABEL } from '@/lib/aiModels';
 
 // ── Label translations ────────────────────────────────────────────────────────
 const LABELS = {
@@ -22,7 +23,7 @@ const LABELS = {
     generationCount:    'Generation {n} of 2',
     usedToday:          '{count}/10 tickers analyzed today',
     signInPrompt:       'Sign in to generate AI summaries.',
-    poweredBy:          'Powered by Claude Opus 4.8',
+    poweredBy:          `Powered by Claude ${FLAGSHIP_LABEL}`,
   },
   nl: {
     claudeRating:       'CLAUDE BEOORDELING',
@@ -41,7 +42,7 @@ const LABELS = {
     generationCount:    'Generatie {n} van 2',
     usedToday:          '{count}/10 aandelen vandaag geanalyseerd',
     signInPrompt:       'Meld je aan om AI-samenvattingen te genereren.',
-    poweredBy:          'Aangedreven door Claude Opus 4.8',
+    poweredBy:          `Aangedreven door Claude ${FLAGSHIP_LABEL}`,
   },
 };
 

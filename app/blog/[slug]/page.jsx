@@ -4,6 +4,7 @@ import matter from 'gray-matter';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Link from 'next/link';
+import { FLAGSHIP_LABEL } from '@/lib/aiModels';
 
 const POSTS_DIR = path.join(process.cwd(), 'content/blog');
 const SITE_URL = 'https://stockdashes.com';
@@ -75,7 +76,7 @@ function BlogSummaryBox({ summary }) {
             background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.2)',
             borderRadius: 100, padding: '3px 10px', textTransform: 'uppercase',
           }}>
-            Powered by Claude Opus 4.8
+            Powered by Claude {FLAGSHIP_LABEL}
           </span>
         </div>
       </div>
