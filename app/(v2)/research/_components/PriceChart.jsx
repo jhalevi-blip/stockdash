@@ -79,6 +79,11 @@ function EarningsLabel({ viewBox, data }) {
 
 const PRICE_RANGES = ['1M', '3M', '6M', 'YTD', '1Y', '5Y', 'ALL'];
 
+// Responsive chart height — roughly double the old fixed 280px on desktop,
+// but bounded so it stays reasonable on mobile (~47% of traffic). clamp()
+// resolves to a definite px length, which ResponsiveContainer requires.
+const CHART_HEIGHT = 'clamp(360px, 56vh, 560px)';
+
 export default function PriceChart({ ticker, overlayPeers = [], setOverlayPeers, earningsHistory = [] }) {
   const [allPrices,    setAllPrices]    = useState(null); // { [ticker]: priceArr }
   const [loading,      setLoading]      = useState(true);
@@ -137,6 +142,23 @@ export default function PriceChart({ ticker, overlayPeers = [], setOverlayPeers,
 
   const hasOverlay = overlayPeers.length > 0;
 
+  // Y-axis domain: fit the visible series with a small 5% margin above the
+  // period high and below the period low, so the line uses the full plot
+  // height instead of being compressed. Includes overlaid peers so a taller
+  // peer line isn't clipped.
+  const yValues = [];
+  for (const row of chartData) {
+    if (Number.isFinite(row.price)) yValues.push(row.price);
+    for (const p of overlayPeers) {
+      const v = row[`peer_${p}`];
+      if (Number.isFinite(v)) yValues.push(v);
+    }
+  }
+  const yLow    = yValues.length ? Math.min(...yValues) : 0;
+  const yHigh   = yValues.length ? Math.max(...yValues) : 0;
+  const yPad    = (yHigh - yLow) * 0.05 || yHigh * 0.05 || 1; // fall back if flat
+  const yDomain = [yLow - yPad, yHigh + yPad];
+
   return (
     <Card
       title="Price Chart"
@@ -155,16 +177,16 @@ export default function PriceChart({ ticker, overlayPeers = [], setOverlayPeers,
       }
     >
       {loading ? (
-        <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+        <div style={{ height: CHART_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
           Loading…
         </div>
       ) : chartData.length === 0 ? (
-        <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+        <div style={{ height: CHART_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
           No price data
         </div>
       ) : (
         <>
-          <div style={{ width: '100%', height: 280 }}>
+          <div style={{ width: '100%', height: CHART_HEIGHT }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 28, right: 8, left: 0, bottom: 0 }}>
                 <defs>
@@ -181,11 +203,10 @@ export default function PriceChart({ ticker, overlayPeers = [], setOverlayPeers,
                   axisLine={false} tickLine={false} minTickGap={40}
                 />
                 <YAxis
-                  dataKey="price"
                   tickFormatter={fmtYAxis}
                   tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
                   axisLine={false} tickLine={false} width={52}
-                  domain={['dataMin', 'dataMax']}
+                  domain={yDomain}
                 />
                 <Tooltip
                   contentStyle={{
