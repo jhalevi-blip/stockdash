@@ -149,3 +149,41 @@ function handCheck(A, B) {
   console.log(`Biggest daily moves: ${bigDays.slice(0, 8).map(x => `${x.d} ${x.rp}%${x.note ? '(' + x.note + ')' : ''}`).join(', ')}`);
 }
 handCheck('2026-04-21', '2026-05-29');
+
+// ── € mirror diagnostic: same flows into SPY total-return ────────────────────
+function mirrorDiag(D0) {
+  const dates = spineAll.filter(d => d >= D0 && d <= TODAY);
+  const tickers = tickersHeldFrom(D0);
+  const rows = buildDailyLedger({ dates, tickers, legs, closeOf, fxOf, dividends });
+  const H0 = rows.find(r => r.H != null)?.H ?? 0;
+  const sCloseEur = (d) => { const s = spyAdjOf(d), fx = fxOf(d); return s != null && fx ? s / fx : null; };
+  const s0 = sCloseEur(D0), sEnd = sCloseEur(dates.at(-1));
+
+  console.log(`\n===== € MIRROR DIAG (${D0} → ${TODAY}) =====`);
+  console.log(`fx(D0)=${fxOf(D0)?.toFixed(4)}  spyAdj(D0)=${spyAdjOf(D0)?.toFixed(2)}  => sCloseEur(D0)  = €${s0?.toFixed(2)}`);
+  console.log(`fx(end)=${fxOf(dates.at(-1))?.toFixed(4)} spyAdj(end)=${spyAdjOf(dates.at(-1))?.toFixed(2)} => sCloseEur(end) = €${sEnd?.toFixed(2)}`);
+  console.log(`SPY total return over window = ${((sEnd / s0 - 1) * 100).toFixed(2)}%`);
+
+  const depAfter  = deposits.filter(d => d.date > D0 && d.amountEur);
+  const depOnBefore = deposits.filter(d => d.date <= D0 && d.amountEur);
+  const sumAfter  = depAfter.reduce((s, d) => s + d.amountEur, 0);
+  const sumBefore = depOnBefore.reduce((s, d) => s + d.amountEur, 0);
+
+  let units = 0;
+  const u0 = s0 ? H0 / s0 : 0; units += u0;
+  console.log(`\nH0 (holdings value at D0) = €${H0.toFixed(0)}  → ${u0.toFixed(2)} SPY units`);
+  console.log(`deposits: total €${(sumAfter + sumBefore).toFixed(0)} (${deposits.length}) | after D0 €${sumAfter.toFixed(0)} (${depAfter.length}) | on/before D0 €${sumBefore.toFixed(0)} (${depOnBefore.length})`);
+
+  const rowsOut = [];
+  for (const dep of depAfter) { const sp = sCloseEur(dep.date); const u = sp ? dep.amountEur / sp : 0; units += u; rowsOut.push({ ...dep, sp, u }); }
+
+  console.log('\nper-deposit unit additions (all, EUR into SPY total-return):');
+  console.log('date        |  €dep  | sCloseEur | +units | value@end €');
+  for (const r of rowsOut) console.log(`${r.date} |${String(r.amountEur).padStart(7)} |${(r.sp?.toFixed(2)??'—').padStart(10)} |${r.u.toFixed(2).padStart(7)} |${(r.u * sEnd).toFixed(0).padStart(11)}`);
+
+  const mirrorEur = units * sEnd;
+  console.log(`\ntotal units = ${units.toFixed(2)}  → mirrorEur = €${mirrorEur.toFixed(0)}`);
+  console.log(`naive "all money earns full window return": (H0 €${H0.toFixed(0)} + depAfter €${sumAfter.toFixed(0)}) × ${(sEnd / s0).toFixed(3)} = €${((H0 + sumAfter) * sEnd / s0).toFixed(0)}`);
+  console.log(`naive incl. pre-D0 deposits at face: (€${(H0 + sumAfter + sumBefore).toFixed(0)}) × ${(sEnd / s0).toFixed(3)} = €${((H0 + sumAfter + sumBefore) * sEnd / s0).toFixed(0)}`);
+}
+mirrorDiag(DEFAULT_START);

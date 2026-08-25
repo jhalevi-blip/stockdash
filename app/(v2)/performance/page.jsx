@@ -889,6 +889,12 @@ export default function PerformanceV2Page() {
               )}
             </div>
 
+            {perf.ready && perf.preWindowDepositsEur > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: -4 }}>
+                “If invested in SPY”: €{fmt(perf.preWindowDepositsEur, 0)} of deposits predate {perf.D0} and enter at their start-of-window value (H0), so the mirror reflects capital from {perf.D0} onward.
+              </div>
+            )}
+
             {/* ── Invested holdings vs SPY (TWR) — single daily-ledger model ── */}
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 10, padding: '20px 24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
