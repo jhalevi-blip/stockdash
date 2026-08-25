@@ -7,6 +7,7 @@ import DemoPrompt from '@/components/DemoPrompt';
 import UnifiedUpload from '@/components/UnifiedUpload';
 import { useHoldings } from '@/lib/useHoldings';
 import InfoTooltip from '@/components/InfoTooltip';
+import { usePerformanceLedger } from '@/lib/performance/usePerformanceLedger';
 
 // recharts loads in an async chunk (after paint), off the route's critical path.
 // PortTooltip / EurTooltip moved into this module (used only by these charts).
@@ -121,6 +122,20 @@ export default function PerformanceV2Page() {
   // Stage 2a: start-date closes for reconstructed-start-value preview (display only).
   // Shape: { loading } | { error } | { prices: {ticker: close}, missing: [ticker] }
   const [startReconPrices, setStartReconPrices] = useState(null);
+
+  // Phase 1 preview (?perfmodel=ledger): single-model daily-ledger TWR chart,
+  // rendered ALONGSIDE the legacy chart for verification before it replaces it.
+  // Flips to default (and the legacy chart + both endpoint pins get deleted)
+  // once verified. All math is in lib/performance/ledger.js.
+  const [ledgerMode, setLedgerMode] = useState(false);
+  useEffect(() => {
+    setLedgerMode(new URLSearchParams(window.location.search).get('perfmodel') === 'ledger');
+  }, []);
+  const perf = usePerformanceLedger({
+    realizedData,
+    currentCashEur: realizedData?.currentCash?.amountEur ?? 0,
+    defaultStart: startDate ?? estimatedDate,
+  });
 
   /* ── Hydrate date/cash config from portfolios.settings (Supabase) ─────────
      One-time seed once the /api/portfolio fetch resolves (surfaced via
@@ -998,13 +1013,58 @@ export default function PerformanceV2Page() {
               )}
             </div>
 
+            {/* ── NEW MODEL preview (?perfmodel=ledger) — alongside the legacy chart ── */}
+            {ledgerMode && (
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--accent)', borderRadius: 10, padding: '20px 24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Invested holdings vs SPY — TWR{' '}
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: '.05em' }}>NEW MODEL (PREVIEW)</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[['default', `Since ${startDate ?? estimatedDate ?? '2025-07-01'}`], ['inception', 'Inception']].map(([r, lbl]) => (
+                      <button key={r} onClick={() => perf.setRange(r)} style={{
+                        background: perf.range === r ? 'var(--bg-hover)' : 'transparent',
+                        border: '1px solid ' + (perf.range === r ? 'var(--accent)' : 'var(--border-color)'),
+                        color: perf.range === r ? 'var(--text-primary)' : 'var(--text-secondary)',
+                        fontSize: 11, padding: '3px 9px', borderRadius: 4, cursor: 'pointer', fontWeight: 500,
+                      }}>{lbl}</button>
+                    ))}
+                  </div>
+                </div>
+                {perf.loading || !perf.ready ? (
+                  <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
+                    Building daily ledger…
+                  </div>
+                ) : !perf.integrity?.ok ? (
+                  <div style={{ padding: 16, border: '1px solid var(--negative)', borderRadius: 8, color: 'var(--negative)', fontSize: 13, lineHeight: 1.5 }}>
+                    Can't show this range — {perf.integrity?.reason}. Reconstruction from trades is incomplete for this window; upload the missing transaction history or use a later start date.
+                  </div>
+                ) : (
+                  <>
+                    <PortfolioVsSpyChart data={perf.chartData} xInterval={Math.max(1, Math.floor((perf.chartData.length - 1) / 5))} />
+                    <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 12 }}>
+                      <span style={{ color: '#58a6ff', fontWeight: 600 }}>— Portfolio TWR ({fmtD(perf.twrPct, 1)})</span>
+                      <span style={{ color: '#4ade80', fontWeight: 600 }}>— SPY total return ({fmtD(perf.spyPct, 1)})</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>
+                      vs SPY <strong style={{ color: clr(perf.vsSpyPct) }}>{fmtD(perf.vsSpyPct, 1)}</strong> (= chart endpoint gap, no pin) · Money-weighted return (XIRR) <strong>{fmtD(perf.mwrPct, 1)}</strong> · Value €{fmt(perf.terminalEur, 0)}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                      Time-weighted return since {perf.D0}, cash excluded. Deposits don't move the line. TWR removes deposit timing (comparable to the index); MWR includes it — they differ when your timing helped or hurt.
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* ── Portfolio vs SPY AreaChart ───────────────────────────────── */}
             <div style={{
               background: 'var(--bg-card)', border: '1px solid var(--border-color)',
               borderRadius: 10, padding: '20px 24px',
             }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>
-                Portfolio vs SPY
+                Portfolio vs SPY {ledgerMode && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>(legacy)</span>}
               </div>
               {dataLoading || !chartData.length ? (
                 <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
