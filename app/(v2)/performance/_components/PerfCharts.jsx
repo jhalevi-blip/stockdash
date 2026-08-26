@@ -9,6 +9,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
 } from 'recharts';
+import { useChartHeight } from '@/lib/useChartHeight';
 
 /* ─── PortTooltip ────────────────────────────────────────────────────────── */
 function PortTooltip({ active, payload, label }) {
@@ -45,10 +46,11 @@ function EurTooltip({ active, payload, label }) {
 }
 
 export function PortfolioVsSpyChart({ data, xInterval }) {
+  // Responsive px height (300 / 440 / 660 by viewport). Passed as a number so
+  // the container never has to measure a percentage-height parent.
+  const chartHeight = useChartHeight();
   return (
-    // Height tripled 220 → 660px (set directly on the container, as the
-    // original did with 220).
-    <ResponsiveContainer width="100%" height={660}>
+    <ResponsiveContainer width="100%" height={chartHeight}>
       <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
         <defs>
           <linearGradient id="perfPortGrad" x1="0" y1="0" x2="0" y2="1">

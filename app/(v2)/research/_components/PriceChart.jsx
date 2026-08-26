@@ -11,6 +11,7 @@ import {
   ResponsiveContainer, CartesianGrid, ReferenceLine,
 } from 'recharts';
 import Card from '@/app/(v2)/_components/Card';
+import { useChartHeight } from '@/lib/useChartHeight';
 
 const PEER_COLORS = ['var(--accent-cyan)', 'var(--warn)', 'var(--positive-soft)'];
 
@@ -79,12 +80,11 @@ function EarningsLabel({ viewBox, data }) {
 
 const PRICE_RANGES = ['1M', '3M', '6M', 'YTD', '1Y', '5Y', 'ALL'];
 
-// Responsive chart height — roughly double the old fixed 280px on desktop,
-// but bounded so it stays reasonable on mobile (~47% of traffic). clamp()
-// resolves to a definite px length, which ResponsiveContainer requires.
-const CHART_HEIGHT = 'clamp(360px, 56vh, 560px)';
-
 export default function PriceChart({ ticker, overlayPeers = [], setOverlayPeers, earningsHistory = [] }) {
+  // Responsive px height (300 / 440 / 660 by viewport), shared with the
+  // /performance chart. A number → passed straight to ResponsiveContainer, so
+  // no percentage-height wrapper (which caused width(-1)/height(-1) errors).
+  const chartHeight = useChartHeight();
   const [allPrices,    setAllPrices]    = useState(null); // { [ticker]: priceArr }
   const [loading,      setLoading]      = useState(true);
   const [range,        setRange]        = useState('3M');
@@ -177,17 +177,16 @@ export default function PriceChart({ ticker, overlayPeers = [], setOverlayPeers,
       }
     >
       {loading ? (
-        <div style={{ height: CHART_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+        <div style={{ height: chartHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
           Loading…
         </div>
       ) : chartData.length === 0 ? (
-        <div style={{ height: CHART_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+        <div style={{ height: chartHeight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
           No price data
         </div>
       ) : (
         <>
-          <div style={{ width: '100%', height: CHART_HEIGHT }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={chartHeight}>
               <AreaChart data={chartData} margin={{ top: 28, right: 8, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="chart-price-fill" x1="0" y1="0" x2="0" y2="1">
@@ -250,8 +249,7 @@ export default function PriceChart({ ticker, overlayPeers = [], setOverlayPeers,
                   />
                 ))}
               </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          </ResponsiveContainer>
 
           {/* Legend */}
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
