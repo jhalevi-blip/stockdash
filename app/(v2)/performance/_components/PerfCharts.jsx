@@ -46,7 +46,9 @@ function EurTooltip({ active, payload, label }) {
 
 export function PortfolioVsSpyChart({ data, xInterval }) {
   return (
-    <ResponsiveContainer width="100%" height={220}>
+    // Height tripled 220 → 660px (set directly on the container, as the
+    // original did with 220).
+    <ResponsiveContainer width="100%" height={660}>
       <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
         <defs>
           <linearGradient id="perfPortGrad" x1="0" y1="0" x2="0" y2="1">
