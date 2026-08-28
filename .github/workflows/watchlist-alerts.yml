@@ -2,12 +2,14 @@ name: Watchlist price alerts
 
 # Primary trigger for the target-cross alert cron (app/api/cron/watchlist-alerts).
 #
-# WHY THIS EXISTS INSTEAD OF vercel.json:
-#   Vercel's Hobby tier runs cron jobs AT MOST ONCE PER DAY, so the entry in
-#   vercel.json physically cannot fire this every 15 minutes on Hobby. That entry
-#   is kept as a fallback for a Pro plan; on Hobby, THIS workflow is what actually
-#   drives the alerts. (vercel.json is strict JSON and can't hold this note as a
-#   comment, which is why it lives here.)
+# WHY THIS LIVES HERE AND NOT IN vercel.json:
+#   Vercel's Hobby tier only allows DAILY cron jobs, and it REJECTS a sub-daily
+#   schedule at build time — it doesn't silently ignore it, it fails the whole
+#   deploy. So a "*/15 ..." entry cannot live in vercel.json on Hobby at all (it
+#   was removed for exactly this reason); this GitHub Actions workflow is the sole
+#   trigger for the alert cron. If the project ever moves to a Vercel Pro plan,
+#   the every-15-min schedule could instead be added back to vercel.json and this
+#   workflow retired.
 #
 # SCHEDULE:
 #   Every 15 min, 13:00-21:00 UTC, Mon-Fri. That window generously covers the US
