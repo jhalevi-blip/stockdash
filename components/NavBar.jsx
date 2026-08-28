@@ -12,6 +12,7 @@ import {
 
 const links = [
   { href: '/dashboard',      label: 'Dashboard',   icon: '📊' },
+  { href: '/watchlist',      label: 'Watchlist',   icon: '👁' },
   { href: '/performance',   label: 'Performance', icon: '📈' },
   { href: '/macro',          label: 'Macro',       icon: '🌏', dataTour: 'macro-link' },
   { href: '/insider',        label: 'Insider',     icon: '🔎', dataTour: 'insider-link' },

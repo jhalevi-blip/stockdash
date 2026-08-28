@@ -2,6 +2,7 @@
 // Short Interest lives at /analyst — confirmed against the live NavBar.
 export const ROUTES = {
   dashboard:    '/dashboard',
+  watchlist:    '/watchlist',
   performance:  '/performance',
   macro:        '/macro',
   insider:      '/insider',
@@ -31,6 +32,7 @@ export const ROUTES = {
 
 export const NAV_ITEMS = [
   { id: 'dashboard',   label: 'Dashboard',       emoji: '📊', href: ROUTES.dashboard },
+  { id: 'watchlist',   label: 'Watchlist',       emoji: '👁', href: ROUTES.watchlist },
   { id: 'stock-research', label: 'Stock Research',    emoji: '📑', href: ROUTES.researchPage },
   { id: 'themes',         label: 'Theme Research',    emoji: '🧭', href: ROUTES.themes },
   { id: 'news',           label: 'News',              emoji: '📰', href: ROUTES.news },

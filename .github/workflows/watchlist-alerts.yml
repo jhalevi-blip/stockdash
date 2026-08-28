@@ -1,0 +1,69 @@
+name: Watchlist price alerts
+
+# Primary trigger for the target-cross alert cron (app/api/cron/watchlist-alerts).
+#
+# WHY THIS LIVES HERE AND NOT IN vercel.json:
+#   Vercel's Hobby tier only allows DAILY cron jobs, and it REJECTS a sub-daily
+#   schedule at build time — it doesn't silently ignore it, it fails the whole
+#   deploy. So a "*/15 ..." entry cannot live in vercel.json on Hobby at all (it
+#   was removed for exactly this reason); this GitHub Actions workflow is the sole
+#   trigger for the alert cron. If the project ever moves to a Vercel Pro plan,
+#   the every-15-min schedule could instead be added back to vercel.json and this
+#   workflow retired.
+#
+# SCHEDULE:
+#   Every 15 min, 13:00-21:00 UTC, Mon-Fri. That window generously covers the US
+#   session across DST (09:30-16:00 ET = 13:30-20:00 UTC in summer, 14:30-21:00 in
+#   winter). The route itself gates on exact NYSE hours + holidays via
+#   getMarketStatus and returns {skipped:"market_closed"} outside them, so this
+#   schedule only needs to be a superset — it never emails off-hours.
+#
+# NOTE: GitHub Actions scheduled runs are best-effort — they can be delayed (often
+# several minutes) or skipped under platform load, and only run on the default
+# branch. Fine for best-effort price alerts; don't rely on exact 15-min spacing.
+
+on:
+  schedule:
+    - cron: '*/15 13-21 * * 1-5'
+  workflow_dispatch: {}   # allow manual runs from the Actions tab for testing
+
+# Never let a slow run overlap the next scheduled tick.
+concurrency:
+  group: watchlist-alerts
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger watchlist-alerts cron
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # Optional repo variable; defaults to the production domain below.
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::CRON_SECRET repo secret is not set"; exit 1
+          fi
+
+          BASE="${APP_BASE_URL:-https://stockdashes.com}"
+          URL="$BASE/api/cron/watchlist-alerts"
+          echo "Hitting $URL"
+
+          # Append the HTTP status on its own final line so we can both surface the
+          # body and fail the job on any non-2xx (401 auth, 500 config, 502 email).
+          resp="$(curl -sS -m 60 -w $'\n%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$URL")"
+          code="$(printf '%s' "$resp" | tail -n1)"
+          body="$(printf '%s' "$resp" | sed '$d')"
+
+          echo "HTTP $code"
+          echo "Response: $body"
+
+          case "$code" in
+            2*) echo "OK" ;;
+            *)  echo "::error::watchlist-alerts returned HTTP $code"; exit 1 ;;
+          esac
