@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/cron/portfolio-summary", "schedule": "0 6 * * *" }
+    { "path": "/api/cron/portfolio-summary", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/watchlist-alerts", "schedule": "*/15 13-21 * * 1-5" }
   ]
 }
