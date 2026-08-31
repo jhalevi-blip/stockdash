@@ -19,6 +19,7 @@ import { PORTFOLIO, HOLDINGS, AI_SUMMARY, PORTFOLIO_SPARK, ALLOCATION } from './
 import { fmtCurrency, fmtSigned, fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
 import { useHoldings } from '@/lib/useHoldings';
 import { holdingsSignature } from '@/lib/holdingsStorage';
+import { getMarketStatus } from '@/lib/marketStatus';
 
 const SECTOR_COLORS = {
   'Technology':             '#58a6ff',
@@ -52,9 +53,14 @@ export default function DashboardV2Page() {
   // Real holdings + cash — Supabase-authoritative, listens to portfolio-saved event
   const { holdings, cash: cashData, error, refresh } = useHoldings();
   const [prices,   setPrices]   = useState({});
-  // Timestamp (ms) of the last successful prices fetch — drives the "Updated …"
-  // label under the holdings table. null until the first successful load.
-  const [pricesUpdatedAt, setPricesUpdatedAt] = useState(null);
+  // Oldest FMP source timestamp (ms) across the returned quotes — drives the
+  // "Updated …" label AND the stale banner. This is the data's own age, NOT the
+  // response time (a fresh response time on a stale payload is what hid the bug).
+  // null until the first successful load.
+  const [pricesAsOf, setPricesAsOf] = useState(null);
+  // Ticking clock (ms) for age/staleness — a state value keeps render pure and
+  // lets the stale banner appear/refresh between price polls.
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [history,  setHistory]  = useState(null); // [{ date, value }] — full 1-year daily series
   // Live EUR/USD (USD per EUR, ≈1.16). null until loaded → aggregates show a brief
   // loading state rather than flashing USD figures as if they were EUR. USD→EUR = ÷ eurUsd.
@@ -83,9 +89,15 @@ export default function DashboardV2Page() {
     // plus the timestamp used by the "Updated …" label.
     const commit = priceArr => {
       const priceMap = {};
-      if (Array.isArray(priceArr)) priceArr.forEach(p => { priceMap[p.ticker] = p; });
+      let oldestAsOf = null;
+      if (Array.isArray(priceArr)) priceArr.forEach(p => {
+        priceMap[p.ticker] = p;
+        // Oldest source timestamp governs "Updated"/staleness so a single lagging
+        // symbol surfaces instead of being hidden behind fresher ones.
+        if (p.asOf != null) oldestAsOf = oldestAsOf == null ? p.asOf : Math.min(oldestAsOf, p.asOf);
+      });
       setPrices(priceMap);
-      setPricesUpdatedAt(Date.now());
+      setPricesAsOf(oldestAsOf);
     };
 
     // Initial load — unchanged: on failure blank prices (no timestamp update).
@@ -115,6 +127,13 @@ export default function DashboardV2Page() {
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [holdings]);
+
+  // Tick the staleness clock every 30s so the "N min old" age and the stale
+  // banner advance even when a poll returns an unchanged oldest asOf.
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Live EUR/USD rate (last close of EURUSD=X) — used to display portfolio
   // aggregates in EUR. Fetched once on mount; same /api/chart source the
@@ -251,28 +270,48 @@ export default function DashboardV2Page() {
     if (!holdings?.length) return [];
     const rows = holdings.map(h => {
       const q         = prices[h.t] ?? {};
-      const price     = q.price  ?? 0;
-      const change    = q.chgPct ?? 0;
       const shares    = h.s;
       const costBasis = h.c;
+      // A missing quote is UNKNOWN, never zero: price/change/value/P&L are all null
+      // and the position is excluded from every total (a zero valuation would read
+      // as a -100% loss and silently shrink the portfolio).
+      if (q.price == null) {
+        return { ticker: h.t, name: '', shares, price: null, change: null, costBasis,
+                 mktValue: null, plDollar: null, plPct: null, priced: false, weight: null, sector: '' };
+      }
+      const price     = q.price;
+      const change    = q.chgPct ?? 0;
       const mktValue  = shares * price;
       const plDollar  = mktValue - shares * costBasis;
       const plPct     = costBasis > 0 ? (plDollar / (shares * costBasis)) * 100 : 0;
-      return { ticker: h.t, name: '', shares, price, change, costBasis, mktValue, plDollar, plPct, weight: 0, sector: '' };
+      return { ticker: h.t, name: '', shares, price, change, costBasis, mktValue, plDollar, plPct, priced: true, weight: 0, sector: '' };
     });
-    const totalMktValue = rows.reduce((s, r) => s + r.mktValue, 0);
+    const totalMktValue = rows.reduce((s, r) => s + (r.mktValue ?? 0), 0);
     return rows.map(r => ({
       ...r,
-      weight: totalMktValue > 0 ? (r.mktValue / totalMktValue) * 100 : 0,
+      weight: r.priced && totalMktValue > 0 ? (r.mktValue / totalMktValue) * 100 : (r.priced ? 0 : null),
     }));
   })();
 
-  // Derive top movers from enrichedRows sorted by day change %.
-  // null when no real holdings — MoversList falls back to mock.
-  const realMovers = enrichedRows.length > 0
+  // Priced subset + unpriced count. Every total below is computed over pricedRows
+  // only; unpricedCount is surfaced so a partial total never looks complete.
+  const pricedRows   = enrichedRows.filter(r => r.priced);
+  const unpricedCount = enrichedRows.length - pricedRows.length;
+
+  // "Updated"/staleness are driven by the data's own source timestamp (oldest
+  // asOf across holdings), never response time. "Stale" only flags while the US
+  // market is open — a gap outside regular hours is expected, not a fault.
+  const usMarketOpen = getMarketStatus(new Date(nowMs)).isOpen;
+  const pricesStale  = usMarketOpen && pricesAsOf != null && (nowMs - pricesAsOf) > 15 * 60 * 1000;
+  const pricesAgeMin = pricesAsOf != null ? Math.floor((nowMs - pricesAsOf) / 60000) : null;
+
+  // Derive top movers from PRICED rows only, sorted by day change %. Unpriced
+  // positions have unknown change and must not appear as movers. null when no
+  // priced holdings — MoversList falls back to mock.
+  const realMovers = pricedRows.length > 0
     ? {
-        up:   [...enrichedRows].sort((a, b) => b.change - a.change).slice(0, 4).map(r => ({ ticker: r.ticker, change: r.change, last: r.price })),
-        down: [...enrichedRows].sort((a, b) => a.change - b.change).slice(0, 4).map(r => ({ ticker: r.ticker, change: r.change, last: r.price })),
+        up:   [...pricedRows].sort((a, b) => b.change - a.change).slice(0, 4).map(r => ({ ticker: r.ticker, change: r.change, last: r.price })),
+        down: [...pricedRows].sort((a, b) => a.change - b.change).slice(0, 4).map(r => ({ ticker: r.ticker, change: r.change, last: r.price })),
       }
     : null;
 
@@ -285,11 +324,13 @@ export default function DashboardV2Page() {
   // Compute sector allocation from enrichedRows + fetched sectors map.
   // Returns null when sectors haven't loaded yet — AllocationDonut falls back to ALLOCATION mock.
   const realAllocation = (() => {
-    if (enrichedRows.length === 0 || Object.keys(sectors).length === 0) return null;
-    const totalMktValue = enrichedRows.reduce((s, r) => s + r.mktValue, 0);
+    if (pricedRows.length === 0 || Object.keys(sectors).length === 0) return null;
+    // Denominator is the PRICED total so the donut slices sum to 100% of what we
+    // can actually value — unpriced positions are excluded, not counted as zero.
+    const totalMktValue = pricedRows.reduce((s, r) => s + r.mktValue, 0);
     if (totalMktValue <= 0) return null;
     const bySector = {};
-    for (const r of enrichedRows) {
+    for (const r of pricedRows) {
       const sector = sectors[r.ticker]?.sector ?? 'Other';
       bySector[sector] = (bySector[sector] ?? 0) + r.mktValue;
     }
@@ -306,10 +347,12 @@ export default function DashboardV2Page() {
   // Returns null when no real holdings are loaded (anonymous / demo).
   const realPortfolioStats = (() => {
     if (enrichedRows.length === 0) return null;
-    // Raw USD aggregates from live USD prices / USD cost basis.
-    const totalValueUsd = enrichedRows.reduce((s, r) => s + r.mktValue, 0);
-    const totalCostUsd  = enrichedRows.reduce((s, r) => s + r.shares * r.costBasis, 0);
-    const dayChangeUsd  = enrichedRows.reduce((s, r) => s + r.mktValue * (r.change / 100), 0);
+    // Every aggregate is over PRICED rows only. Cost is excluded alongside value
+    // for the same positions, so Total P&L stays coherent (excluding a position's
+    // value but keeping its cost would fabricate a loss).
+    const totalValueUsd = pricedRows.reduce((s, r) => s + r.mktValue, 0);
+    const totalCostUsd  = pricedRows.reduce((s, r) => s + r.shares * r.costBasis, 0);
+    const dayChangeUsd  = pricedRows.reduce((s, r) => s + r.mktValue * (r.change / 100), 0);
     const unrealizedPct = totalCostUsd > 0 ? ((totalValueUsd - totalCostUsd) / totalCostUsd) * 100 : 0;
     const prevValueUsd  = totalValueUsd - dayChangeUsd;
     const dayChangePct  = prevValueUsd > 0 ? (dayChangeUsd / prevValueUsd) * 100 : 0;
@@ -330,7 +373,10 @@ export default function DashboardV2Page() {
       totalPnl:       (positionsValue - totalCostEur) + (realizedEur ?? 0),
       dayChange:      eurUsd ? dayChangeUsd / eurUsd : dayChangeUsd,
       dayChangePct,
-      cash, cashCurrency, positions: enrichedRows.length,
+      cash, cashCurrency,
+      positions: enrichedRows.length,       // total holdings
+      pricedPositions: pricedRows.length,   // how many are actually valued
+      unpricedPositions: unpricedCount,     // excluded from the totals above
       displayCurrency: eurUsd ? 'EUR' : 'USD',
       asOf: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }),
     };
@@ -475,8 +521,17 @@ export default function DashboardV2Page() {
         <Card
           title="Holdings"
           eyebrow="Live"
-          footer={pricesUpdatedAt ? `Updated ${new Date(pricesUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : undefined}
+          footer={pricesAsOf ? `Updated ${new Date(pricesAsOf).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : undefined}
         >
+          {pricesStale && (
+            <div role="status" style={{
+              padding: '8px 12px', marginBottom: 10, borderRadius: 6,
+              border: '1px solid var(--warn)', color: 'var(--warn)',
+              background: 'var(--bg-secondary)', fontSize: 12, fontWeight: 600,
+            }}>
+              ⚠ Prices may be stale — oldest quote is {pricesAgeMin} min old while the US market is open.
+            </div>
+          )}
           {/* Use real enriched rows when available; fall back to mock for demo/anonymous visitors */}
           <HoldingsTable rows={enrichedRows.length > 0 ? enrichedRows : HOLDINGS} onRowClick={(r) => router.push(`/research?ticker=${r.ticker}`)} />
         </Card>
