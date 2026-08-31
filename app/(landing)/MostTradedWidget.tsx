@@ -84,7 +84,7 @@ export default function MostTradedWidget() {
               <span style={{ color: "#38bdf8", fontWeight: 600 }}>{row.symbol}</span>
               <span style={{ color: "#64748b" }}>{row.name}</span>
               <span style={{ color: "#f1f5f9", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                ${row.price.toFixed(2)}
+                {row.price == null ? "—" : `$${row.price.toFixed(2)}`}
               </span>
               <span style={{
                 color: positive ? "#22c55e" : "#ef4444",

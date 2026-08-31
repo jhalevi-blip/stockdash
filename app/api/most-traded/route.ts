@@ -17,7 +17,7 @@ export interface MostTradedEntry {
   rank: number;
   symbol: string;
   name: string;
-  price: number;
+  price: number | null;
   change: number;
   volume: number;
 }
@@ -55,7 +55,7 @@ export async function GET() {
       const quote = await quoteRes.json();
       const metric = await metricRes.json();
 
-      const price: number = quote.c || quote.pc || 0;
+      const price: number | null = quote.c || quote.pc || null;
       const prevClose: number = quote.pc ?? 0;
       const change: number = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
       const volume: number = (metric?.metric?.['10DayAverageTradingVolume'] as number) ?? 0;
