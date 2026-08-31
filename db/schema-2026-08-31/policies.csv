@@ -1,0 +1,26 @@
+tablename,policyname,cmd,qual,with_check
+portfolio_correlations,Service role full access,ALL,true,true
+portfolios,portfolios_insert_own,INSERT,null,((auth.uid())::text = user_id)
+portfolios,portfolios_update_own,UPDATE,((auth.uid())::text = user_id),((auth.uid())::text = user_id)
+portfolios,portfolios_select_own,SELECT,((auth.uid())::text = user_id),null
+portfolios,portfolios_delete_own,DELETE,((auth.uid())::text = user_id),null
+price_alerts,price_alerts_delete_own,DELETE,((auth.uid())::text = user_id),null
+price_alerts,price_alerts_update_own,UPDATE,((auth.uid())::text = user_id),((auth.uid())::text = user_id)
+price_alerts,price_alerts_select_own,SELECT,((auth.uid())::text = user_id),null
+price_alerts,price_alerts_insert_own,INSERT,null,((auth.uid())::text = user_id)
+rejected_candidates,rejected_candidates_delete_own,DELETE,((auth.uid())::text = user_id),null
+rejected_candidates,rejected_candidates_insert_own,INSERT,null,((auth.uid())::text = user_id)
+rejected_candidates,rejected_candidates_select_own,SELECT,((auth.uid())::text = user_id),null
+rejected_candidates,rejected_candidates_update_own,UPDATE,((auth.uid())::text = user_id),((auth.uid())::text = user_id)
+screen_runs,screen_runs_insert_own,INSERT,null,((auth.uid())::text = user_id)
+screen_runs,screen_runs_select_own,SELECT,((auth.uid())::text = user_id),null
+screen_runs,screen_runs_update_own,UPDATE,((auth.uid())::text = user_id),((auth.uid())::text = user_id)
+screen_runs,screen_runs_delete_own,DELETE,((auth.uid())::text = user_id),null
+watchlist_items,watchlist_items_insert_own,INSERT,null,((auth.uid())::text = user_id)
+watchlist_items,watchlist_items_update_own,UPDATE,((auth.uid())::text = user_id),((auth.uid())::text = user_id)
+watchlist_items,watchlist_items_select_own,SELECT,((auth.uid())::text = user_id),null
+watchlist_items,watchlist_items_delete_own,DELETE,((auth.uid())::text = user_id),null
+watchlist_sections,watchlist_sections_delete_own,DELETE,((auth.uid())::text = user_id),null
+watchlist_sections,watchlist_sections_select_own,SELECT,((auth.uid())::text = user_id),null
+watchlist_sections,watchlist_sections_insert_own,INSERT,null,((auth.uid())::text = user_id)
+watchlist_sections,watchlist_sections_update_own,UPDATE,((auth.uid())::text = user_id),((auth.uid())::text = user_id)

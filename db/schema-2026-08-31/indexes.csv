@@ -1,0 +1,33 @@
+tablename,indexname,indexdef
+ai_usage,ai_usage_pkey,"CREATE UNIQUE INDEX ai_usage_pkey ON public.ai_usage USING btree (identity, day)"
+api_usage,api_usage_pkey,"CREATE UNIQUE INDEX api_usage_pkey ON public.api_usage USING btree (api, date)"
+fundamentals_snapshot,idx_fundamentals_snapshot_drawdown,CREATE INDEX idx_fundamentals_snapshot_drawdown ON public.fundamentals_snapshot USING btree (drawdown_pct)
+fundamentals_snapshot,idx_fundamentals_snapshot_sector,CREATE INDEX idx_fundamentals_snapshot_sector ON public.fundamentals_snapshot USING btree (sector)
+fundamentals_snapshot,fundamentals_snapshot_pkey,CREATE UNIQUE INDEX fundamentals_snapshot_pkey ON public.fundamentals_snapshot USING btree (symbol)
+news_rankings,news_rankings_pkey,CREATE UNIQUE INDEX news_rankings_pkey ON public.news_rankings USING btree (user_id)
+portfolio_correlations,idx_portfolio_correlations_user_recent,"CREATE INDEX idx_portfolio_correlations_user_recent ON public.portfolio_correlations USING btree (user_id, computed_at DESC)"
+portfolio_correlations,portfolio_correlations_pkey,"CREATE UNIQUE INDEX portfolio_correlations_pkey ON public.portfolio_correlations USING btree (user_id, computed_at)"
+portfolio_transactions,portfolio_transactions_pkey,CREATE UNIQUE INDEX portfolio_transactions_pkey ON public.portfolio_transactions USING btree (user_id)
+portfolios,portfolios_pkey,CREATE UNIQUE INDEX portfolios_pkey ON public.portfolios USING btree (user_id)
+price_alerts,idx_price_alerts_user,CREATE INDEX idx_price_alerts_user ON public.price_alerts USING btree (user_id)
+price_alerts,price_alerts_item_id_direction_key,"CREATE UNIQUE INDEX price_alerts_item_id_direction_key ON public.price_alerts USING btree (item_id, direction)"
+price_alerts,price_alerts_pkey,CREATE UNIQUE INDEX price_alerts_pkey ON public.price_alerts USING btree (id)
+push_subscriptions,push_subscriptions_pkey,CREATE UNIQUE INDEX push_subscriptions_pkey ON public.push_subscriptions USING btree (endpoint)
+push_subscriptions,idx_push_subscriptions_user,CREATE INDEX idx_push_subscriptions_user ON public.push_subscriptions USING btree (user_id)
+rejected_candidates,rejected_candidates_pkey,CREATE UNIQUE INDEX rejected_candidates_pkey ON public.rejected_candidates USING btree (id)
+rejected_candidates,rejected_candidates_user_id_symbol_key,"CREATE UNIQUE INDEX rejected_candidates_user_id_symbol_key ON public.rejected_candidates USING btree (user_id, symbol)"
+screen_runs,idx_screen_runs_user_recent,"CREATE INDEX idx_screen_runs_user_recent ON public.screen_runs USING btree (user_id, ran_at DESC)"
+screen_runs,screen_runs_pkey,CREATE UNIQUE INDEX screen_runs_pkey ON public.screen_runs USING btree (id)
+theme_candidates,idx_theme_candidates_user,CREATE INDEX idx_theme_candidates_user ON public.theme_candidates USING btree (user_id)
+theme_candidates,theme_candidates_pkey,"CREATE UNIQUE INDEX theme_candidates_pkey ON public.theme_candidates USING btree (user_id, thesis_key, thesis_version)"
+theme_classifications,theme_classifications_pkey,"CREATE UNIQUE INDEX theme_classifications_pkey ON public.theme_classifications USING btree (user_id, ticker)"
+theme_classifications,idx_theme_classifications_user,CREATE INDEX idx_theme_classifications_user ON public.theme_classifications USING btree (user_id)
+theme_temperatures,theme_temperatures_pkey,CREATE UNIQUE INDEX theme_temperatures_pkey ON public.theme_temperatures USING btree (engine_version)
+user_settings,user_settings_pkey,CREATE UNIQUE INDEX user_settings_pkey ON public.user_settings USING btree (user_id)
+user_themes,idx_user_themes_user,CREATE INDEX idx_user_themes_user ON public.user_themes USING btree (user_id)
+user_themes,user_themes_pkey,"CREATE UNIQUE INDEX user_themes_pkey ON public.user_themes USING btree (user_id, theme_id)"
+watchlist_items,idx_watchlist_items_user_section,"CREATE INDEX idx_watchlist_items_user_section ON public.watchlist_items USING btree (user_id, section_id, sort_order)"
+watchlist_items,watchlist_items_pkey,CREATE UNIQUE INDEX watchlist_items_pkey ON public.watchlist_items USING btree (id)
+watchlist_items,idx_watchlist_items_user_origin,"CREATE INDEX idx_watchlist_items_user_origin ON public.watchlist_items USING btree (user_id, origin)"
+watchlist_sections,watchlist_sections_pkey,CREATE UNIQUE INDEX watchlist_sections_pkey ON public.watchlist_sections USING btree (id)
+watchlist_sections,idx_watchlist_sections_user,"CREATE INDEX idx_watchlist_sections_user ON public.watchlist_sections USING btree (user_id, sort_order)"

@@ -1,0 +1,93 @@
+table_name,column_name,data_type,is_nullable,column_default
+portfolio_correlations,user_id,text,NO,null
+portfolio_correlations,computed_at,timestamp with time zone,NO,now()
+portfolio_correlations,holdings_fingerprint,text,NO,null
+portfolio_correlations,tickers,jsonb,NO,null
+portfolio_correlations,matrix,jsonb,NO,null
+portfolio_correlations,aligned_date_start,date,NO,null
+portfolio_correlations,aligned_date_end,date,NO,null
+portfolio_correlations,trading_days_used,integer,NO,null
+portfolio_correlations,failed_tickers,jsonb,NO,'[]'::jsonb
+portfolio_transactions,user_id,text,NO,null
+portfolio_transactions,data,jsonb,NO,'{}'::jsonb
+portfolio_transactions,updated_at,timestamp with time zone,NO,now()
+portfolios,user_id,text,NO,null
+portfolios,holdings,jsonb,NO,'[]'::jsonb
+portfolios,updated_at,timestamp with time zone,NO,now()
+portfolios,settings,jsonb,NO,'{}'::jsonb
+price_alerts,id,uuid,NO,gen_random_uuid()
+price_alerts,user_id,text,NO,null
+price_alerts,item_id,uuid,NO,null
+price_alerts,direction,text,NO,null
+price_alerts,price,numeric,NO,null
+price_alerts,active,boolean,NO,true
+price_alerts,triggered_at,timestamp with time zone,YES,null
+price_alerts,created_at,timestamp with time zone,NO,now()
+push_subscriptions,endpoint,text,NO,null
+push_subscriptions,user_id,text,NO,null
+push_subscriptions,subscription,jsonb,NO,null
+push_subscriptions,created_at,timestamp with time zone,NO,now()
+rejected_candidates,id,uuid,NO,gen_random_uuid()
+rejected_candidates,user_id,text,NO,null
+rejected_candidates,symbol,text,NO,null
+rejected_candidates,rejected_at,date,NO,CURRENT_DATE
+rejected_candidates,reason,text,NO,null
+rejected_candidates,revisit_if,text,YES,null
+rejected_candidates,revisit_metric,text,YES,null
+rejected_candidates,revisit_op,text,YES,null
+rejected_candidates,revisit_value,numeric,YES,null
+rejected_candidates,resurfaced_at,date,YES,null
+screen_runs,id,uuid,NO,gen_random_uuid()
+screen_runs,user_id,text,NO,null
+screen_runs,screen_slug,text,NO,null
+screen_runs,ran_at,timestamp with time zone,NO,now()
+screen_runs,result,jsonb,NO,null
+theme_candidates,user_id,text,NO,null
+theme_candidates,thesis_key,text,NO,null
+theme_candidates,thesis_version,text,NO,null
+theme_candidates,candidates,jsonb,NO,null
+theme_candidates,computed_at,timestamp with time zone,NO,now()
+theme_classifications,user_id,text,NO,null
+theme_classifications,ticker,text,NO,null
+theme_classifications,thesis_version,text,NO,null
+theme_classifications,verdicts,jsonb,NO,null
+theme_classifications,computed_at,timestamp with time zone,NO,now()
+theme_temperatures,engine_version,text,NO,null
+theme_temperatures,computed_at,timestamp with time zone,NO,now()
+theme_temperatures,payload,jsonb,NO,null
+user_settings,user_id,text,NO,null
+user_settings,worldview,text,YES,null
+user_settings,updated_at,timestamp with time zone,NO,now()
+user_themes,user_id,text,NO,null
+user_themes,theme_id,text,NO,null
+user_themes,name,text,NO,null
+user_themes,description,text,NO,null
+user_themes,guidance,text,NO,null
+user_themes,validity,text,NO,'INTACT'::text
+user_themes,version,integer,NO,1
+user_themes,status,text,NO,'active'::text
+user_themes,source,text,NO,null
+user_themes,priority,integer,NO,100
+user_themes,created_at,timestamp with time zone,NO,now()
+user_themes,updated_at,timestamp with time zone,NO,now()
+watchlist_items,id,uuid,NO,gen_random_uuid()
+watchlist_items,user_id,text,NO,null
+watchlist_items,section_id,uuid,YES,null
+watchlist_items,display_symbol,text,NO,null
+watchlist_items,provider_symbol,text,YES,null
+watchlist_items,asset_class,text,NO,null
+watchlist_items,exchange,text,YES,null
+watchlist_items,resolved,boolean,NO,false
+watchlist_items,role,text,NO,null
+watchlist_items,origin,text,NO,'manual'::text
+watchlist_items,target_price,numeric,YES,null
+watchlist_items,theme_slug,text,YES,null
+watchlist_items,thesis,text,YES,null
+watchlist_items,screen_notes,jsonb,YES,null
+watchlist_items,sort_order,integer,NO,0
+watchlist_items,created_at,timestamp with time zone,NO,now()
+watchlist_sections,id,uuid,NO,gen_random_uuid()
+watchlist_sections,user_id,text,NO,null
+watchlist_sections,name,text,NO,null
+watchlist_sections,sort_order,integer,NO,0
+watchlist_sections,created_at,timestamp with time zone,NO,now()

@@ -1,0 +1,15 @@
+routine_name,data_type,routine_definition
+increment_ai_usage,integer,"
+  insert into ai_usage (identity, day, count)
+  values (p_identity, p_day, 1)
+  on conflict (identity, day) do update
+    set count = ai_usage.count + 1
+  returning count;
+"
+increment_api_usage,integer,"
+  insert into api_usage (api, date, count)
+  values (p_api, p_date, p_n)
+  on conflict (api, date) do update
+    set count = api_usage.count + excluded.count
+  returning count;
+"
