@@ -7,9 +7,15 @@ export const runtime = 'nodejs';
 
 // Daily morning portfolio-summary push. Scheduled by vercel.json (06:00 UTC).
 // For every subscribed user, computes their portfolio standing as of the last
-// market close — replicating the dashboard's realPortfolioStats math verbatim
-// (app/(v2)/dashboard/page.jsx) — and sends a web push:
+// market close and sends a web push:
 //   title "StockDashes", body "Portfolio €432,622 · −1.07% at last close".
+//
+// This RE-IMPLEMENTS (does not import) the dashboard's realPortfolioStats
+// approach: the same priced-only aggregation, but only the subset the push needs
+// (total value + day-change %; no cost/unrealized/realized P&L). Unpriced
+// positions are excluded from the totals, exactly as the dashboard does. It is
+// kept in sync with app/(v2)/dashboard/page.jsx by hand — when that math changes,
+// change it here too.
 //
 // Self-guarded by Authorization: Bearer ${CRON_SECRET} (Vercel injects this on
 // cron invocations once CRON_SECRET is set; the same bearer enables manual
@@ -18,7 +24,10 @@ export const runtime = 'nodejs';
 // All data is read server-side (Supabase + Finnhub + Yahoo). No Clerk session,
 // no self-HTTP to our own API routes.
 
-// Mirror of app/api/prices/route.js field selection — quote only (price + chgPct).
+// Finnhub last-close quote per ticker (price + chgPct). The prev-close preference
+// (c==0 pre-market → pc) is intended for a "last close" summary. A failed or empty
+// quote is UNKNOWN → price:null, never 0 — a zero would read as a real $0 position
+// and understate the portfolio (the bug fixed on the dashboard).
 async function fetchQuotes(tickers, key) {
   const priceMap = {};
   const BATCH = 6; // modest concurrency to stay within the function timeout
@@ -31,9 +40,12 @@ async function fetchQuotes(tickers, key) {
             `https://finnhub.io/api/v1/quote?symbol=${t}&token=${key}`,
             { cache: 'no-store' }
           ).then((r) => r.json());
-          return { t, price: quote.c > 0 ? quote.c : quote.pc, chgPct: quote.dp };
-        } catch {
-          return { t, price: 0, chgPct: 0 };
+          const raw = quote.c > 0 ? quote.c : quote.pc; // prev-close preference (intended)
+          const price = raw > 0 ? raw : null;           // no usable quote → unknown, never 0
+          return { t, price, chgPct: quote.dp ?? null };
+        } catch (err) {
+          console.error(`[portfolio-summary] quote failed for ${t}: ${err?.message ?? err}`);
+          return { t, price: null, chgPct: null };
         }
       })
     );
@@ -172,22 +184,24 @@ export async function GET(request) {
     const { positions, cash } = portfolio;
     const cashAmount = cash?.amount ?? 0;
 
-    // Row enrichment (page.jsx ~201–219): price/chgPct from the live quote.
+    // Enrich each position from its quote. A missing/failed quote → priced:false;
+    // such positions are UNKNOWN (never zero) and are excluded from every total.
     const rows = positions.map((h) => {
       const q = priceMap[h.t] ?? {};
-      const price = q.price ?? 0;
-      const change = q.chgPct ?? 0;
-      const mktValue = h.s * price;
-      return { mktValue, change };
+      if (q.price == null) return { priced: false };
+      return { priced: true, mktValue: h.s * q.price, change: q.chgPct ?? 0 };
     });
+    const priced = rows.filter((r) => r.priced);
+    const unpricedCount = rows.length - priced.length;
 
-    // realPortfolioStats (page.jsx ~258–288), USD aggregates first.
-    const totalValueUsd = rows.reduce((s, r) => s + r.mktValue, 0);
+    // USD aggregates over PRICED rows only — value and P&L exclude the same
+    // positions, matching the dashboard's realPortfolioStats after the null fix.
+    const totalValueUsd = priced.reduce((s, r) => s + r.mktValue, 0);
     if (totalValueUsd <= 0) {
-      summary.skipped += 1; // no priceable positions
+      summary.skipped += 1; // nothing priceable → don't send a $0 total
       continue;
     }
-    const dayChangeUsd = rows.reduce((s, r) => s + r.mktValue * (r.change / 100), 0);
+    const dayChangeUsd = priced.reduce((s, r) => s + r.mktValue * (r.change / 100), 0);
     const prevValueUsd = totalValueUsd - dayChangeUsd;
     const dayChangePct = prevValueUsd > 0 ? (dayChangeUsd / prevValueUsd) * 100 : 0;
 
@@ -198,7 +212,11 @@ export async function GET(request) {
     const totalValue = positionsValue + (eurUsd ? cashAmount : 0);
     const displayCurrency = eurUsd ? 'EUR' : 'USD';
 
-    const body = `Portfolio ${fmtCurrency(totalValue, 0, displayCurrency)} · ${fmtPct(dayChangePct)} at last close`;
+    // A partial total must never look complete (same rule as the dashboard UI).
+    const partialNote = unpricedCount > 0
+      ? ` · ${unpricedCount} of ${rows.length} positions unpriced — total is partial`
+      : '';
+    const body = `Portfolio ${fmtCurrency(totalValue, 0, displayCurrency)} · ${fmtPct(dayChangePct)} at last close${partialNote}`;
     const payload = JSON.stringify({ title: 'StockDashes', body, url: '/dashboard' });
 
     const r = await sendToSubscriptions({ sb, subs: subsByUser.get(uid), payload });
