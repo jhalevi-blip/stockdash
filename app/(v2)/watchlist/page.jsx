@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import Card from '@/app/(v2)/_components/Card';
 import Dot from '@/app/(v2)/_components/Dot';
@@ -244,11 +244,58 @@ function Row({ item, role, marketOpen, now, onPatch }) {
   );
 }
 
+// ── client-side sort within a section (no new API calls) ──────────────────────
+// Header label → sort key. Only these columns are sortable; the rest (Theme,
+// Thesis, As of) render as plain, non-clickable headers.
+const SORT_KEYS = { Symbol: 'symbol', Price: 'price', 'Chg%': 'chg', Target: 'target', 'vs Target': 'vsTarget' };
+
+// The value a row sorts by for a given key. Returns null when it's missing — a
+// missing target is never 0, and null-valued rows always sink to the bottom.
+function sortValue(item, key) {
+  const q = item.quote || {};
+  const price = q.status === 'ok' ? (q.price ?? null) : null;
+  const target = item.targetPrice ?? null;
+  switch (key) {
+    case 'symbol': return item.displaySymbol ?? null;
+    case 'price': return price;
+    case 'chg': return q.status === 'ok' ? (q.changePct ?? null) : null;
+    case 'target': return target;
+    case 'vsTarget': return (price == null || target == null) ? null : (price - target) / target;
+    default: return null;
+  }
+}
+
+const isBlank = v => v == null || (typeof v === 'number' && Number.isNaN(v));
+
+// Comparator that pins null-valued rows to the bottom in BOTH directions; only the
+// ordering of non-null values flips with `dir`. Relies on Array.sort being stable
+// so equal/blank rows keep their default (server) order.
+function makeComparator(key, dir) {
+  return (a, b) => {
+    const va = sortValue(a, key), vb = sortValue(b, key);
+    const ba = isBlank(va), bb = isBlank(vb);
+    if (ba || bb) return ba && bb ? 0 : ba ? 1 : -1;   // nulls last, regardless of dir
+    const cmp = typeof va === 'string' || typeof vb === 'string'
+      ? String(va).localeCompare(String(vb), undefined, { sensitivity: 'base' })
+      : va - vb;
+    return dir === 'desc' ? -cmp : cmp;
+  };
+}
+
 function SectionTable({ section, markets, now, onPatch }) {
   const role = COLUMNS[section.role] ? section.role : 'candidate';
   const cols = COLUMNS[role];
   // Which session governs this section's "stale" flag: fx sections → FX, else US.
   const marketOpen = section.role === 'macro' ? !!markets?.fx?.isOpen : !!markets?.equity?.isOpen;
+
+  // Per-section sort. key=null → default (server) order, untouched until a click;
+  // clicking a header sorts asc, clicking the active one again reverses it.
+  const [sort, setSort] = useState({ key: null, dir: 'asc' });
+  const toggle = key => setSort(p => (p.key === key ? { key, dir: p.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+  const items = useMemo(
+    () => (sort.key ? [...section.items].sort(makeComparator(sort.key, sort.dir)) : section.items),
+    [section.items, sort],
+  );
 
   return (
     <Card title={section.name} eyebrow={role} style={{ marginBottom: 16 }} padding="0">
@@ -258,10 +305,31 @@ function SectionTable({ section, markets, now, onPatch }) {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT }}>
             <thead>
-              <tr>{cols.map(c => <th key={c} style={th}>{c}</th>)}</tr>
+              <tr>
+                {cols.map(c => {
+                  const key = SORT_KEYS[c];
+                  const active = key && sort.key === key;
+                  return (
+                    <th
+                      key={c}
+                      onClick={key ? () => toggle(key) : undefined}
+                      title={key ? `Sort by ${c}` : undefined}
+                      aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
+                      style={{
+                        ...th,
+                        cursor: key ? 'pointer' : 'default',
+                        userSelect: 'none',
+                        color: active ? 'var(--text-secondary)' : th.color,
+                      }}
+                    >
+                      {c}{active ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                    </th>
+                  );
+                })}
+              </tr>
             </thead>
             <tbody>
-              {section.items.map(it => <Row key={it.id} item={it} role={role} marketOpen={marketOpen} now={now} onPatch={onPatch} />)}
+              {items.map(it => <Row key={it.id} item={it} role={role} marketOpen={marketOpen} now={now} onPatch={onPatch} />)}
             </tbody>
           </table>
         </div>

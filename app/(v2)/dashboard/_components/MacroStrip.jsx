@@ -17,25 +17,29 @@ function transformMacro(json) {
     return (n >= 0 ? '+' : '') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
   };
 
-  if (indices?.SPY) {
-    const d = indices.SPY;
-    items.push({ label: 'S&P 500',   value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change), sparkKey: 'SPY' });
-  }
-  if (indices?.DIA) {
-    const d = indices.DIA;
-    items.push({ label: 'Dow',       value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change), sparkKey: 'DJI' });
-  }
-  if (indices?.VIX) {
-    const d = indices.VIX;
-    items.push({ label: 'VIX',       value: fmt(d.price),  change: d.changesPercentage, changeAbs: fmtAbs(d.change), sparkKey: 'VIX' });
-  }
-  if (json.commodities?.oil?.price != null) {
-    const d = json.commodities.oil;
-    items.push({ label: 'WTI', value: fmt(d.price), change: d.changesPercentage, changeAbs: fmtAbs(d.change), sparkKey: 'OIL' });
-  }
-  if (treasury?.year10 != null) {
-    items.push({ label: '10Y Yield', value: `${treasury.year10.toFixed(2)}%`, change: 0, changeAbs: '', sparkKey: 'TNX' });
-  }
+  // Index-strip tiles always render in a fixed order. A null source shows "—"
+  // (never a stale prior-session number or a zero). `change: null` → no % shown.
+  const pushQuote = (label, d, sparkKey) => {
+    items.push({
+      label,
+      value: fmt(d?.price),
+      change: d?.changesPercentage ?? null,
+      changeAbs: fmtAbs(d?.change),
+      asOf: d?.asOf ?? null,   // provider's source timestamp (ms), or null
+      sparkKey,
+    });
+  };
+  pushQuote('S&P 500', indices?.SPY, 'SPY');
+  pushQuote('Dow',     indices?.DIA, 'DJI');
+  pushQuote('VIX',     indices?.VIX, 'VIX');
+  pushQuote('WTI',     json.commodities?.oil, 'OIL');
+  items.push({
+    label: '10Y Yield',
+    value: treasury?.year10 != null ? `${treasury.year10.toFixed(2)}%` : '—',
+    change: null,
+    changeAbs: '',
+    sparkKey: 'TNX',
+  });
   if (json.fearGreed?.score != null) {
     const fg = json.fearGreed;
     const fgColor = /extreme greed/i.test(fg.rating) || /\bgreed\b/i.test(fg.rating)
@@ -116,7 +120,7 @@ export default function MacroStrip({ onIndexClick }) {
             fontWeight: 600,
             color: m.color ?? colorForChange(m.change),
             fontVariantNumeric: 'tabular-nums',
-          }}>{m.changeAbs}{m.change !== 0 && ` (${fmtPct(m.change)})`}</span>
+          }}>{m.changeAbs}{m.change != null && m.change !== 0 && ` (${fmtPct(m.change)})`}</span>
         </button>
       ))}
     </div>

@@ -71,6 +71,10 @@ export default function HoldingsTable({
       if (typeof av === 'string') {
         return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
       }
+      // Null (unpriced/unknown) always sorts to the bottom, regardless of direction.
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
       return sortDir === 'asc' ? av - bv : bv - av;
     });
   }, [rows, sortKey, sortDir, filter]);
@@ -166,14 +170,14 @@ export default function HoldingsTable({
                   </div>
                 </td>
                 <td style={cellRight(padY)}>{r.shares.toLocaleString('en-US')}</td>
-                <td style={cellRight(padY)}>{fmtCurrency(r.price)}</td>
+                <td style={cellRight(padY)}>{r.price == null ? '—' : fmtCurrency(r.price)}</td>
                 <td style={{ ...cellRight(padY), color: colorForChange(r.change) }}>
-                  {fmtPct(r.change)}
+                  {r.change == null ? '—' : fmtPct(r.change)}
                 </td>
                 <td style={cellRight(padY)}>{fmtCurrency(r.costBasis)}</td>
-                <td style={cellRight(padY)}>{fmtCurrency(r.mktValue, 0)}</td>
+                <td style={cellRight(padY)}>{r.mktValue == null ? '—' : fmtCurrency(r.mktValue, 0)}</td>
                 <td style={{ ...cellRight(padY), color: colorForChange(r.plDollar) }}>
-                  {(r.plDollar >= 0 ? '+$' : '-$') +
+                  {r.plDollar == null ? '—' : (r.plDollar >= 0 ? '+$' : '-$') +
                     Math.abs(r.plDollar).toLocaleString('en-US', { maximumFractionDigits: 0 })}
                 </td>
                 <td style={{
@@ -181,7 +185,7 @@ export default function HoldingsTable({
                   color: colorForChange(r.plPct),
                   fontWeight: 600,
                 }}>
-                  {fmtPct(r.plPct, 1)}
+                  {r.plPct == null ? '—' : fmtPct(r.plPct, 1)}
                 </td>
                 <td style={{
                   ...cellRight(padY),

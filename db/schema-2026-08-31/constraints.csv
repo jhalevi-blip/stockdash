@@ -1,0 +1,143 @@
+table_name,constraint_name,constraint_type,column_name,references_table,references_column
+ai_usage,2200_25888_3_not_null,CHECK,null,null,null
+ai_usage,2200_25888_1_not_null,CHECK,null,null,null
+ai_usage,2200_25888_2_not_null,CHECK,null,null,null
+ai_usage,ai_usage_pkey,PRIMARY KEY,day,ai_usage,identity
+ai_usage,ai_usage_pkey,PRIMARY KEY,identity,ai_usage,day
+ai_usage,ai_usage_pkey,PRIMARY KEY,identity,ai_usage,identity
+ai_usage,ai_usage_pkey,PRIMARY KEY,day,ai_usage,day
+api_usage,2200_17610_2_not_null,CHECK,null,null,null
+api_usage,2200_17610_3_not_null,CHECK,null,null,null
+api_usage,2200_17610_1_not_null,CHECK,null,null,null
+api_usage,api_usage_pkey,PRIMARY KEY,date,api_usage,date
+api_usage,api_usage_pkey,PRIMARY KEY,api,api_usage,api
+api_usage,api_usage_pkey,PRIMARY KEY,api,api_usage,date
+api_usage,api_usage_pkey,PRIMARY KEY,date,api_usage,api
+fundamentals_snapshot,2200_26349_21_not_null,CHECK,null,null,null
+fundamentals_snapshot,2200_26349_1_not_null,CHECK,null,null,null
+fundamentals_snapshot,2200_26349_2_not_null,CHECK,null,null,null
+fundamentals_snapshot,fundamentals_snapshot_pkey,PRIMARY KEY,symbol,fundamentals_snapshot,symbol
+news_rankings,2200_26049_2_not_null,CHECK,null,null,null
+news_rankings,2200_26049_1_not_null,CHECK,null,null,null
+news_rankings,2200_26049_4_not_null,CHECK,null,null,null
+news_rankings,2200_26049_3_not_null,CHECK,null,null,null
+news_rankings,news_rankings_pkey,PRIMARY KEY,user_id,news_rankings,user_id
+portfolio_correlations,2200_25518_7_not_null,CHECK,null,null,null
+portfolio_correlations,2200_25518_8_not_null,CHECK,null,null,null
+portfolio_correlations,2200_25518_9_not_null,CHECK,null,null,null
+portfolio_correlations,2200_25518_1_not_null,CHECK,null,null,null
+portfolio_correlations,2200_25518_6_not_null,CHECK,null,null,null
+portfolio_correlations,2200_25518_2_not_null,CHECK,null,null,null
+portfolio_correlations,2200_25518_5_not_null,CHECK,null,null,null
+portfolio_correlations,2200_25518_4_not_null,CHECK,null,null,null
+portfolio_correlations,2200_25518_3_not_null,CHECK,null,null,null
+portfolio_correlations,portfolio_correlations_pkey,PRIMARY KEY,computed_at,portfolio_correlations,user_id
+portfolio_correlations,portfolio_correlations_pkey,PRIMARY KEY,user_id,portfolio_correlations,computed_at
+portfolio_correlations,portfolio_correlations_pkey,PRIMARY KEY,user_id,portfolio_correlations,user_id
+portfolio_correlations,portfolio_correlations_pkey,PRIMARY KEY,computed_at,portfolio_correlations,computed_at
+portfolio_transactions,2200_25719_1_not_null,CHECK,null,null,null
+portfolio_transactions,2200_25719_2_not_null,CHECK,null,null,null
+portfolio_transactions,2200_25719_3_not_null,CHECK,null,null,null
+portfolio_transactions,portfolio_transactions_pkey,PRIMARY KEY,user_id,portfolio_transactions,user_id
+portfolios,2200_17601_4_not_null,CHECK,null,null,null
+portfolios,2200_17601_3_not_null,CHECK,null,null,null
+portfolios,2200_17601_2_not_null,CHECK,null,null,null
+portfolios,2200_17601_1_not_null,CHECK,null,null,null
+portfolios,portfolios_pkey,PRIMARY KEY,user_id,portfolios,user_id
+price_alerts,2200_26392_6_not_null,CHECK,null,null,null
+price_alerts,2200_26392_4_not_null,CHECK,null,null,null
+price_alerts,2200_26392_3_not_null,CHECK,null,null,null
+price_alerts,2200_26392_2_not_null,CHECK,null,null,null
+price_alerts,2200_26392_8_not_null,CHECK,null,null,null
+price_alerts,2200_26392_5_not_null,CHECK,null,null,null
+price_alerts,2200_26392_1_not_null,CHECK,null,null,null
+price_alerts,price_alerts_item_id_fkey,FOREIGN KEY,item_id,watchlist_items,id
+price_alerts,price_alerts_pkey,PRIMARY KEY,id,price_alerts,id
+price_alerts,price_alerts_item_id_direction_key,UNIQUE,direction,price_alerts,item_id
+price_alerts,price_alerts_item_id_direction_key,UNIQUE,direction,price_alerts,direction
+price_alerts,price_alerts_item_id_direction_key,UNIQUE,item_id,price_alerts,item_id
+price_alerts,price_alerts_item_id_direction_key,UNIQUE,item_id,price_alerts,direction
+push_subscriptions,2200_25859_1_not_null,CHECK,null,null,null
+push_subscriptions,2200_25859_2_not_null,CHECK,null,null,null
+push_subscriptions,2200_25859_3_not_null,CHECK,null,null,null
+push_subscriptions,2200_25859_4_not_null,CHECK,null,null,null
+push_subscriptions,push_subscriptions_pkey,PRIMARY KEY,endpoint,push_subscriptions,endpoint
+rejected_candidates,2200_26338_4_not_null,CHECK,null,null,null
+rejected_candidates,2200_26338_2_not_null,CHECK,null,null,null
+rejected_candidates,2200_26338_5_not_null,CHECK,null,null,null
+rejected_candidates,2200_26338_1_not_null,CHECK,null,null,null
+rejected_candidates,2200_26338_3_not_null,CHECK,null,null,null
+rejected_candidates,rejected_candidates_pkey,PRIMARY KEY,id,rejected_candidates,id
+rejected_candidates,rejected_candidates_user_id_symbol_key,UNIQUE,symbol,rejected_candidates,symbol
+rejected_candidates,rejected_candidates_user_id_symbol_key,UNIQUE,symbol,rejected_candidates,user_id
+rejected_candidates,rejected_candidates_user_id_symbol_key,UNIQUE,user_id,rejected_candidates,user_id
+rejected_candidates,rejected_candidates_user_id_symbol_key,UNIQUE,user_id,rejected_candidates,symbol
+screen_runs,2200_26359_5_not_null,CHECK,null,null,null
+screen_runs,2200_26359_1_not_null,CHECK,null,null,null
+screen_runs,2200_26359_2_not_null,CHECK,null,null,null
+screen_runs,2200_26359_3_not_null,CHECK,null,null,null
+screen_runs,2200_26359_4_not_null,CHECK,null,null,null
+screen_runs,screen_runs_pkey,PRIMARY KEY,id,screen_runs,id
+theme_candidates,2200_25830_1_not_null,CHECK,null,null,null
+theme_candidates,2200_25830_5_not_null,CHECK,null,null,null
+theme_candidates,2200_25830_4_not_null,CHECK,null,null,null
+theme_candidates,2200_25830_3_not_null,CHECK,null,null,null
+theme_candidates,2200_25830_2_not_null,CHECK,null,null,null
+theme_candidates,theme_candidates_pkey,PRIMARY KEY,thesis_version,theme_candidates,user_id
+theme_candidates,theme_candidates_pkey,PRIMARY KEY,user_id,theme_candidates,thesis_key
+theme_candidates,theme_candidates_pkey,PRIMARY KEY,user_id,theme_candidates,thesis_version
+theme_candidates,theme_candidates_pkey,PRIMARY KEY,user_id,theme_candidates,user_id
+theme_candidates,theme_candidates_pkey,PRIMARY KEY,thesis_key,theme_candidates,thesis_key
+theme_candidates,theme_candidates_pkey,PRIMARY KEY,thesis_key,theme_candidates,thesis_version
+theme_candidates,theme_candidates_pkey,PRIMARY KEY,thesis_key,theme_candidates,user_id
+theme_candidates,theme_candidates_pkey,PRIMARY KEY,thesis_version,theme_candidates,thesis_key
+theme_candidates,theme_candidates_pkey,PRIMARY KEY,thesis_version,theme_candidates,thesis_version
+theme_classifications,2200_25796_5_not_null,CHECK,null,null,null
+theme_classifications,2200_25796_3_not_null,CHECK,null,null,null
+theme_classifications,2200_25796_2_not_null,CHECK,null,null,null
+theme_classifications,2200_25796_1_not_null,CHECK,null,null,null
+theme_classifications,2200_25796_4_not_null,CHECK,null,null,null
+theme_classifications,theme_classifications_pkey,PRIMARY KEY,user_id,theme_classifications,user_id
+theme_classifications,theme_classifications_pkey,PRIMARY KEY,ticker,theme_classifications,user_id
+theme_classifications,theme_classifications_pkey,PRIMARY KEY,ticker,theme_classifications,ticker
+theme_classifications,theme_classifications_pkey,PRIMARY KEY,user_id,theme_classifications,ticker
+theme_temperatures,2200_25805_3_not_null,CHECK,null,null,null
+theme_temperatures,2200_25805_2_not_null,CHECK,null,null,null
+theme_temperatures,2200_25805_1_not_null,CHECK,null,null,null
+theme_temperatures,theme_temperatures_pkey,PRIMARY KEY,engine_version,theme_temperatures,engine_version
+user_settings,2200_25788_1_not_null,CHECK,null,null,null
+user_settings,2200_25788_3_not_null,CHECK,null,null,null
+user_settings,user_settings_pkey,PRIMARY KEY,user_id,user_settings,user_id
+user_themes,2200_26074_10_not_null,CHECK,null,null,null
+user_themes,2200_26074_11_not_null,CHECK,null,null,null
+user_themes,2200_26074_12_not_null,CHECK,null,null,null
+user_themes,2200_26074_1_not_null,CHECK,null,null,null
+user_themes,2200_26074_2_not_null,CHECK,null,null,null
+user_themes,2200_26074_3_not_null,CHECK,null,null,null
+user_themes,2200_26074_4_not_null,CHECK,null,null,null
+user_themes,2200_26074_5_not_null,CHECK,null,null,null
+user_themes,2200_26074_6_not_null,CHECK,null,null,null
+user_themes,2200_26074_7_not_null,CHECK,null,null,null
+user_themes,2200_26074_8_not_null,CHECK,null,null,null
+user_themes,2200_26074_9_not_null,CHECK,null,null,null
+user_themes,user_themes_pkey,PRIMARY KEY,theme_id,user_themes,user_id
+user_themes,user_themes_pkey,PRIMARY KEY,user_id,user_themes,theme_id
+user_themes,user_themes_pkey,PRIMARY KEY,user_id,user_themes,user_id
+user_themes,user_themes_pkey,PRIMARY KEY,theme_id,user_themes,theme_id
+watchlist_items,2200_26319_4_not_null,CHECK,null,null,null
+watchlist_items,2200_26319_16_not_null,CHECK,null,null,null
+watchlist_items,2200_26319_10_not_null,CHECK,null,null,null
+watchlist_items,2200_26319_1_not_null,CHECK,null,null,null
+watchlist_items,2200_26319_6_not_null,CHECK,null,null,null
+watchlist_items,2200_26319_8_not_null,CHECK,null,null,null
+watchlist_items,2200_26319_9_not_null,CHECK,null,null,null
+watchlist_items,2200_26319_15_not_null,CHECK,null,null,null
+watchlist_items,2200_26319_2_not_null,CHECK,null,null,null
+watchlist_items,watchlist_items_section_id_fkey,FOREIGN KEY,section_id,watchlist_sections,id
+watchlist_items,watchlist_items_pkey,PRIMARY KEY,id,watchlist_items,id
+watchlist_sections,2200_26308_2_not_null,CHECK,null,null,null
+watchlist_sections,2200_26308_1_not_null,CHECK,null,null,null
+watchlist_sections,2200_26308_5_not_null,CHECK,null,null,null
+watchlist_sections,2200_26308_4_not_null,CHECK,null,null,null
+watchlist_sections,2200_26308_3_not_null,CHECK,null,null,null
+watchlist_sections,watchlist_sections_pkey,PRIMARY KEY,id,watchlist_sections,id

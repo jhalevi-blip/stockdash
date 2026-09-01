@@ -69,6 +69,16 @@ export default function HeroValue({ range = '1M', onRange, sparkData, data = POR
           {fmtSigned(data.dayChange, 2, data.displayCurrency)} ({fmtPct(data.dayChangePct)}){' '}
           <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>today</span>
         </span>
+        {data.unpricedPositions > 0 && (
+          <span style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: 'var(--warn)',
+            fontVariantNumeric: 'tabular-nums',
+          }}>
+            {data.unpricedPositions} of {data.positions} positions unpriced
+          </span>
+        )}
       </div>
       <div style={{
         display: 'flex',

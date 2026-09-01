@@ -1,0 +1,33 @@
+table_name,column_name,data_type,is_nullable,column_default
+ai_usage,identity,text,NO,null
+ai_usage,day,date,NO,null
+ai_usage,count,integer,NO,0
+api_usage,api,text,NO,null
+api_usage,date,text,NO,null
+api_usage,count,integer,NO,0
+fundamentals_snapshot,symbol,text,NO,null
+fundamentals_snapshot,as_of,date,NO,null
+fundamentals_snapshot,market_cap,numeric,YES,null
+fundamentals_snapshot,avg_dollar_volume,numeric,YES,null
+fundamentals_snapshot,sector,text,YES,null
+fundamentals_snapshot,industry,text,YES,null
+fundamentals_snapshot,roic,numeric,YES,null
+fundamentals_snapshot,roe,numeric,YES,null
+fundamentals_snapshot,gross_margin,numeric,YES,null
+fundamentals_snapshot,gross_margin_stdev,numeric,YES,null
+fundamentals_snapshot,operating_income,numeric,YES,null
+fundamentals_snapshot,fcf,numeric,YES,null
+fundamentals_snapshot,net_income,numeric,YES,null
+fundamentals_snapshot,fcf_conversion,numeric,YES,null
+fundamentals_snapshot,net_debt_ebitda,numeric,YES,null
+fundamentals_snapshot,shares_cagr_3y,numeric,YES,null
+fundamentals_snapshot,revenue_cagr_3y,numeric,YES,null
+fundamentals_snapshot,price,numeric,YES,null
+fundamentals_snapshot,high_52w,numeric,YES,null
+fundamentals_snapshot,drawdown_pct,numeric,YES,null
+fundamentals_snapshot,updated_at,timestamp with time zone,NO,now()
+news_rankings,user_id,text,NO,null
+news_rankings,ranking,jsonb,NO,'[]'::jsonb
+news_rankings,article_ids,jsonb,NO,'[]'::jsonb
+news_rankings,created_at,timestamp with time zone,NO,now()
+news_rankings,theme_fingerprint,text,YES,null

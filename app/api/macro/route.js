@@ -76,7 +76,8 @@ async function fetchYahooYield(encodedTicker) {
     });
     const data = JSON.parse(await r.text());
     return data?.chart?.result?.[0]?.meta?.regularMarketPrice ?? null;
-  } catch {
+  } catch (e) {
+    console.error(`[macro] fetchYahooYield ${encodedTicker} error:`, e.message);
     return null;
   }
 }
@@ -95,11 +96,21 @@ async function fetchYahooQuote(encodedTicker) {
     const data = JSON.parse(text);
     const meta  = data?.chart?.result?.[0]?.meta;
     const price = meta?.regularMarketPrice ?? null;
+    // chartPreviousClose is used ONLY as the change reference below — never as a
+    // display value — so it can't leak a prior session's number into `price`.
     const prev  = meta?.chartPreviousClose ?? meta?.previousClose ?? null;
-    if (price == null) return null;
+    if (price == null) {
+      console.error(`[macro] fetchYahooQuote ${encodedTicker}: no regularMarketPrice`);
+      return null;
+    }
     const change    = prev != null ? price - prev : null;
     const changePct = change != null && prev ? (change / prev) * 100 : null;
-    return { price, change, changesPercentage: changePct };
+    return {
+      price,
+      change,
+      changesPercentage: changePct,
+      asOf: meta?.regularMarketTime != null ? meta.regularMarketTime * 1000 : null, // epoch secs → ms; never Date.now()
+    };
   } catch(e) {
     console.error(`[macro] fetchYahooQuote ${encodedTicker} error:`, e.message);
     return null;
@@ -138,7 +149,9 @@ export async function GET() {
       fetchYahooQuote('%5EGSPC'),  // S&P 500 actual index
       fetchYahooQuote('%5EIXIC'),  // NASDAQ actual index
       fetchYahooQuote('%5EDJI'),   // Dow Jones actual index
-      fetch(`https://finnhub.io/api/v1/quote?symbol=UUP&token=${fhKey}`, opts).then(r => r.json()),
+      fetch(`https://finnhub.io/api/v1/quote?symbol=UUP&token=${fhKey}`, opts)
+        .then(r => r.json())
+        .catch(e => { console.error('[macro] UUP (DXY) fetch error:', e.message); return null; }),
       fetchYahooQuote('GC%3DF'),  // Gold futures (COMEX) — Finnhub OANDA:XAU_USD requires premium
       fetchYahooQuote('CL%3DF'),  // WTI crude futures — Finnhub USO ETF doesn't track spot price
       fetchYahooYield('%5EIRX'),  // 13-week T-bill (~3 month)
@@ -166,12 +179,22 @@ export async function GET() {
       treasury = { month3: irx, year5: fvx, year10: tnx, year30: tyx };
     }
 
-    const makeIndex = (d, symbol) => ({
-      symbol,
-      price: d.c > 0 ? d.c : d.pc,
-      changesPercentage: d.dp,
-      change: d.d,
-    });
+    const makeIndex = (d, symbol) => {
+      // Current value only — never substitute the previous close. A stale prior-
+      // session number must not read as "now"; no current value → null tile.
+      const price = d && d.c > 0 ? d.c : null;
+      if (price == null) {
+        console.error(`[macro] ${symbol}: no current price (c=${d?.c ?? 'missing'})`);
+        return null;
+      }
+      return {
+        symbol,
+        price,
+        changesPercentage: d.dp ?? null,
+        change: d.d ?? null,
+        asOf: d.t != null ? d.t * 1000 : null, // Finnhub epoch seconds → ms; never Date.now()
+      };
+    };
 
     // Parse VIX from Yahoo Finance chart response
     const vixMeta      = vixRes?.chart?.result?.[0]?.meta;
@@ -179,8 +202,10 @@ export async function GET() {
     const vixPrev      = vixMeta?.chartPreviousClose ?? vixMeta?.previousClose ?? null;
     const vixChange    = vixPrice != null && vixPrev ? vixPrice - vixPrev : null;
     const vixChangePct = vixChange != null && vixPrev ? (vixChange / vixPrev) * 100 : null;
+    if (vixPrice == null) console.error('[macro] VIX: no regularMarketPrice');
     const vix = vixPrice != null
-      ? { symbol: '^VIX', price: vixPrice, change: vixChange, changesPercentage: vixChangePct }
+      ? { symbol: '^VIX', price: vixPrice, change: vixChange, changesPercentage: vixChangePct,
+          asOf: vixMeta?.regularMarketTime != null ? vixMeta.regularMarketTime * 1000 : null }
       : null;
 
     return Response.json({
