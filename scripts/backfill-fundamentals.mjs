@@ -38,14 +38,16 @@ const REFRESH_UNIVERSE = argv.includes('--refresh-universe');
 // local log. Read-only monitoring — makes no database writes.
 const CHECK_UNIVERSE = argv.includes('--check-universe');
 // ── Abort guards ──────────────────────────────────────────────────────────────
-// DELIBERATELY set to 1 (effectively off) for the FIRST refresh. refreshUniverse
-// prints the raw + evaluable + excluded-by-reason counts; real thresholds get set
-// from that output rather than guessed — a guard set above the real value (the old
-// MIN_UNIVERSE=2000 vs a ~1900 real universe) already caused a silent false-abort.
-//   MIN_SCREENER_RAW — refresh only: detects a degraded/truncated screener (healthy raw ≈ 1900).
-//   MIN_EVALUABLE    — a normal backfill run + the refresh's post-exclusion sanity (est ≈ 1341).
-const MIN_SCREENER_RAW = 1;  // TODO(set from printed raw count)
-const MIN_EVALUABLE = 1;     // TODO(set from printed evaluable count)
+// These guard against CATASTROPHIC failure — a missing exchange, a truncated
+// response, an inverted exclusion rule — NOT against normal drift. They sit well
+// below the live values on purpose: raw has slid 2622 -> 1916 -> 1752 over three
+// days (measured 2026-09-02: raw 1752, evaluable 1220), so a guard set near the
+// current value would false-abort on continued drift. Drift itself is monitored
+// via the raw count printed on every refresh — that's the signal, not the guard.
+//   MIN_SCREENER_RAW — refresh only: detects a degraded/truncated screener.
+//   MIN_EVALUABLE    — a normal backfill run + the refresh's post-exclusion sanity.
+const MIN_SCREENER_RAW = 800;
+const MIN_EVALUABLE = 600;
 
 // Universe-level exclusion (decided at construction — see docs/decision-universe-exclusions.md).
 const EXCL_SECTORS = new Set(['Financial Services', 'Utilities', 'Real Estate']);
