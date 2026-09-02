@@ -14,7 +14,7 @@
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
-import { fetchSymbolFundamentals, computeDerived, num } from '../lib/watchlist/fundamentals.js';
+import { fetchSymbolFundamentals, computeDerived, num, latestCogsRev, grossMarginYears } from '../lib/watchlist/fundamentals.js';
 
 const env = Object.fromEntries(
   fs.readFileSync('.env.local', 'utf8').split(/\r?\n/).filter(l => l.includes('=') && !l.startsWith('#'))
@@ -37,7 +37,31 @@ const REFRESH_UNIVERSE = argv.includes('--refresh-universe');
 // --check-universe: one screener call per exchange, print + append counts to a
 // local log. Read-only monitoring — makes no database writes.
 const CHECK_UNIVERSE = argv.includes('--check-universe');
-const MIN_UNIVERSE = 2000;   // abort guard: a smaller universe means a degraded source
+// ── Abort guards ──────────────────────────────────────────────────────────────
+// These guard against CATASTROPHIC failure — a missing exchange, a truncated
+// response, an inverted exclusion rule — NOT against normal drift. Raw has slid
+// 2622 -> 1916 -> 1752 over three days (measured 2026-09-02: raw 1752, evaluable
+// 1220), so an ABSOLUTE guard set near the current value would false-abort on
+// continued drift — which is exactly why the raw guard is relative.
+//   Raw (refresh only): RELATIVE to the previous universe — abort if the new
+//     screener raw is more than MAX_RAW_DROP below the previous universe's row
+//     count. This tolerates gradual drift but catches a sudden collapse (a missing
+//     exchange, a truncated response). MIN_SCREENER_RAW is only the ABSOLUTE
+//     backstop, used when there is no previous universe to compare against.
+//   MIN_EVALUABLE — a normal backfill run + the refresh's post-exclusion sanity.
+const MAX_RAW_DROP = 0.20;    // >20% below the previous universe aborts the refresh
+const MIN_SCREENER_RAW = 800; // absolute backstop, only when there is no previous universe
+const MIN_EVALUABLE = 600;
+
+// Universe-level exclusion (decided at construction — see docs/decision-universe-exclusions.md).
+const EXCL_SECTORS = new Set(['Financial Services', 'Utilities', 'Real Estate']);
+// First failing rule wins, in precedence order sector -> cogs_ratio -> gm_years.
+function exclusionReason(sector, latest_cogs_rev, gm_years) {
+  if (EXCL_SECTORS.has(sector)) return 'sector';
+  if (latest_cogs_rev === null || latest_cogs_rev < 0 || latest_cogs_rev > 1) return 'cogs_ratio';
+  if (!(gm_years >= 4)) return 'gm_years';
+  return null;
+}
 const parseCap = s => { const m = /^(\d+(?:\.\d+)?)([MB])$/.exec(s.trim()); return m ? parseFloat(m[1]) * (m[2] === 'B' ? 1e9 : 1e6) : null; };
 const parseBand = s => {
   if (!s) return null;
@@ -86,24 +110,109 @@ async function screener(exchange) {
   return Array.isArray(j) ? j : [];
 }
 
-// Repopulate symbol_universe from the screener. Aborts BEFORE any write if the
-// combined universe is under MIN_UNIVERSE, so a degraded screener can't truncate it.
+// The previous universe = the rows written by the most recent refresh strictly
+// before today (identified by the newest last_seen < TODAY): how many there are and
+// their by-reason composition. Used as the moving baseline for the relative raw guard
+// and printed alongside it. Returns count 0 when the table is empty or has only
+// today's rows (e.g. a same-day re-run), which makes the guard fall back to the
+// absolute floor.
+async function previousUniverse() {
+  const { data, error } = await sb.from('symbol_universe')
+    .select('last_seen').lt('last_seen', TODAY).order('last_seen', { ascending: false }).limit(1);
+  if (error) { console.error(`symbol_universe read error: ${error.message}`); process.exit(1); }
+  if (!data || data.length === 0) return { date: null, count: 0, byReason: {} };
+  const date = data[0].last_seen;
+  // Pull the whole cohort's exclusion_reason (paginated) so its composition can be
+  // shown next to the raw drift on every refresh.
+  let rows = [], from = 0; const PAGE = 1000;
+  while (true) {
+    const { data: page, error: pErr } = await sb.from('symbol_universe')
+      .select('exclusion_reason').eq('last_seen', date).range(from, from + PAGE - 1);
+    if (pErr) { console.error(`symbol_universe read error: ${pErr.message}`); process.exit(1); }
+    rows = rows.concat(page);
+    if (page.length < PAGE) break;
+    from += PAGE;
+  }
+  const byReason = {};
+  for (const r of rows) { const k = r.exclusion_reason || 'evaluable'; byReason[k] = (byReason[k] || 0) + 1; }
+  return { date, count: rows.length, byReason };
+}
+const fmtReasons = r => ['sector', 'cogs_ratio', 'gm_years', 'evaluable'].map(k => `${k}=${r[k] || 0}`).join(', ');
+
+// Repopulate symbol_universe from the screener AND decide universe-level exclusions
+// at construction. Aborts BEFORE any write if the raw screener collapsed relative to
+// the previous universe (> MAX_RAW_DROP below it; absolute MIN_SCREENER_RAW floor when
+// there is no previous universe) or if too few evaluable survive (< MIN_EVALUABLE), so
+// neither a truncated screener nor a broken exclusion pass can overwrite a good table.
 async function refreshUniverse() {
   const nasdaq = (await screener('NASDAQ')).map(r => ({ ...r, __ex: 'NASDAQ' }));
   const nyse = (await screener('NYSE')).map(r => ({ ...r, __ex: 'NYSE' }));
   const seen = new Set();
   const rows = [...nasdaq, ...nyse].filter(r => r.symbol && !seen.has(r.symbol) && seen.add(r.symbol));
-  console.log(`screener: NASDAQ ${nasdaq.length} + NYSE ${nyse.length} = ${rows.length} unique`);
-  if (rows.length < MIN_UNIVERSE) {
-    console.error(`ABORT: screener universe ${rows.length} < ${MIN_UNIVERSE} — source looks degraded; symbol_universe NOT written.`);
+  console.log(`screener raw: NASDAQ ${nasdaq.length} + NYSE ${nyse.length} = ${rows.length} unique`);
+
+  // Raw guard: RELATIVE to the previous universe, with an absolute backstop. Print
+  // both counts so the drift is visible in the run output either way.
+  const prev = await previousUniverse();
+  if (prev.count > 0) {
+    const floor = Math.ceil(prev.count * (1 - MAX_RAW_DROP));
+    console.log(`previous universe (${prev.date}): ${prev.count} rows [${fmtReasons(prev.byReason)}]  ->  new raw: ${rows.length}  (relative floor ${floor}; >${(MAX_RAW_DROP * 100).toFixed(0)}% drop aborts)`);
+    if (rows.length < floor) {
+      console.error(`ABORT: screener raw ${rows.length} < ${floor} (>${(MAX_RAW_DROP * 100).toFixed(0)}% below previous ${prev.count}) — source looks degraded; symbol_universe NOT written.`);
+      process.exit(1);
+    }
+  } else {
+    console.log(`no previous universe to compare against; applying absolute floor ${MIN_SCREENER_RAW}. new raw: ${rows.length}`);
+    if (rows.length < MIN_SCREENER_RAW) {
+      console.error(`ABORT: screener raw ${rows.length} < ${MIN_SCREENER_RAW} (absolute floor, no previous universe) — source looks degraded; symbol_universe NOT written.`);
+      process.exit(1);
+    }
+  }
+
+  // Compute exclusion signals for EVERY symbol (one annual income call each) so any
+  // rule can be reversed later from the stored signals without re-probing. This
+  // dominates the refresh runtime (~rows count at the 150/min throttle).
+  console.log(`computing exclusion signals for ${rows.length} symbols (annual income each)…`);
+  const enriched = [];
+  let done = 0;
+  for (const r of rows) {
+    const inc = await getJson(`/stable/income-statement?symbol=${r.symbol}&period=annual&limit=5`);
+    const latest_cogs_rev = latestCogsRev(inc);
+    const gm_years = grossMarginYears(inc);
+    enriched.push({ ...r, latest_cogs_rev, gm_years, exclusion_reason: exclusionReason(r.sector, latest_cogs_rev, gm_years) });
+    if (++done % 200 === 0) console.log(`  …${done}/${rows.length}`);
+  }
+
+  // Report composition BEFORE writing so real thresholds can be chosen from it.
+  const byReason = {}, bySectorExcl = {};
+  for (const e of enriched) {
+    const k = e.exclusion_reason || 'evaluable';
+    byReason[k] = (byReason[k] || 0) + 1;
+    if (e.exclusion_reason === 'sector') bySectorExcl[e.sector] = (bySectorExcl[e.sector] || 0) + 1;
+  }
+  const evaluable = enriched.filter(e => e.exclusion_reason === null).length;
+  console.log(`\n=== UNIVERSE COMPOSITION ===`);
+  console.log(`raw:        ${rows.length}`);
+  console.log(`evaluable:  ${evaluable}  (${(100 * evaluable / rows.length).toFixed(1)}%)`);
+  console.log(`excluded by reason:`);
+  for (const [k, v] of Object.entries(byReason).sort((a, b) => b[1] - a[1])) console.log(`  ${k.padEnd(14)} ${v}`);
+  console.log(`  sector breakdown: ${Object.entries(bySectorExcl).map(([s, n]) => `${s}=${n}`).join(', ')}`);
+  // Same format as the previous-universe line above, so the two are directly comparable.
+  console.log(`new universe      (${TODAY}): ${rows.length} rows [${fmtReasons(byReason)}]`);
+
+  if (evaluable < MIN_EVALUABLE) {
+    console.error(`\nABORT: evaluable ${evaluable} < ${MIN_EVALUABLE} — exclusion pass or source looks wrong; symbol_universe NOT written.`);
     process.exit(1);
   }
-  // first_seen is omitted from the payload on purpose: the DB default fills it on
-  // insert, and an upsert UPDATE leaves it untouched. last_seen is stamped each run.
-  const payload = rows.map(r => ({
+
+  // first_seen is omitted on purpose: the DB default fills it on insert, and an
+  // upsert UPDATE leaves it untouched. last_seen is stamped each run.
+  const payload = enriched.map(r => ({
     symbol: r.symbol, exchange: r.__ex,
     sector: r.sector || null, industry: r.industry || null,
-    market_cap: num(r.marketCap), last_seen: TODAY,
+    market_cap: num(r.marketCap),
+    latest_cogs_rev: r.latest_cogs_rev, gm_years: r.gm_years, exclusion_reason: r.exclusion_reason,
+    last_seen: TODAY,
   }));
   let written = 0;
   for (let i = 0; i < payload.length; i += 500) {
@@ -112,17 +221,21 @@ async function refreshUniverse() {
     if (error) { console.error(`symbol_universe upsert error: ${error.message}`); process.exit(1); }
     written += batch.length;
   }
-  console.log(`symbol_universe refreshed: ${written} rows (last_seen=${TODAY})`);
+  console.log(`\nsymbol_universe refreshed: ${written} rows (last_seen=${TODAY}); ${evaluable} evaluable, ${written - evaluable} excluded`);
 }
 
-// Read the persisted universe. Never calls the screener. Returns rows shaped like
-// screener rows (symbol/sector/industry/marketCap) so buildRow() is unchanged.
+// Read the persisted EVALUABLE universe (exclusion_reason IS NULL). Never calls the
+// screener. Returns rows shaped like screener rows (symbol/sector/industry/marketCap)
+// so buildRow() is unchanged; excluded symbols stay in the table for audit but are
+// never processed here.
 async function loadUniverse() {
   const out = [];
   const PAGE = 1000;
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await sb.from('symbol_universe')
-      .select('symbol,exchange,sector,industry,market_cap').order('symbol').range(from, from + PAGE - 1);
+      .select('symbol,exchange,sector,industry,market_cap')
+      .is('exclusion_reason', null)
+      .order('symbol').range(from, from + PAGE - 1);
     if (error) { console.error(`symbol_universe read error: ${error.message}`); process.exit(1); }
     out.push(...(data || []));
     if (!data || data.length < PAGE) break;
@@ -164,7 +277,7 @@ async function checkUniverse() {
   const file = `scripts/universe-symbols-${ts.replace(/[:.]/g, '-')}.json`;
   fs.writeFileSync(file, JSON.stringify({ generatedAt: ts, ...symbolsByExchange }, null, 2));
   console.log(`symbols dumped: ${file} (${total} total)`);
-  console.log(`combined: ${total}${total < MIN_UNIVERSE ? `  (< ${MIN_UNIVERSE} — a run would abort)` : ''}`);
+  console.log(`combined raw: ${total}${total < MIN_SCREENER_RAW ? `  (< ${MIN_SCREENER_RAW} — refresh would abort)` : ''}`);
 }
 
 // ── Per-symbol computation ─────────────────────────────────────────────────────
@@ -186,12 +299,13 @@ async function main() {
   // Universe comes from the persisted symbol_universe table — the screener is never
   // called on a normal run (repopulate it explicitly with --refresh-universe).
   let universe = await loadUniverse();
-  console.log(`universe (from symbol_universe): ${universe.length} symbols`);
+  console.log(`evaluable universe (from symbol_universe): ${universe.length} symbols`);
 
-  // Abort guard, BEFORE any write. A universe under MIN_UNIVERSE means the source is
-  // degraded/empty; refuse to run so a truncated universe can't overwrite the table.
-  if (universe.length < MIN_UNIVERSE) {
-    console.error(`ABORT: universe ${universe.length} < ${MIN_UNIVERSE} — refusing to write. Run --refresh-universe when the screener is healthy.`);
+  // Abort guard, BEFORE any write. An evaluable universe under MIN_EVALUABLE means
+  // symbol_universe is empty/half-written or the exclusion pass over-excluded;
+  // refuse to run so a degraded universe can't overwrite fundamentals_snapshot.
+  if (universe.length < MIN_EVALUABLE) {
+    console.error(`ABORT: evaluable universe ${universe.length} < ${MIN_EVALUABLE} — refusing to run. Repopulate with --refresh-universe.`);
     process.exit(1);
   }
 
