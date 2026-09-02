@@ -13,11 +13,19 @@
 //      node scripts/backfill-fundamentals.mjs            (full universe, writes)
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
+import readline from 'node:readline';
 import { pathToFileURL } from 'url';
 import { fetchSymbolFundamentals, computeDerived, num, latestCogsRev, grossMarginYears } from '../lib/watchlist/fundamentals.js';
 
+// Startup flags parsed up front: --prod selects which env file to load, so it must
+// be known before credentials are read. Without --prod the script reads .env.local
+// (dev) exactly as before; with --prod it reads .env.prod.bak instead.
+const argv = process.argv.slice(2);
+const PROD = argv.includes('--prod');
+const ENV_FILE = PROD ? '.env.prod.bak' : '.env.local';
+
 const env = Object.fromEntries(
-  fs.readFileSync('.env.local', 'utf8').split(/\r?\n/).filter(l => l.includes('=') && !l.startsWith('#'))
+  fs.readFileSync(ENV_FILE, 'utf8').split(/\r?\n/).filter(l => l.includes('=') && !l.startsWith('#'))
     .map(l => { const i = l.indexOf('='); return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^["']|["']$/g, '')]; })
 );
 const FMP = env.FMP_API_KEY;
@@ -25,7 +33,8 @@ const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY);
 const BASE = 'https://financialmodelingprep.com';
 
 // ── CLI flags ─────────────────────────────────────────────────────────────────
-const argv = process.argv.slice(2);
+// (argv / PROD / ENV_FILE are parsed above, before credentials are loaded.)
+const YES = argv.includes('--yes');   // skip the interactive prod confirmation
 const DRY_RUN = argv.includes('--dry-run');
 const LIMIT = (() => { const i = argv.indexOf('--limit'); return i >= 0 ? parseInt(argv[i + 1], 10) : null; })();
 // --sample <band> takes symbols from a market-cap band instead of the top of the
@@ -289,9 +298,29 @@ export async function buildRow(screenRow) {
   return computeDerived(raw, screenRow);
 }
 
+// Never start a --prod run silently: require an explicit go-ahead. --yes skips the
+// interactive prompt (for non-interactive / CI use); otherwise ask on the terminal
+// and abort on anything other than "y".
+async function confirmProd() {
+  if (YES) { console.log('--yes supplied → proceeding against PRODUCTION.'); return; }
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await new Promise(res => rl.question('Proceed against PRODUCTION? type "y" to continue: ', res));
+  rl.close();
+  if (answer.trim().toLowerCase() !== 'y') {
+    console.error('Aborted — production run not confirmed.');
+    process.exit(1);
+  }
+}
+
 // ── Main ────────────────────────────────────────────────────────────────────
 async function main() {
   console.log(`backfill-fundamentals  ${TODAY}  ${DRY_RUN ? '[DRY RUN]' : '[WRITE]'}${LIMIT ? `  limit=${LIMIT}` : ''}${SAMPLE ? `  sample=${SAMPLE}` : ''}${REFRESH_UNIVERSE ? '  [refresh-universe]' : ''}${CHECK_UNIVERSE ? '  [check-universe]' : ''}`);
+
+  // Target banner — always printed before any write, loud and hard to miss, so the
+  // destination project is never ambiguous. A --prod run must also be confirmed.
+  const bar = '═'.repeat(64);
+  console.log(`\n${bar}\n  TARGET: ${PROD ? 'PRODUCTION' : 'DEV'}   ${env.NEXT_PUBLIC_SUPABASE_URL}\n  (env file: ${ENV_FILE})\n${bar}\n`);
+  if (PROD) await confirmProd();
 
   if (CHECK_UNIVERSE) { await checkUniverse(); return; }
   if (REFRESH_UNIVERSE) { await refreshUniverse(); return; }
