@@ -63,14 +63,46 @@ update symbol_universe
 
 ## Abort guards
 
-Two guards, re-cut from the single (mis-set) `MIN_UNIVERSE = 2000`:
+Two guards, re-cut from the single (mis-set) `MIN_UNIVERSE = 2000`. Both abort
+**before any write**, so a degraded source can never overwrite a good table.
 
-- `MIN_SCREENER_RAW` — refresh only; detects a degraded/truncated screener (healthy
-  raw ≈ 1,916).
-- `MIN_EVALUABLE` — a normal backfill run + the refresh's post-exclusion sanity
-  (measured evaluable ≈ 1,341).
+- **Raw guard (refresh only) — relative, not absolute.** On `--refresh-universe`
+  the run reads the previous universe (the rows from the most recent `last_seen`
+  strictly before today) and aborts if the new raw screener count is more than
+  **`MAX_RAW_DROP` (20%)** below it. Both counts are printed so the drift is visible
+  in the run output. `MIN_SCREENER_RAW = 800` is only the **absolute backstop**,
+  applied when there is no previous universe to compare against (empty table, or a
+  same-day re-run where every row already carries today's `last_seen`).
+- **`MIN_EVALUABLE = 600`** — checked on a normal backfill run and as the refresh's
+  post-exclusion sanity; too few evaluable symbols means the exclusion pass or the
+  table is broken.
 
-Both are **provisionally set to 1 (effectively off)** for the first refresh, which
-prints the real raw / evaluable / by-reason counts. Real thresholds are chosen from
-that output — deliberately not guessed (a guard set above the real value already
-caused a silent false-abort once).
+The raw guard is relative **on purpose**: raw has slid 2622 → 1916 → 1752 in three
+days, so an absolute floor set anywhere near the live value would false-abort on
+ordinary drift — and a floor set *above* the real value already caused a silent
+false-abort once. A relative check tolerates gradual drift while still catching a
+sudden collapse (a missing exchange, a truncated response). Drift itself remains
+visible via the previous-vs-new counts printed every refresh — that's the signal,
+the guard only catches the cliff.
+
+## Consequence for the screen's SQL
+
+Exclusion now happens at **universe construction**, not inside
+`fundamentals_snapshot`. The snapshot still holds rows written *before* this
+decision for symbols that are now excluded — currently **~100** of them (measured
+2026-09-02), including Financial Services, Utilities and Real Estate names, plus
+`cogs_ratio` and `gm_years` failures. These rows are stale relative to the decision
+and will not be refreshed (the backfill skips excluded symbols), but they are not
+deleted.
+
+Therefore the screen's SQL must **not read `fundamentals_snapshot` directly**. It
+must join to `symbol_universe` and filter on `exclusion_reason IS NULL`:
+
+```sql
+select f.*
+  from fundamentals_snapshot f
+  join symbol_universe u on u.symbol = f.symbol
+ where u.exclusion_reason is null;
+```
+
+Reading the snapshot on its own would silently re-admit those ~100 excluded names.
