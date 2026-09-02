@@ -80,14 +80,25 @@ function EarningsLabel({ viewBox, data }) {
 
 const PRICE_RANGES = ['1M', '3M', '6M', 'YTD', '1Y', '5Y', 'ALL'];
 
-export default function PriceChart({ ticker, overlayPeers = [], setOverlayPeers, earningsHistory = [] }) {
+export default function PriceChart({
+  ticker, overlayPeers = [], setOverlayPeers, earningsHistory = [],
+  // Additive, default-preserving options (Stock Research passes none of these):
+  ranges = PRICE_RANGES,   // which range buttons to show
+  initialRange = '3M',     // initially-selected range
+  targetPrice = null,      // draw a horizontal target line when finite
+  light = false,           // fetch the lighter date+price series (never /full)
+  fetchYears,              // prefetch exactly N years ONCE (no per-range refetch)
+  height,                  // fixed px height override ("rendered larger")
+}) {
   // Responsive px height (300 / 440 / 660 by viewport), shared with the
   // /performance chart. A number → passed straight to ResponsiveContainer, so
   // no percentage-height wrapper (which caused width(-1)/height(-1) errors).
-  const chartHeight = useChartHeight();
+  // `height` overrides it when a caller wants a specific size.
+  const responsiveHeight = useChartHeight();
+  const chartHeight = height ?? responsiveHeight;
   const [allPrices,    setAllPrices]    = useState(null); // { [ticker]: priceArr }
   const [loading,      setLoading]      = useState(true);
-  const [range,        setRange]        = useState('3M');
+  const [range,        setRange]        = useState(initialRange);
   const [yearsLoaded,  setYearsLoaded]  = useState(1);
 
   // Fetch (or re-fetch for 5Y/ALL)
@@ -95,7 +106,7 @@ export default function PriceChart({ ticker, overlayPeers = [], setOverlayPeers,
     setLoading(true);
     const tList = [ticker, ...overlayPeers].join(',');
     try {
-      const res  = await fetch(`/api/historical-prices?tickers=${tList}&years=${years}`);
+      const res  = await fetch(`/api/historical-prices?tickers=${tList}&years=${years}${light ? '&light=true' : ''}`);
       const json = await res.json();
       if (json?.data) {
         const map = {};
@@ -105,14 +116,15 @@ export default function PriceChart({ ticker, overlayPeers = [], setOverlayPeers,
       }
     } catch {}
     setLoading(false);
-  }, [ticker, overlayPeers]);
+  }, [ticker, overlayPeers, light]);
 
-  useEffect(() => { doFetch(1); }, [ticker]); // reset on ticker change
+  useEffect(() => { doFetch(fetchYears ?? 1); }, [ticker]); // reset on ticker change
 
-  // When user picks 5Y/ALL, re-fetch 5 years if not already loaded
+  // When user picks 5Y/ALL, re-fetch 5 years if not already loaded. Skipped when
+  // fetchYears prefetched a fixed window (panel: 5Y once) — we slice client-side.
   function handleRange(r) {
     setRange(r);
-    if ((r === '5Y' || r === 'ALL') && yearsLoaded < 5) doFetch(5);
+    if (!fetchYears && (r === '5Y' || r === 'ALL') && yearsLoaded < 5) doFetch(5);
   }
 
   // Build chart data keyed by date
@@ -154,6 +166,8 @@ export default function PriceChart({ ticker, overlayPeers = [], setOverlayPeers,
       if (Number.isFinite(v)) yValues.push(v);
     }
   }
+  // Include the target line so it's never clipped outside the visible price band.
+  if (Number.isFinite(targetPrice)) yValues.push(targetPrice);
   const yLow    = yValues.length ? Math.min(...yValues) : 0;
   const yHigh   = yValues.length ? Math.max(...yValues) : 0;
   const yPad    = (yHigh - yLow) * 0.05 || yHigh * 0.05 || 1; // fall back if flat
@@ -165,7 +179,7 @@ export default function PriceChart({ ticker, overlayPeers = [], setOverlayPeers,
       eyebrow={ticker}
       action={
         <div style={{ display: 'flex', gap: 2 }}>
-          {PRICE_RANGES.map(r => (
+          {ranges.map(r => (
             <button key={r} onClick={() => handleRange(r)} style={{
               background:   r === range ? 'var(--bg-hover)' : 'transparent',
               border:       '1px solid ' + (r === range ? 'var(--accent)' : 'var(--border-color)'),
@@ -235,6 +249,14 @@ export default function PriceChart({ ticker, overlayPeers = [], setOverlayPeers,
                     />
                   );
                 })}
+                {/* Target-price line (watchlist detail panel) */}
+                {Number.isFinite(targetPrice) && (
+                  <ReferenceLine
+                    y={targetPrice}
+                    stroke="var(--warn)" strokeDasharray="5 3" strokeWidth={1.5}
+                    label={{ value: `target ${fmtDollars(targetPrice)}`, position: 'insideTopRight', fill: 'var(--warn)', fontSize: 10 }}
+                  />
+                )}
                 <Area
                   type="monotone" dataKey="price"
                   stroke="var(--accent)" strokeWidth={2}

@@ -31,9 +31,15 @@ export async function GET(request) {
   // ~1.3% yield), the same order as the outperformance being measured. The `full`
   // endpoint has no adjClose; `dividend-adjusted` does. Portfolio tickers keep raw
   // `close` (their dividends are credited from the dated dividends array instead).
+  // light=true → historical-price-eod/light (date + price + volume, no OHLC), the
+  // ~95%-lighter series the /watchlist detail panel uses. The endpoint's price
+  // field is `price`; we normalise it to `close` below so the chart component (which
+  // only reads `close`) needs no changes. Stock Research never passes light, so its
+  // /full behaviour is unchanged. light wins over adjusted if both are set.
+  const light    = searchParams.get('light') === 'true';
   const adjusted = searchParams.get('adjusted') === 'true';
-  const fmpPath  = adjusted ? 'dividend-adjusted' : 'full';
-  const closeKey = adjusted ? 'adjClose' : 'close';
+  const fmpPath  = light ? 'light' : (adjusted ? 'dividend-adjusted' : 'full');
+  const closeKey = light ? 'price' : (adjusted ? 'adjClose' : 'close');
 
   const today = new Date().toISOString().slice(0, 10);
   const yearsBack = Math.min(Math.max(parseInt(searchParams.get('years') ?? '1', 10), 1), 5);

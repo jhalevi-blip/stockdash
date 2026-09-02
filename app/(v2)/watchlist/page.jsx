@@ -2,8 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
+import dynamic from 'next/dynamic';
 import Card from '@/app/(v2)/_components/Card';
 import Dot from '@/app/(v2)/_components/Dot';
+
+// Reuse the Stock Research price chart (recharts loads in an async chunk). The
+// panel drives it with light=true + fetchYears=5 (one fetch, sliced client-side)
+// and a target-price line — all via the additive props on the component.
+const PriceChart = dynamic(() => import('@/app/(v2)/research/_components/PriceChart'), {
+  ssr: false,
+  loading: () => <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>Loading chart…</div>,
+});
 
 const FONT = "'Segoe UI', system-ui, -apple-system, sans-serif";
 const POLL_MS = 60_000;
@@ -202,14 +211,25 @@ function EditableCell({ value, kind, assetClass, placeholder, onSave, styleExtra
   );
 }
 
-function Row({ item, role, marketOpen, now, onPatch }) {
+function Row({ item, role, marketOpen, now, onPatch, selected, onSelect }) {
   const q = item.quote;
   const asOf = q.status === 'ok'
     ? <AsOf ms={q.asOf} marketOpen={marketOpen} now={now} />
     : <span style={{ color: 'var(--text-muted)' }}>—</span>;
 
+  // Row click selects the row for the detail panel. Clicks that land on an
+  // editable cell still begin editing (both handlers fire on bubble) — selecting
+  // the row you're editing is harmless. Highlight the active row.
   return (
-    <tr>
+    <tr
+      onClick={() => onSelect?.(item)}
+      aria-selected={selected || undefined}
+      style={{
+        cursor: 'pointer',
+        background: selected ? 'var(--bg-hover)' : undefined,
+        boxShadow: selected ? 'inset 3px 0 0 0 var(--accent)' : undefined,
+      }}
+    >
       <SymbolCell item={item} />
       {/* price + change, or a colSpan={2} error/unresolved label (spec §2 step 3) */}
       {priceCells(item)}
@@ -282,7 +302,7 @@ function makeComparator(key, dir) {
   };
 }
 
-function SectionTable({ section, markets, now, onPatch }) {
+function SectionTable({ section, markets, now, onPatch, selectedId, onSelect }) {
   const role = COLUMNS[section.role] ? section.role : 'candidate';
   const cols = COLUMNS[role];
   // Which session governs this section's "stale" flag: fx sections → FX, else US.
@@ -329,7 +349,7 @@ function SectionTable({ section, markets, now, onPatch }) {
               </tr>
             </thead>
             <tbody>
-              {items.map(it => <Row key={it.id} item={it} role={role} marketOpen={marketOpen} now={now} onPatch={onPatch} />)}
+              {items.map(it => <Row key={it.id} item={it} role={role} marketOpen={marketOpen} now={now} onPatch={onPatch} selected={it.id === selectedId} onSelect={onSelect} />)}
             </tbody>
           </table>
         </div>
@@ -347,10 +367,172 @@ function MarketDot({ label, session }) {
   );
 }
 
+// ── Detail panel ──────────────────────────────────────────────────────────────
+// Right-hand master–detail pane: price chart, key stats, quarterly financials.
+// Fundamentals come from /api/watchlist/fundamentals; the chart reuses the Stock
+// Research component against /api/historical-prices (light series). OUT OF SCOPE
+// (per spec/task): ownership breakdown, segment revenue, capital-structure bars,
+// peer comparison.
+
+// Abbreviated dollar magnitude for cap / EV / debt / cash / statement lines.
+function fmtBigDollars(n) {
+  if (n == null) return '—';
+  const abs = Math.abs(n), sign = n < 0 ? '-' : '';
+  if (abs >= 1e12) return `${sign}$${(abs / 1e12).toFixed(2)}T`;
+  if (abs >= 1e9)  return `${sign}$${(abs / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6)  return `${sign}$${(abs / 1e6).toFixed(2)}M`;
+  return `${sign}$${abs.toLocaleString('en-US')}`;
+}
+const fmtRatio = n => (n == null ? '—' : `${n.toFixed(1)}×`);
+function fmtLongDate(s) {
+  if (!s) return '—';
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function Stat({ label, value }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)' }}>{label}</div>
+      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+    </div>
+  );
+}
+
+function QuartersTable({ quarters }) {
+  const qLabel = q => (q.period && q.fiscalYear ? `${q.period} FY${String(q.fiscalYear).slice(-2)}` : (q.date || '—'));
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT }}>
+        <thead>
+          <tr>
+            <th style={qTh}>Quarter</th>
+            <th style={{ ...qTh, textAlign: 'right' }}>Revenue</th>
+            <th style={{ ...qTh, textAlign: 'right' }}>Gross profit</th>
+            <th style={{ ...qTh, textAlign: 'right' }}>Net income</th>
+          </tr>
+        </thead>
+        <tbody>
+          {quarters.map((q, i) => (
+            <tr key={q.date || i}>
+              <td style={qTd}>{qLabel(q)}</td>
+              <td style={{ ...qTd, textAlign: 'right' }}>{fmtBigDollars(q.revenue)}</td>
+              <td style={{ ...qTd, textAlign: 'right' }}>{fmtBigDollars(q.grossProfit)}</td>
+              <td style={{ ...qTd, textAlign: 'right' }}>{fmtBigDollars(q.netIncome)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Fetches + renders the fundamentals for a resolved row. Always mounted with a
+// key={item.id} by DetailPanel so hook order stays stable and state resets per
+// symbol (a fresh 5Y chart fetch + fundamentals fetch on every switch).
+function ResolvedDetail({ item }) {
+  const symbol = item.providerSymbol || item.displaySymbol;
+  const [f, setF] = useState({ status: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    setF({ status: 'loading' });
+    (async () => {
+      try {
+        const res = await fetch(`/api/watchlist/fundamentals?symbol=${encodeURIComponent(symbol)}`, { cache: 'no-store' });
+        if (!res.ok) {
+          let msg = `Request failed (HTTP ${res.status})`;
+          try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* keep status-line msg */ }
+          throw new Error(msg);
+        }
+        const data = await res.json();
+        if (!cancelled) setF({ status: 'ready', data });
+      } catch (e) {
+        if (!cancelled) setF({ status: 'error', error: e?.message || 'Failed to load' });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [symbol]);
+
+  const fund = f.status === 'ready' ? f.data : null;
+  const noData = fund && fund.resolved === false; // route said no data on this plan
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* 1. Price chart — reused Stock Research component, larger, light series,
+             5Y fetched once + sliced, target line when the row has a target. */}
+      <PriceChart
+        ticker={symbol}
+        light
+        fetchYears={5}
+        ranges={['1M', '6M', '1Y', '5Y']}
+        initialRange="1Y"
+        targetPrice={item.targetPrice ?? null}
+        height={380}
+      />
+
+      {/* 2. Key stats */}
+      <Card title="Key stats" eyebrow={item.displaySymbol}>
+        {f.status === 'loading' && <p style={panelMsg}>Loading fundamentals…</p>}
+        {f.status === 'error' && <p style={{ ...panelMsg, color: 'var(--negative)' }}>Couldn’t load fundamentals: {f.error}</p>}
+        {noData && <p style={{ ...panelMsg, fontStyle: 'italic' }}>No data on current plan.</p>}
+        {fund && !noData && (
+          <div style={statGrid}>
+            <Stat label="Market cap" value={fmtBigDollars(fund.marketCap)} />
+            <Stat label="Enterprise value" value={fmtBigDollars(fund.enterpriseValue)} />
+            <Stat label="Total debt" value={fmtBigDollars(fund.totalDebt)} />
+            <Stat label="Cash & equiv." value={fmtBigDollars(fund.cashAndEquivalents)} />
+            <Stat label="P/E (TTM)" value={fmtRatio(fund.peRatio)} />
+            <Stat label="P/S (TTM)" value={fmtRatio(fund.psRatio)} />
+            <Stat label="Next earnings" value={fmtLongDate(fund.nextEarningsDate)} />
+          </div>
+        )}
+      </Card>
+
+      {/* 3. Quarterly revenue / gross profit / net income — last 5 quarters */}
+      <Card title="Quarterly financials" eyebrow="last 5 quarters">
+        {f.status === 'loading' && <p style={panelMsg}>Loading…</p>}
+        {f.status === 'error' && <p style={{ ...panelMsg, color: 'var(--negative)' }}>—</p>}
+        {noData && <p style={{ ...panelMsg, fontStyle: 'italic' }}>No data on current plan.</p>}
+        {fund && !noData && (
+          fund.quarters?.length ? <QuartersTable quarters={fund.quarters} /> : <p style={panelMsg}>No quarterly data.</p>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function DetailPanel({ item }) {
+  if (!item) {
+    return (
+      <Card title="Detail" style={{ minHeight: 360 }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Select a row to see its detail.</p>
+      </Card>
+    );
+  }
+  // Unresolved (e.g. 6479): no data on this plan; skip both fetches entirely.
+  if (!item.resolved) {
+    return (
+      <Card title={item.displaySymbol} eyebrow={item.exchange || item.assetClass} style={{ minHeight: 360 }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic' }}>
+          No data on current plan{item.exchange ? ` (${item.exchange})` : ''}.
+        </p>
+      </Card>
+    );
+  }
+  // Remount per symbol → stable hook order + clean per-symbol fetch state.
+  return <ResolvedDetail key={item.id} item={item} />;
+}
+
 export default function WatchlistPage() {
   const { isSignedIn, isLoaded } = useUser();
   const [state, setState] = useState({ status: 'loading' }); // loading | refreshing | ready | error
   const dataRef = useRef(null);
+
+  // Which row is open in the detail panel. Default = first row of the first
+  // section; recovers to that default if the current selection disappears. A poll
+  // refresh keeps the user's live choice (we only reselect when it's gone).
+  const [selectedId, setSelectedId] = useState(null);
 
   // Mount-gated clock, ticking each minute, so the "as of" relative labels stay live
   // without calling Date.now() during render (mirrors the Sidebar clock pattern).
@@ -441,6 +623,18 @@ export default function WatchlistPage() {
   const sections = data?.sections ?? [];
   const isEmpty = state.status !== 'loading' && sections.every(s => s.items.length === 0);
 
+  // Effective selection, derived in render (no setState-in-effect): honor the
+  // user's pick while its row still exists, otherwise default to the first row of
+  // the first section. setSelectedId is only ever called from a row click.
+  let firstId = null, selectionPresent = false;
+  for (const s of sections) for (const it of s.items) {
+    if (firstId === null) firstId = it.id;
+    if (it.id === selectedId) selectionPresent = true;
+  }
+  const effectiveId = selectionPresent ? selectedId : firstId;
+  let selectedItem = null;
+  for (const s of sections) for (const it of s.items) if (it.id === effectiveId) selectedItem = it;
+
   return (
     <Shell markets={data?.markets} generatedAt={data?.generatedAt} refreshing={state.status === 'refreshing'} onRefresh={() => load({ silent: true })}>
       {state.status === 'error' && (
@@ -462,11 +656,48 @@ export default function WatchlistPage() {
         </p>
       )}
 
-      {sections.map(s => <SectionTable key={s.id ?? 'ungrouped'} section={s} markets={data?.markets} now={now} onPatch={patchItem} />)}
+      {/* Master–detail: sections table on the left (narrower), detail panel on the
+          right. The panel is sticky so it stays in view while the table scrolls. */}
+      <div style={masterDetail}>
+        <div style={{ minWidth: 0 }}>
+          {sections.map(s => (
+            <SectionTable
+              key={s.id ?? 'ungrouped'}
+              section={s}
+              markets={data?.markets}
+              now={now}
+              onPatch={patchItem}
+              selectedId={effectiveId}
+              onSelect={it => setSelectedId(it.id)}
+            />
+          ))}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ position: 'sticky', top: 20 }}>
+            <DetailPanel item={selectedItem} />
+          </div>
+        </div>
+      </div>
     </Shell>
   );
 }
 
+const masterDetail = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(360px, 480px) minmax(0, 1fr)',
+  gap: 16,
+  alignItems: 'start',
+};
+const panelMsg = { color: 'var(--text-secondary)', fontSize: 13, margin: 0 };
+const statGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 14 };
+const qTh = {
+  textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 600, letterSpacing: '.06em',
+  textTransform: 'uppercase', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap',
+};
+const qTd = {
+  padding: '7px 8px', fontSize: 13, borderBottom: '1px solid var(--border-color)',
+  fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
+};
 const msg = { color: 'var(--text-secondary)', fontSize: 14, padding: '8px 2px' };
 const retryBtn = {
   marginLeft: 12, padding: '2px 10px', fontSize: 12, borderRadius: 4, cursor: 'pointer',
@@ -475,7 +706,7 @@ const retryBtn = {
 
 function Shell({ children, markets, generatedAt, refreshing, onRefresh }) {
   return (
-    <div style={{ padding: '20px 24px', maxWidth: 1100, margin: '0 auto', fontFamily: FONT }}>
+    <div style={{ padding: '20px 24px', maxWidth: 'none', margin: 0, fontFamily: FONT }}>
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Watchlist</h1>
