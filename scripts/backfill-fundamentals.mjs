@@ -15,7 +15,7 @@ import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import readline from 'node:readline';
 import { pathToFileURL } from 'url';
-import { fetchSymbolFundamentals, computeDerived, num, latestCogsRev, grossMarginYears } from '../lib/watchlist/fundamentals.js';
+import { fetchSymbolFundamentals, computeDerived, buildPeriodRows, num, latestCogsRev, grossMarginYears } from '../lib/watchlist/fundamentals.js';
 
 // Startup flags parsed up front: --prod selects which env file to load, so it must
 // be known before credentials are read. Without --prod the script reads .env.local
@@ -46,6 +46,11 @@ const REFRESH_UNIVERSE = argv.includes('--refresh-universe');
 // --check-universe: one screener call per exchange, print + append counts to a
 // local log. Read-only monitoring — makes no database writes.
 const CHECK_UNIVERSE = argv.includes('--check-universe');
+// --symbol <TICKER>: fetch and write ONE symbol to all three tables, bypassing the
+// universe load, the evaluable-count abort guard, sample/limit and the resume skip.
+// For on-demand population of names outside the screener universe (e.g. the research
+// page). marketCap/sector/industry are unknown here -> stored NULL (no screener row).
+const SYMBOL = (() => { const i = argv.indexOf('--symbol'); return i >= 0 ? (argv[i + 1] || '').toUpperCase() : null; })();
 // ── Abort guards ──────────────────────────────────────────────────────────────
 // These guard against CATASTROPHIC failure — a missing exchange, a truncated
 // response, an inverted exclusion rule — NOT against normal drift. Raw has slid
@@ -295,7 +300,9 @@ async function checkUniverse() {
 // derivation live in lib/watchlist/fundamentals.js.
 export async function buildRow(screenRow) {
   const raw = await fetchSymbolFundamentals(screenRow.symbol, getJson);
-  return computeDerived(raw, screenRow);
+  const snapshot = computeDerived(raw, screenRow);
+  const { annual, quarterly } = buildPeriodRows(raw, screenRow.symbol);
+  return { snapshot, annual, quarterly };
 }
 
 // Never start a --prod run silently: require an explicit go-ahead. --yes skips the
@@ -314,7 +321,7 @@ async function confirmProd() {
 
 // ── Main ────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log(`backfill-fundamentals  ${TODAY}  ${DRY_RUN ? '[DRY RUN]' : '[WRITE]'}${LIMIT ? `  limit=${LIMIT}` : ''}${SAMPLE ? `  sample=${SAMPLE}` : ''}${REFRESH_UNIVERSE ? '  [refresh-universe]' : ''}${CHECK_UNIVERSE ? '  [check-universe]' : ''}`);
+  console.log(`backfill-fundamentals  ${TODAY}  ${DRY_RUN ? '[DRY RUN]' : '[WRITE]'}${LIMIT ? `  limit=${LIMIT}` : ''}${SAMPLE ? `  sample=${SAMPLE}` : ''}${REFRESH_UNIVERSE ? '  [refresh-universe]' : ''}${CHECK_UNIVERSE ? '  [check-universe]' : ''}${SYMBOL ? `  symbol=${SYMBOL}` : ''}`);
 
   // Target banner — always printed before any write, loud and hard to miss, so the
   // destination project is never ambiguous. A --prod run must also be confirmed.
@@ -325,56 +332,71 @@ async function main() {
   if (CHECK_UNIVERSE) { await checkUniverse(); return; }
   if (REFRESH_UNIVERSE) { await refreshUniverse(); return; }
 
-  // Universe comes from the persisted symbol_universe table — the screener is never
-  // called on a normal run (repopulate it explicitly with --refresh-universe).
-  let universe = await loadUniverse();
-  console.log(`evaluable universe (from symbol_universe): ${universe.length} symbols`);
+  let universe, todo;
+  if (SYMBOL) {
+    // Single-symbol mode: no universe table, no evaluable guard, no sample/limit, no
+    // resume skip. One synthetic screener row (cap/sector/industry unknown -> NULL);
+    // everything FMP-derived (ratios + raw operands + period history) still populates.
+    universe = [{ symbol: SYMBOL, marketCap: null, sector: null, industry: null }];
+    todo = universe;
+    console.log(`single-symbol mode: ${SYMBOL} — bypassing universe/guard/resume; writing all three tables.\n`);
+  } else {
+    // Universe comes from the persisted symbol_universe table — the screener is never
+    // called on a normal run (repopulate it explicitly with --refresh-universe).
+    universe = await loadUniverse();
+    console.log(`evaluable universe (from symbol_universe): ${universe.length} symbols`);
 
-  // Abort guard, BEFORE any write. An evaluable universe under MIN_EVALUABLE means
-  // symbol_universe is empty/half-written or the exclusion pass over-excluded;
-  // refuse to run so a degraded universe can't overwrite fundamentals_snapshot.
-  if (universe.length < MIN_EVALUABLE) {
-    console.error(`ABORT: evaluable universe ${universe.length} < ${MIN_EVALUABLE} — refusing to run. Repopulate with --refresh-universe.`);
-    process.exit(1);
+    // Abort guard, BEFORE any write. An evaluable universe under MIN_EVALUABLE means
+    // symbol_universe is empty/half-written or the exclusion pass over-excluded;
+    // refuse to run so a degraded universe can't overwrite fundamentals_snapshot.
+    if (universe.length < MIN_EVALUABLE) {
+      console.error(`ABORT: evaluable universe ${universe.length} < ${MIN_EVALUABLE} — refusing to run. Repopulate with --refresh-universe.`);
+      process.exit(1);
+    }
+
+    if (SAMPLE) {
+      const band = parseBand(SAMPLE);
+      if (!band || band.lo === null) { console.error(`bad --sample band: ${SAMPLE}`); process.exit(1); }
+      universe = universe.filter(r => { const mc = num(r.marketCap); return mc !== null && mc >= band.lo && (band.hi === null || mc < band.hi); });
+      console.log(`sample band ${SAMPLE}: ${universe.length} symbols in [${band.lo}${band.hi === null ? ', ∞' : `, ${band.hi}`})`);
+    }
+    if (LIMIT) universe = universe.slice(0, LIMIT);
+
+    // Resume: drop symbols already snapshotted today.
+    const wanted = universe.map(r => r.symbol);
+    const done = new Set();
+    for (let i = 0; i < wanted.length; i += 500) {
+      const { data } = await sb.from('fundamentals_snapshot')
+        .select('symbol').eq('as_of', TODAY).in('symbol', wanted.slice(i, i + 500));
+      (data || []).forEach(r => done.add(r.symbol));
+    }
+    todo = universe.filter(r => !done.has(r.symbol));
+    console.log(`to process: ${todo.length}  (skipped ${universe.length - todo.length} already as_of ${TODAY})\n`);
   }
 
-  if (SAMPLE) {
-    const band = parseBand(SAMPLE);
-    if (!band || band.lo === null) { console.error(`bad --sample band: ${SAMPLE}`); process.exit(1); }
-    universe = universe.filter(r => { const mc = num(r.marketCap); return mc !== null && mc >= band.lo && (band.hi === null || mc < band.hi); });
-    console.log(`sample band ${SAMPLE}: ${universe.length} symbols in [${band.lo}${band.hi === null ? ', ∞' : `, ${band.hi}`})`);
-  }
-  if (LIMIT) universe = universe.slice(0, LIMIT);
-
-  // Resume: drop symbols already snapshotted today.
-  const wanted = universe.map(r => r.symbol);
-  const done = new Set();
-  for (let i = 0; i < wanted.length; i += 500) {
-    const { data } = await sb.from('fundamentals_snapshot')
-      .select('symbol').eq('as_of', TODAY).in('symbol', wanted.slice(i, i + 500));
-    (data || []).forEach(r => done.add(r.symbol));
-  }
-  const todo = universe.filter(r => !done.has(r.symbol));
-  console.log(`to process: ${todo.length}  (skipped ${universe.length - todo.length} already as_of ${TODAY})\n`);
-
-  // Coverage counters over every populated column (excl. key/date).
-  const COLS = ['market_cap', 'market_cap_divergence', 'avg_dollar_volume', 'sector', 'industry',
-    'roic', 'roic_thin_base', 'roe', 'gross_margin', 'gross_margin_stdev', 'gross_margin_years',
-    'operating_income', 'fcf', 'net_income', 'fcf_conversion', 'net_debt_ebitda', 'net_cash',
-    'nulled_ratios', 'shares_cagr_3y', 'revenue_cagr_3y', 'price', 'high_52w', 'drawdown_pct'];
-  const cover = Object.fromEntries(COLS.map(c => [c, 0]));
+  // Coverage counters. COLS is derived from the first snapshot row so every stored
+  // column — including the new 015 raw operands — is reported without a hand-list to
+  // keep in sync. Keys not worth a coverage line (the PK and as_of) are dropped.
+  let COLS = null;
+  const cover = {};
   const divergences = [];   // {symbol, div} for every row with a computable divergence
-  const RATIO_COLS = ['roic', 'roe', 'fcf_conversion', 'net_debt_ebitda'];
+  const RATIO_COLS = ['roic', 'roic_reported', 'roe', 'fcf_conversion', 'net_debt_ebitda'];
   const ratioVals = Object.fromEntries(RATIO_COLS.map(c => [c, []]));  // non-null values, for tails
   let gmDropSymbols = 0;    // symbols with >=1 gross-margin year dropped as bad data
   let netCashTrue = 0;      // symbols flagged net_cash = true (netDebt < 0)
   let roicThinBase = 0;     // symbols flagged roic_thin_base = true
   let processed = 0, written = 0, failed = 0;
+  // Period-history counters: how many fiscal years / calendar quarters FMP returned
+  // per symbol, so we can see how much history actually came back.
+  const annualCounts = [], quarterlyCounts = [];
+  let annualWritten = 0, quarterlyWritten = 0;
 
   for (const sr of todo) {
-    let row;
-    try { row = await buildRow(sr); }
+    let built;
+    try { built = await buildRow(sr); }
     catch (e) { console.log(`  ${sr.symbol}: build error ${e.message}`); failed++; continue; }
+    const row = built.snapshot;
+    if (!COLS) { COLS = Object.keys(row).filter(k => k !== 'symbol' && k !== 'as_of' && k !== '__gmDropped'); for (const c of COLS) cover[c] = 0; }
     processed++;
     for (const c of COLS) if (row[c] !== null && row[c] !== undefined) cover[c]++;
     if (row.market_cap_divergence !== null) divergences.push({ symbol: row.symbol, div: row.market_cap_divergence });
@@ -382,24 +404,53 @@ async function main() {
     if (row.net_cash === true) netCashTrue++;
     if (row.roic_thin_base === true) roicThinBase++;
     for (const c of RATIO_COLS) if (row[c] !== null) ratioVals[c].push(row[c]);
+    annualCounts.push(built.annual.length);
+    quarterlyCounts.push(built.quarterly.length);
 
     if (DRY_RUN) {
-      console.log(`  ${row.symbol.padEnd(6)} ` + COLS.map(c => `${c}=${row[c] === null ? '∅' : row[c]}`).join('  '));
-    } else {
-      const { __gmDropped, ...dbRow } = row;   // diagnostics don't go to the table
-      const { error } = await sb.from('fundamentals_snapshot').upsert(dbRow, { onConflict: 'symbol' });
-      if (error) { console.log(`  ${row.symbol}: upsert error ${error.message}`); failed++; }
-      else written++;
+      console.log(`  ${row.symbol.padEnd(6)} annual=${built.annual.length} quarterly=${built.quarterly.length}  ` + COLS.map(c => `${c}=${row[c] === null ? '∅' : row[c]}`).join('  '));
+      continue;
     }
+    // Write period rows FIRST, then the snapshot. The snapshot's as_of=today is the
+    // resume signal (skipped next run), so it must land only after this symbol's
+    // history is safely written — a mid-symbol crash then re-fetches the whole symbol.
+    const { __gmDropped, ...dbRow } = row;   // diagnostics don't go to the table
+    if (built.annual.length) {
+      const { error } = await sb.from('fundamentals_annual').upsert(built.annual, { onConflict: 'symbol,fiscal_year' });
+      if (error) { console.log(`  ${row.symbol}: fundamentals_annual upsert error ${error.message}`); failed++; continue; }
+      annualWritten += built.annual.length;
+    }
+    if (built.quarterly.length) {
+      const { error } = await sb.from('fundamentals_quarterly').upsert(built.quarterly, { onConflict: 'symbol,calendar_year,calendar_quarter' });
+      if (error) { console.log(`  ${row.symbol}: fundamentals_quarterly upsert error ${error.message}`); failed++; continue; }
+      quarterlyWritten += built.quarterly.length;
+    }
+    const { error } = await sb.from('fundamentals_snapshot').upsert(dbRow, { onConflict: 'symbol' });
+    if (error) { console.log(`  ${row.symbol}: upsert error ${error.message}`); failed++; }
+    else written++;
   }
 
   // ── Coverage report ─────────────────────────────────────────────────────────
   console.log(`\n=== COVERAGE (${processed} symbols processed${DRY_RUN ? ', nothing written' : `, ${written} written`}${failed ? `, ${failed} failed` : ''}) ===`);
   const pad = (s, n) => String(s).padEnd(n);
-  for (const c of COLS) {
+  for (const c of (COLS || [])) {
     const n = cover[c], pct = processed ? Math.round((n / processed) * 100) : 0;
-    console.log(`  ${pad(c, 22)} ${pad(`${n}/${processed}`, 10)} ${pct}%`);
+    console.log(`  ${pad(c, 24)} ${pad(`${n}/${processed}`, 10)} ${pct}%`);
   }
+
+  // ── Period-history report ─────────────────────────────────────────────────────
+  // How much annual/quarterly history FMP actually returned, per symbol, so gaps are
+  // visible. `zero` = symbols for which the table got no rows at all.
+  const periodStats = arr => {
+    if (!arr.length) return { zero: 0, min: 0, p50: 0, max: 0, total: 0 };
+    const s = [...arr].sort((a, b) => a - b);
+    return { zero: arr.filter(x => x === 0).length, min: s[0], p50: s[Math.floor(0.5 * (s.length - 1))], max: s[s.length - 1], total: arr.reduce((a, b) => a + b, 0) };
+  };
+  const aS = periodStats(annualCounts), qS = periodStats(quarterlyCounts);
+  console.log(`\n=== PERIOD HISTORY (rows per symbol; ${DRY_RUN ? 'not written' : `${annualWritten} annual + ${quarterlyWritten} quarterly rows written`}) ===`);
+  console.log(`  ${pad('table', 22)} ${'min'.padStart(5)} ${'p50'.padStart(5)} ${'max'.padStart(5)} ${'zero'.padStart(6)} ${'total'.padStart(8)}`);
+  console.log(`  ${pad('fundamentals_annual', 22)} ${String(aS.min).padStart(5)} ${String(aS.p50).padStart(5)} ${String(aS.max).padStart(5)} ${String(aS.zero).padStart(6)} ${String(aS.total).padStart(8)}`);
+  console.log(`  ${pad('fundamentals_quarterly', 22)} ${String(qS.min).padStart(5)} ${String(qS.p50).padStart(5)} ${String(qS.max).padStart(5)} ${String(qS.zero).padStart(6)} ${String(qS.total).padStart(8)}`);
 
   // ── Market-cap divergence report ─────────────────────────────────────────────
   const bad = divergences.filter(d => d.div > 0.2).sort((a, b) => b.div - a.div);
