@@ -51,6 +51,12 @@ const CHECK_UNIVERSE = argv.includes('--check-universe');
 // For on-demand population of names outside the screener universe (e.g. the research
 // page). marketCap/sector/industry are unknown here -> stored NULL (no screener row).
 const SYMBOL = (() => { const i = argv.indexOf('--symbol'); return i >= 0 ? (argv[i + 1] || '').toUpperCase() : null; })();
+// --refresh: reprocess symbols already stamped as_of today (a same-day re-backfill
+// after a code change), instead of skipping them. Stays resumable by skipping symbols
+// that already have period history (a fundamentals_annual row); the write loop lands
+// that marker LAST under --refresh so its presence means the symbol is fully written.
+// (Distinct from --refresh-universe, which repopulates symbol_universe.)
+const REFRESH = argv.includes('--refresh');
 // ── Abort guards ──────────────────────────────────────────────────────────────
 // These guard against CATASTROPHIC failure — a missing exchange, a truncated
 // response, an inverted exclusion rule — NOT against normal drift. Raw has slid
@@ -321,7 +327,7 @@ async function confirmProd() {
 
 // ── Main ────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log(`backfill-fundamentals  ${TODAY}  ${DRY_RUN ? '[DRY RUN]' : '[WRITE]'}${LIMIT ? `  limit=${LIMIT}` : ''}${SAMPLE ? `  sample=${SAMPLE}` : ''}${REFRESH_UNIVERSE ? '  [refresh-universe]' : ''}${CHECK_UNIVERSE ? '  [check-universe]' : ''}${SYMBOL ? `  symbol=${SYMBOL}` : ''}`);
+  console.log(`backfill-fundamentals  ${TODAY}  ${DRY_RUN ? '[DRY RUN]' : '[WRITE]'}${LIMIT ? `  limit=${LIMIT}` : ''}${SAMPLE ? `  sample=${SAMPLE}` : ''}${REFRESH_UNIVERSE ? '  [refresh-universe]' : ''}${CHECK_UNIVERSE ? '  [check-universe]' : ''}${SYMBOL ? `  symbol=${SYMBOL}` : ''}${REFRESH ? '  [refresh]' : ''}`);
 
   // Target banner — always printed before any write, loud and hard to miss, so the
   // destination project is never ambiguous. A --prod run must also be confirmed.
@@ -362,16 +368,37 @@ async function main() {
     }
     if (LIMIT) universe = universe.slice(0, LIMIT);
 
-    // Resume: drop symbols already snapshotted today.
+    // Resume. Normal: skip symbols already snapshotted today (as_of == TODAY).
+    // --refresh: reprocess today's rows too (a same-day re-backfill after a code
+    // change), but stay resumable by skipping symbols that already have period history
+    // — a fundamentals_annual row, which only the new-code path writes and which the
+    // write loop lands LAST under --refresh, so its presence means the symbol is done.
     const wanted = universe.map(r => r.symbol);
     const done = new Set();
-    for (let i = 0; i < wanted.length; i += 500) {
-      const { data } = await sb.from('fundamentals_snapshot')
-        .select('symbol').eq('as_of', TODAY).in('symbol', wanted.slice(i, i + 500));
-      (data || []).forEach(r => done.add(r.symbol));
+    if (REFRESH) {
+      // Symbols batched to keep the URL small; each batch paginated because a symbol
+      // has up to ~10 annual rows, which can exceed the 1000-row default page cap.
+      const PAGE = 1000;
+      for (let i = 0; i < wanted.length; i += 200) {
+        const batch = wanted.slice(i, i + 200);
+        for (let from = 0; ; from += PAGE) {
+          const { data, error } = await sb.from('fundamentals_annual')
+            .select('symbol').in('symbol', batch).range(from, from + PAGE - 1);
+          if (error) { console.error(`fundamentals_annual read error: ${error.message}`); process.exit(1); }
+          (data || []).forEach(r => done.add(r.symbol));
+          if (!data || data.length < PAGE) break;
+        }
+      }
+    } else {
+      for (let i = 0; i < wanted.length; i += 500) {
+        const { data } = await sb.from('fundamentals_snapshot')
+          .select('symbol').eq('as_of', TODAY).in('symbol', wanted.slice(i, i + 500));
+        (data || []).forEach(r => done.add(r.symbol));
+      }
     }
     todo = universe.filter(r => !done.has(r.symbol));
-    console.log(`to process: ${todo.length}  (skipped ${universe.length - todo.length} already as_of ${TODAY})\n`);
+    const skipMsg = REFRESH ? 'already have fundamentals_annual rows' : `already as_of ${TODAY}`;
+    console.log(`to process: ${todo.length}  (skipped ${universe.length - todo.length} ${skipMsg})\n`);
   }
 
   // Coverage counters. COLS is derived from the first snapshot row so every stored
@@ -411,23 +438,35 @@ async function main() {
       console.log(`  ${row.symbol.padEnd(6)} annual=${built.annual.length} quarterly=${built.quarterly.length}  ` + COLS.map(c => `${c}=${row[c] === null ? '∅' : row[c]}`).join('  '));
       continue;
     }
-    // Write period rows FIRST, then the snapshot. The snapshot's as_of=today is the
-    // resume signal (skipped next run), so it must land only after this symbol's
-    // history is safely written — a mid-symbol crash then re-fetches the whole symbol.
-    const { __gmDropped, ...dbRow } = row;   // diagnostics don't go to the table
-    if (built.annual.length) {
-      const { error } = await sb.from('fundamentals_annual').upsert(built.annual, { onConflict: 'symbol,fiscal_year' });
-      if (error) { console.log(`  ${row.symbol}: fundamentals_annual upsert error ${error.message}`); failed++; continue; }
-      annualWritten += built.annual.length;
+    // Stamp updated_at on every write so it advances on updates. Upsert leaves columns
+    // not in the payload untouched, so without this updated_at stayed frozen at first
+    // insert (a column named updated_at that never updates). Applied to all 3 tables.
+    const nowIso = new Date().toISOString();
+    const { __gmDropped, ...snap0 } = row;   // diagnostics don't go to the table
+    const dbRow = { ...snap0, updated_at: nowIso };
+    const annualRows = built.annual.map(r => ({ ...r, updated_at: nowIso }));
+    const quarterlyRows = built.quarterly.map(r => ({ ...r, updated_at: nowIso }));
+
+    // Write the current mode's RESUME MARKER last, so "marker present" always implies
+    // the symbol is fully written (crash-safe resume — a crash before the marker just
+    // re-fetches the whole symbol next run):
+    //   normal  -> fundamentals_snapshot (as_of=today) is the marker -> written last
+    //   refresh -> fundamentals_annual rows are the marker           -> written last
+    const S = ['fundamentals_snapshot', dbRow, 'symbol'];
+    const Q = ['fundamentals_quarterly', quarterlyRows, 'symbol,calendar_year,calendar_quarter'];
+    const A = ['fundamentals_annual', annualRows, 'symbol,fiscal_year'];
+    const steps = REFRESH ? [S, Q, A] : [A, Q, S];
+    let stepFailed = false;
+    for (const [table, payload, onConflict] of steps) {
+      const rows = Array.isArray(payload) ? payload : [payload];
+      if (!rows.length) continue;   // no period rows for this symbol -> skip that table
+      const { error } = await sb.from(table).upsert(payload, { onConflict });
+      if (error) { console.log(`  ${row.symbol}: ${table} upsert error ${error.message}`); stepFailed = true; break; }
     }
-    if (built.quarterly.length) {
-      const { error } = await sb.from('fundamentals_quarterly').upsert(built.quarterly, { onConflict: 'symbol,calendar_year,calendar_quarter' });
-      if (error) { console.log(`  ${row.symbol}: fundamentals_quarterly upsert error ${error.message}`); failed++; continue; }
-      quarterlyWritten += built.quarterly.length;
-    }
-    const { error } = await sb.from('fundamentals_snapshot').upsert(dbRow, { onConflict: 'symbol' });
-    if (error) { console.log(`  ${row.symbol}: upsert error ${error.message}`); failed++; }
-    else written++;
+    if (stepFailed) { failed++; continue; }
+    annualWritten += annualRows.length;
+    quarterlyWritten += quarterlyRows.length;
+    written++;
   }
 
   // ── Coverage report ─────────────────────────────────────────────────────────
