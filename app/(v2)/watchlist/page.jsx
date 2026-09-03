@@ -14,6 +14,13 @@ const PriceChart = dynamic(() => import('@/app/(v2)/research/_components/PriceCh
   loading: () => <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>Loading chart…</div>,
 });
 
+// Financials history (Revenue / Margins / Leverage) below the price chart. Reusable
+// component (research page later); recharts loads in its own async chunk.
+const FinancialsChart = dynamic(() => import('@/app/(v2)/_components/FinancialsChart'), {
+  ssr: false,
+  loading: () => <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>Loading financials…</div>,
+});
+
 const FONT = "'Segoe UI', system-ui, -apple-system, sans-serif";
 const POLL_MS = 60_000;
 
@@ -471,7 +478,11 @@ function ResolvedDetail({ item }) {
         height={380}
       />
 
-      {/* 2. Key stats */}
+      {/* 2. Financials history — Revenue / Margins / Leverage, from our own
+             fundamentals_annual + fundamentals_quarterly tables (no FMP). */}
+      <FinancialsChart symbol={symbol} />
+
+      {/* 3. Key stats */}
       <Card title="Key stats" eyebrow={item.displaySymbol}>
         {f.status === 'loading' && <p style={panelMsg}>Loading fundamentals…</p>}
         {f.status === 'error' && <p style={{ ...panelMsg, color: 'var(--negative)' }}>Couldn’t load fundamentals: {f.error}</p>}
