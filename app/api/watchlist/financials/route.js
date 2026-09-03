@@ -2,25 +2,39 @@
 // the watchlist detail panel's stacked Revenue / Margins / Leverage charts (and,
 // later, the research page). Reads ONLY our own fundamentals_annual +
 // fundamentals_quarterly tables — no FMP call. The three period series (annual /
-// quarterly / ttm) are all computed here and returned together, so the client
-// switches period + range without a refetch (payload is tiny: <=10 annual + <=40
-// quarterly rows).
+// quarterly / ttm) are all computed here and returned together, so the client switches
+// period + range without a refetch. Optional &peers=A,B,C returns each peer's series
+// too — trimmed to the median/CAGR fields (base stays full) so the client can draw the
+// peer-median lines and the stats strip. hasData reflects fundamentals_quarterly rows.
 //
 // Auth-gated, and the symbol MUST belong to the caller's own watchlist (ownership
 // verified against watchlist_items with user_id in the query filter — never RLS; the
-// service role bypasses it). Mirrors /api/watchlist/fundamentals; loosen it when the
-// research page actually needs cross-watchlist access.
+// service role bypasses it). Peers need NOT be in the watchlist (shared reference data).
 
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { buildFinancialsSeries } from '@/lib/financials/series';
+import { pickPeerPeriods } from '@/lib/financials/stats';
 
 export const dynamic = 'force-dynamic';
 
 const NO_STORE = { 'Cache-Control': 'private, no-store' };
+const SYM = /^[A-Z0-9.\-]{1,20}$/;
+const MAX_PEERS = 8;
 const FLOW_BS = 'report_date, revenue, gross_profit, operating_income, net_income, ebitda, total_debt, operating_lease_liability, cash_and_equivalents';
 const ANNUAL_COLS = `${FLOW_BS}, fiscal_year`;
 const QUARTERLY_COLS = `${FLOW_BS}, fiscal_year, fiscal_quarter, calendar_year, calendar_quarter`;
+
+// Read one symbol's annual + quarterly fundamentals and build its period series.
+// Throws on a DB error so callers can decide (base -> 500, peer -> treated as no data).
+async function readSeries(sb, sym) {
+  const [{ data: annualRows, error: aErr }, { data: quarterlyRows, error: qErr }] = await Promise.all([
+    sb.from('fundamentals_annual').select(ANNUAL_COLS).eq('symbol', sym).order('fiscal_year', { ascending: true }),
+    sb.from('fundamentals_quarterly').select(QUARTERLY_COLS).eq('symbol', sym).order('report_date', { ascending: true }),
+  ]);
+  if (aErr || qErr) throw new Error(aErr?.message || qErr?.message);
+  return { periods: buildFinancialsSeries(annualRows || [], quarterlyRows || []), quarterlyCount: (quarterlyRows || []).length };
+}
 
 export async function GET(request) {
   const { userId } = await auth();
@@ -68,21 +82,36 @@ export async function GET(request) {
 
   const provider = row.provider_symbol.toUpperCase();
 
+  // Optional peer list: base + up to MAX_PEERS distinct, valid tickers (base excluded).
+  const peerSyms = [];
+  {
+    const seen = new Set([provider]);
+    for (const t of (new URL(request.url).searchParams.get('peers') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean)) {
+      if (SYM.test(t) && !seen.has(t)) { seen.add(t); peerSyms.push(t); }
+      if (peerSyms.length >= MAX_PEERS) break;
+    }
+  }
+
   try {
-    // <=10 annual + <=40 quarterly rows per symbol — well under the 1000-row cap.
-    const [{ data: annualRows, error: aErr }, { data: quarterlyRows, error: qErr }] = await Promise.all([
-      sb.from('fundamentals_annual').select(ANNUAL_COLS).eq('symbol', provider).order('fiscal_year', { ascending: true }),
-      sb.from('fundamentals_quarterly').select(QUARTERLY_COLS).eq('symbol', provider).order('report_date', { ascending: true }),
+    // Base + peers read in parallel. A peer read failure degrades to no-data (never
+    // fails the request); the base read failure throws to the 500 below.
+    const [base, ...peerResults] = await Promise.all([
+      readSeries(sb, provider),
+      ...peerSyms.map(async s => {
+        try { return { ticker: s, ...(await readSeries(sb, s)) }; }
+        catch { return { ticker: s, periods: null, quarterlyCount: 0 }; }
+      }),
     ]);
 
-    if (aErr || qErr) {
-      console.error(`[watchlist/financials] read failed for ${provider}: ${aErr?.message || qErr?.message}`);
-      return Response.json({ error: 'Failed to load financials' }, { status: 500, headers: NO_STORE });
-    }
+    // Peer series trimmed to the median/CAGR fields; hasData = has quarterly rows.
+    const peers = peerResults.map(p => ({
+      ticker: p.ticker,
+      hasData: p.quarterlyCount > 0,
+      periods: p.periods ? pickPeerPeriods(p.periods) : { annual: [], quarterly: [], ttm: [] },
+    }));
 
-    const periods = buildFinancialsSeries(annualRows || [], quarterlyRows || []);
     return Response.json(
-      { symbol: provider, displaySymbol: row.display_symbol, resolved: true, periods },
+      { symbol: provider, displaySymbol: row.display_symbol, resolved: true, periods: base.periods, peers },
       { headers: NO_STORE },
     );
   } catch (err) {
