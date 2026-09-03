@@ -116,9 +116,14 @@ function IncomeChart({ rows, height, mode }) {
         <XAxis dataKey="label" {...AXIS} minTickGap={24} />
         <YAxis tickFormatter={fmt} width={pct ? 48 : 52} {...AXIS} />
         <Tooltip contentStyle={TOOLTIP} labelStyle={{ color: 'var(--text-muted)' }} formatter={(v, n) => [fmt(v), labels[n] || n]} />
-        <Legend wrapperStyle={{ fontSize: 11 }} formatter={n => labels[n] || n} />
+        {/* Explicit ordered payload so the legend follows `lines` — income-statement
+            order in absolute mode (revenue, gross profit, operating income, net income)
+            — rather than relying on incidental render order. */}
+        <Legend wrapperStyle={{ fontSize: 11 }} payload={lines.map(([key, label, stroke]) => ({ value: label, id: key, type: 'line', color: stroke }))} />
+        {/* linear, not monotone: smoothing makes discrete quarterly points look like a
+            continuous trend and hides step changes (e.g. accounting reclassifications). */}
         {lines.map(([key, , stroke, sw]) => (
-          <Line key={key} type="monotone" dataKey={key} stroke={stroke} strokeWidth={sw} dot={false} connectNulls />
+          <Line key={key} type="linear" dataKey={key} stroke={stroke} strokeWidth={sw} dot={false} connectNulls />
         ))}
       </LineChart>
     </ChartBlock>
@@ -138,8 +143,8 @@ function LeverageChart({ rows, height }) {
           formatter={(v, n) => n === 'netDebtToEbitda' ? [fmtMult(v), LEV_LABELS[n]] : [fmtCurrency(v), LEV_LABELS[n] || n]}
         />
         <Legend wrapperStyle={{ fontSize: 11 }} formatter={n => LEV_LABELS[n] || n} />
-        <Line yAxisId="left"  type="monotone" dataKey="netDebt"         stroke="var(--accent)" strokeWidth={2}    dot={false} connectNulls />
-        <Line yAxisId="right" type="monotone" dataKey="netDebtToEbitda" stroke="var(--warn)"   strokeWidth={1.75} dot={false} strokeDasharray="5 3" connectNulls />
+        <Line yAxisId="left"  type="linear" dataKey="netDebt"         stroke="var(--accent)" strokeWidth={2}    dot={false} connectNulls />
+        <Line yAxisId="right" type="linear" dataKey="netDebtToEbitda" stroke="var(--warn)"   strokeWidth={1.75} dot={false} strokeDasharray="5 3" connectNulls />
       </LineChart>
     </ChartBlock>
   );
