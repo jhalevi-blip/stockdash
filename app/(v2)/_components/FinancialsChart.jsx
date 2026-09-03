@@ -1,7 +1,8 @@
 'use client';
 
-// Financials history: three stacked charts (Revenue / Margins / Leverage) sharing one
-// period selector (TTM default · Quarterly · Annual) and one range selector (5Y
+// Financials history: two stacked charts — a merged Revenue & margins chart with an
+// Abs/% toggle (absolute dollar lines vs margin % lines), and Leverage below — sharing
+// one period selector (TTM default · Quarterly · Annual) and one range selector (5Y
 // default). Fetches /api/watchlist/financials once per symbol — which returns all three
 // period series — then switches period + range client-side with no refetch (mirrors the
 // price chart fetches once and slices). Reusable: mounted in the watchlist panel now,
@@ -19,8 +20,27 @@ const RANGES = ['1Y', '3Y', '5Y', '10Y'];
 const RANGE_YEARS = { '1Y': 1, '3Y': 3, '5Y': 5, '10Y': 10 };
 
 const TOOLTIP = { background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12 };
-const MARGIN_LABELS = { grossMargin: 'Gross', operatingMargin: 'Operating', netMargin: 'Net' };
 const LEV_LABELS = { netDebt: 'Net debt', netDebtToEbitda: 'Net debt / EBITDA (TTM)' };
+
+// Line configs for the merged Revenue & margins chart, as [dataKey, label, stroke,
+// width]. Absolute mode: four dollar lines. Percentage mode: three margin lines —
+// deliberately NO revenue line (a flat 100% line would compress the axis and squash
+// the others).
+const ABS_LINES = [
+  ['revenue',         'Revenue',          'var(--accent)',        2],
+  ['grossProfit',     'Gross profit',     'var(--accent-cyan)',   1.75],
+  ['operatingIncome', 'Operating income', 'var(--warn)',          1.75],
+  ['netIncome',       'Net income',       'var(--positive-soft)', 1.75],
+];
+const PCT_LINES = [
+  ['grossMargin',     'Gross',     'var(--accent-cyan)',   1.75],
+  ['operatingMargin', 'Operating', 'var(--warn)',          1.75],
+  ['netMargin',       'Net',       'var(--positive-soft)', 1.75],
+];
+const labelMap = lines => Object.fromEntries(lines.map(([k, l]) => [k, l]));
+const ABS_LABELS = labelMap(ABS_LINES);
+const PCT_LABELS = labelMap(PCT_LINES);
+const MODES = [['abs', 'Abs'], ['pct', '%']];
 
 // ── formatters ────────────────────────────────────────────────────────────────
 function fmtCurrency(n) {
@@ -81,33 +101,25 @@ function ChartBlock({ title, subtitle, height, children }) {
   );
 }
 
-// ── the three charts ──────────────────────────────────────────────────────────
-function RevenueChart({ rows, height }) {
+// ── charts ────────────────────────────────────────────────────────────────────
+// Merged Revenue & margins chart: absolute dollar lines, or margin % lines, per the
+// Abs/% toggle — one axis at a time so the % view isn't squashed by a 100% revenue line.
+function IncomeChart({ rows, height, mode }) {
+  const pct = mode === 'pct';
+  const lines  = pct ? PCT_LINES : ABS_LINES;
+  const labels = pct ? PCT_LABELS : ABS_LABELS;
+  const fmt    = pct ? fmtPct : fmtCurrency;
   return (
-    <ChartBlock title="Revenue" height={height}>
+    <ChartBlock title={pct ? 'Margins' : 'Revenue & income'} subtitle={pct ? 'gross · operating · net' : undefined} height={height}>
       <LineChart data={rows} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
         <XAxis dataKey="label" {...AXIS} minTickGap={24} />
-        <YAxis tickFormatter={fmtCurrency} width={52} {...AXIS} />
-        <Tooltip contentStyle={TOOLTIP} labelStyle={{ color: 'var(--text-muted)' }} formatter={v => [fmtCurrency(v), 'Revenue']} />
-        <Line type="monotone" dataKey="revenue" stroke="var(--accent)" strokeWidth={2} dot={false} connectNulls />
-      </LineChart>
-    </ChartBlock>
-  );
-}
-
-function MarginsChart({ rows, height }) {
-  return (
-    <ChartBlock title="Margins" subtitle="gross · operating · net" height={height}>
-      <LineChart data={rows} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
-        <XAxis dataKey="label" {...AXIS} minTickGap={24} />
-        <YAxis tickFormatter={fmtPct} width={48} {...AXIS} />
-        <Tooltip contentStyle={TOOLTIP} labelStyle={{ color: 'var(--text-muted)' }} formatter={(v, n) => [fmtPct(v), MARGIN_LABELS[n] || n]} />
-        <Legend wrapperStyle={{ fontSize: 11 }} formatter={n => MARGIN_LABELS[n] || n} />
-        <Line type="monotone" dataKey="grossMargin"     stroke="var(--accent-cyan)"    strokeWidth={1.75} dot={false} connectNulls />
-        <Line type="monotone" dataKey="operatingMargin" stroke="var(--warn)"           strokeWidth={1.75} dot={false} connectNulls />
-        <Line type="monotone" dataKey="netMargin"       stroke="var(--positive-soft)"  strokeWidth={1.75} dot={false} connectNulls />
+        <YAxis tickFormatter={fmt} width={pct ? 48 : 52} {...AXIS} />
+        <Tooltip contentStyle={TOOLTIP} labelStyle={{ color: 'var(--text-muted)' }} formatter={(v, n) => [fmt(v), labels[n] || n]} />
+        <Legend wrapperStyle={{ fontSize: 11 }} formatter={n => labels[n] || n} />
+        {lines.map(([key, , stroke, sw]) => (
+          <Line key={key} type="monotone" dataKey={key} stroke={stroke} strokeWidth={sw} dot={false} connectNulls />
+        ))}
       </LineChart>
     </ChartBlock>
   );
@@ -136,10 +148,11 @@ function LeverageChart({ rows, height }) {
 // ── container ─────────────────────────────────────────────────────────────────
 export default function FinancialsChart({ symbol }) {
   const responsiveHeight = useChartHeight();
-  const chartHeight = Math.round((responsiveHeight ?? 300) * 0.62); // three stacked → smaller each
+  const chartHeight = Math.round((responsiveHeight ?? 300) * 0.9); // two stacked → taller each
   const [state, setState] = useState({ status: 'loading' });
   const [period, setPeriod] = useState('ttm');
   const [range, setRange] = useState('5Y');
+  const [mode, setMode] = useState('abs');   // Abs (currency) | % (margins)
 
   useEffect(() => {
     let cancelled = false;
@@ -169,6 +182,7 @@ export default function FinancialsChart({ symbol }) {
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
       <ButtonGroup options={PERIODS} value={period} onChange={setPeriod} />
       <ButtonGroup options={RANGES.map(r => [r, r])} value={range} onChange={setRange} />
+      <ButtonGroup options={MODES} value={mode} onChange={setMode} />
     </div>
   );
 
@@ -181,9 +195,8 @@ export default function FinancialsChart({ symbol }) {
         rows.length === 0
           ? <Msg italic>No {period} data in this range.</Msg>
           : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <RevenueChart  rows={rows} height={chartHeight} />
-              <MarginsChart  rows={rows} height={chartHeight} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              <IncomeChart   rows={rows} height={chartHeight} mode={mode} />
               <LeverageChart rows={rows} height={chartHeight} />
             </div>
           )
