@@ -16,13 +16,14 @@
 --   tax_rate      : effective tax rate actually used for NOPAT (effectiveTaxRateTTM,
 --                   else income_tax_expense/income_before_tax; NULL when both fail).
 --   roic_reported : NOPAT / invested_capital_reported (see below). The primary `roic`
---                   column now uses the ex-goodwill invested-capital base.
+--                   column uses the ex-goodwill invested-capital base.
 --
 -- Invested-capital bases the ROIC columns divide by (computed from these operands):
 --   invested_capital_ex_goodwill = total_debt + total_equity - cash_and_equivalents
---                                  - goodwill - intangible_assets   -> feeds `roic`
+--                                  - goodwill   (intangibles kept)  -> feeds `roic`
 --   invested_capital_reported    = total_debt + total_equity - cash_and_equivalents
 --                                  -> feeds `roic_reported`
+-- goodwill_share (migration 018) = goodwill / invested_capital_reported.
 --
 -- Idempotent (add column if not exists) — safe to re-run.
 
