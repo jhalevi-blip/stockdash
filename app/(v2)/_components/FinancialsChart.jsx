@@ -2,8 +2,8 @@
 
 // Financials history for the watchlist detail panel: a stats strip, a merged Revenue
 // & margins chart (Abs/% toggle) and a Leverage chart, plus a peer set whose margin /
-// leverage medians are drawn as muted lines and summarised in the strip. Period (TTM
-// default · Quarterly · Annual) and range (5Y default) are shared; both switch client-
+// leverage medians are drawn as muted lines and summarised in the strip. Period (TTM ·
+// Quarterly default · Annual) and range (10Y default) are shared; both switch client-
 // side. Two fetches per symbol: peer resolution (/api/watchlist/peers, Finnhub or the
 // user's saved override) then /api/watchlist/financials?peers=… (base full + peers
 // trimmed to the median/CAGR fields). Editing a peer persists and refetches.
@@ -248,8 +248,8 @@ export default function FinancialsChart({ symbol }) {
   const responsiveHeight = useChartHeight();
   const chartHeight = Math.round((responsiveHeight ?? 300) * 0.9); // two stacked → taller each
   const [state, setState] = useState({ status: 'loading' });
-  const [period, setPeriod] = useState('ttm');
-  const [range, setRange] = useState('5Y');
+  const [period, setPeriod] = useState('quarterly');
+  const [range, setRange] = useState('10Y');
   const [mode, setMode] = useState('abs');
   const [peers, setPeers] = useState(null);       // effective peer tickers (null = resolving)
   const [peerSource, setPeerSource] = useState(null);
