@@ -28,9 +28,24 @@ export default function Sidebar() {
     return () => clearInterval(id);
   }, []);
   const status = now ? getMarketStatus(now) : null;
+
+  // Desktop collapse (icons-only, ~48px). Persisted in localStorage; mount-gated read to
+  // avoid an SSR/client hydration mismatch (same pattern as the clock above). Below 768px
+  // the whole sidebar is display:none and the mobile drawer takes over, so this only ever
+  // affects desktop. The content column is flex:1, so it reflows into the reclaimed width.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    setCollapsed(localStorage.getItem('v2_sidebar_collapsed') === '1');
+  }, []);
+  const toggleCollapsed = () => setCollapsed(prev => {
+    const next = !prev;
+    try { localStorage.setItem('v2_sidebar_collapsed', next ? '1' : '0'); } catch { /* ignore */ }
+    return next;
+  });
+
   return (
     <aside className="v2-sidebar" style={{
-      width: 208,
+      width: collapsed ? 48 : 208,
       flexShrink: 0,
       background: 'var(--bg-page-deep)',
       borderRight: '1px solid var(--border-color)',
@@ -38,64 +53,96 @@ export default function Sidebar() {
       display: 'flex',
       flexDirection: 'column',
       gap: 4,
+      overflow: 'hidden',
+      transition: 'width .15s ease',
       fontFamily: "'Segoe UI', system-ui, -apple-system, sans-serif",
     }}>
-      <div style={{ padding: '0 16px 14px', borderBottom: '1px solid var(--border-color)' }}>
-        <Logo size={22} />
+      <div style={{
+        padding: collapsed ? '0 6px 14px' : '0 16px 14px',
+        borderBottom: '1px solid var(--border-color)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: collapsed ? 'center' : 'space-between',
+        gap: 8,
+      }}>
+        {!collapsed && <Logo size={22} />}
+        <button
+          onClick={toggleCollapsed}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          style={{
+            flexShrink: 0, width: 26, height: 26,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'transparent', color: 'var(--text-secondary)',
+            border: '1px solid var(--border-color)', borderRadius: 6,
+            cursor: 'pointer', fontSize: 13, lineHeight: 1,
+          }}
+        >{collapsed ? '»' : '«'}</button>
       </div>
-      <nav style={{ display: 'flex', flexDirection: 'column', padding: '10px 8px', gap: 1 }}>
+      <nav style={{ display: 'flex', flexDirection: 'column', padding: collapsed ? '10px 6px' : '10px 8px', gap: 1 }}>
         {NAV_ITEMS.map(item => {
           // /dashboard should be the active item when we're on /dashboard itself
           const isActive = item.id === 'dashboard'
             ? pathname === '/dashboard'
             : pathname === item.href || pathname.startsWith(item.href + '/');
           return (
-            <Link key={item.id} href={item.id === 'dashboard' ? '/dashboard' : item.href} style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '8px 10px',
-              borderRadius: 6,
-              textDecoration: 'none',
-              color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-              background: isActive ? 'var(--bg-hover)' : 'transparent',
-              fontSize: 13,
-              fontWeight: isActive ? 600 : 500,
-              borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
-              transition: 'background .2s, color .2s',
-            }}>
-              <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.emoji}</span>
-              <span>{item.label}</span>
+            <Link key={item.id} href={item.id === 'dashboard' ? '/dashboard' : item.href}
+              title={collapsed ? item.label : undefined}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                gap: collapsed ? 0 : 10,
+                padding: collapsed ? '8px 0' : '8px 10px',
+                borderRadius: 6,
+                textDecoration: 'none',
+                color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                background: isActive ? 'var(--bg-hover)' : 'transparent',
+                fontSize: 13,
+                fontWeight: isActive ? 600 : 500,
+                borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+                whiteSpace: 'nowrap',
+                transition: 'background .2s, color .2s',
+              }}>
+              <span style={{ fontSize: 14, width: 18, textAlign: 'center', flexShrink: 0 }}>{item.emoji}</span>
+              {!collapsed && <span>{item.label}</span>}
             </Link>
           );
         })}
       </nav>
       <div style={{
         marginTop: 'auto',
-        padding: '12px 16px',
+        padding: collapsed ? '12px 0' : '12px 16px',
         borderTop: '1px solid var(--border-color)',
         fontSize: 11,
         color: 'var(--text-muted)',
         display: 'flex',
         flexDirection: 'column',
+        alignItems: collapsed ? 'center' : 'stretch',
         gap: 6,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div
+          title={collapsed && status ? `${status.label} · ${etTime(now)}` : undefined}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: collapsed ? 'center' : 'flex-start' }}
+        >
           {status ? (
             <>
               <Dot color={status.isOpen ? 'var(--positive)' : 'var(--text-muted)'} />
-              <span>{status.label} · {etTime(now)}</span>
+              {!collapsed && <span>{status.label} · {etTime(now)}</span>}
             </>
           ) : (
             <>
               <Dot color="var(--text-muted)" />
-              <span>—</span>
+              {!collapsed && <span>—</span>}
             </>
           )}
         </div>
-        <div style={{ color: 'var(--text-faint, rgba(230,237,243,0.45))' }}>
-          Powered by Claude {FLAGSHIP_LABEL}
-        </div>
+        {!collapsed && (
+          <div style={{ color: 'var(--text-faint, rgba(230,237,243,0.45))' }}>
+            Powered by Claude {FLAGSHIP_LABEL}
+          </div>
+        )}
       </div>
     </aside>
   );
