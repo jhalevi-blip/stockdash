@@ -5,6 +5,7 @@ import { useUser } from '@clerk/nextjs';
 import dynamic from 'next/dynamic';
 import Card from '@/app/(v2)/_components/Card';
 import Dot from '@/app/(v2)/_components/Dot';
+import ScreenSection from '@/app/(v2)/_components/ScreenSection';
 
 // Reuse the Stock Research price chart (recharts loads in an async chunk). The
 // panel drives it with light=true + fetchYears=5 (one fetch, sliced client-side)
@@ -689,6 +690,9 @@ export default function WatchlistPage() {
           </div>
         </div>
       </div>
+
+      {/* Screen — full-width below the master–detail area (moved off /screen). */}
+      <ScreenSection />
     </Shell>
   );
 }

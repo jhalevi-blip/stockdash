@@ -1,17 +1,17 @@
 'use client';
 
-// /screen — the quality-compounder-at-drawdown screen. One fetch to /api/screen on
-// mount returns the funnel counts and the top-quintile-stability survivors; the
-// drawdown threshold is a client-side control (default 35%) that filters those rows
-// live without a refetch (the quintile is drawdown-independent). Table sort mirrors the
-// watchlist: client-side, nulls pinned to the bottom, asc/desc toggle, stable order.
+// The quality-compounder-at-drawdown screen, embedded full-width on the watchlist page
+// (moved off its former standalone /screen route). One fetch to /api/screen on mount
+// returns the funnel counts and top-quintile-stability survivors; the drawdown threshold
+// is a client-side control (default 35%) that filters those rows live without a refetch
+// (the quintile is drawdown-independent). Table sort mirrors the watchlist: client-side,
+// nulls pinned to the bottom, asc/desc toggle, stable order.
 //
 // Row click opens /research?ticker=X rather than the FinancialsChart panel: that panel
 // fetches /api/watchlist/financials, which 404s for symbols not in the caller's
 // watchlist — and screen names generally aren't.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import Card from '@/app/(v2)/_components/Card';
 
@@ -27,27 +27,26 @@ const fmtPrice = n => (finite(n) ? `$${n.toFixed(2)}` : '—');
 const fmtInt = n => (finite(n) ? n.toLocaleString('en-US') : '—');
 
 // ── columns ─────────────────────────────────────────────────────────────────────
-// num=true → right-aligned, numeric sort; else left-aligned, string sort. Every
-// column except Name is sortable (Name has no data source yet).
+// num=true → right-aligned, numeric sort; else left-aligned, string sort. `tip` is the
+// header tooltip (title) explaining the metric. (No Name column: these tables carry no
+// company name, so it was always empty.)
 const COLUMNS = [
   { key: 'symbol',           label: 'Symbol',         num: false },
-  { key: 'name',             label: 'Name',           num: false, sortable: false },
   { key: 'sector',           label: 'Sector',         num: false },
   { key: 'industry',         label: 'Industry',       num: false },
   { key: 'price',            label: 'Price',          num: true },
-  { key: 'drawdownPct',      label: 'Drawdown',       num: true },
-  { key: 'roic',             label: 'ROIC',           num: true },
-  { key: 'roicReported',     label: 'ROIC (rep.)',    num: true },
-  { key: 'goodwillShare',    label: 'Goodwill',       num: true },
+  { key: 'drawdownPct',      label: 'Drawdown',       num: true, tip: 'Percent below the 52-week high.' },
+  { key: 'roic',             label: 'ROIC',           num: true, tip: 'NOPAT over invested capital with goodwill excluded — what the operating business earns on capital employed.' },
+  { key: 'roicReported',     label: 'ROIC (rep.)',    num: true, tip: 'The same with goodwill included — what shareholders earn on all capital deployed. The gap shows how much of the capital base was acquired rather than built.' },
+  { key: 'goodwillShare',    label: 'Goodwill',       num: true, tip: 'Goodwill as a share of reported invested capital.' },
   { key: 'grossMargin',      label: 'Gross margin',   num: true },
-  { key: 'grossMarginStdev', label: 'GM stdev',       num: true },
-  { key: 'rankPct',          label: 'Stability rank', num: true },
+  { key: 'grossMarginStdev', label: 'GM stdev',       num: true, tip: 'Standard deviation of gross margin across the last five annual periods, in percentage points. Lower means more durable pricing.' },
+  { key: 'rankPct',          label: 'Stability rank', num: true, tip: 'Percentile of that stdev within the peer group, 0% being most stable. The ind/sec marker shows whether the peer group was the industry (15+ members) or the sector.' },
 ];
 
 function renderCell(row, key) {
   switch (key) {
     case 'symbol':           return <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{row.symbol}</span>;
-    case 'name':             return <span style={{ color: 'var(--text-muted)' }}>{row.name ?? '—'}</span>;
     case 'sector':           return <span style={{ color: 'var(--text-secondary)' }}>{row.sector ?? '—'}</span>;
     case 'industry':         return <span style={{ color: 'var(--text-secondary)' }}>{row.industry ?? '—'}</span>;
     case 'price':            return fmtPrice(row.price);
@@ -109,18 +108,19 @@ function ScreenTable({ rows }) {
         <thead>
           <tr>
             {COLUMNS.map(c => {
-              const sortable = c.sortable !== false;
               const active = sort.key === c.key;
+              // Header tooltip explains the metric; fall back to the sort hint.
+              const title = c.tip || `Sort by ${c.label}`;
               return (
                 <th
                   key={c.key}
-                  onClick={sortable ? () => toggle(c.key) : undefined}
-                  title={sortable ? `Sort by ${c.label}` : undefined}
+                  onClick={() => toggle(c.key)}
+                  title={title}
                   aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
                   style={{
                     ...th,
                     textAlign: c.num ? 'right' : 'left',
-                    cursor: sortable ? 'pointer' : 'default',
+                    cursor: 'pointer',
                     color: active ? 'var(--text-secondary)' : th.color,
                   }}
                 >
@@ -221,8 +221,7 @@ function EmptyState({ rows, threshold }) {
   );
 }
 
-export default function ScreenPage() {
-  const { isSignedIn, isLoaded } = useUser();
+export default function ScreenSection() {
   const [state, setState] = useState({ status: 'loading' });   // loading | ready | error
   const [threshold, setThreshold] = useState(DEFAULT_DRAWDOWN);
 
@@ -242,7 +241,7 @@ export default function ScreenPage() {
     }
   }, []);
 
-  useEffect(() => { if (isLoaded && isSignedIn) load(); }, [isLoaded, isSignedIn, load]);
+  useEffect(() => { load(); }, [load]);
 
   const data = state.status === 'ready' ? state.data : null;
   // Client-side drawdown filter (drawdown_pct is a fraction; threshold is percent).
@@ -252,8 +251,7 @@ export default function ScreenPage() {
   );
 
   let body;
-  if (isLoaded && !isSignedIn) body = <p style={emptyMsg}>Sign in to run the screen.</p>;
-  else if (state.status === 'loading') body = <p style={emptyMsg}>Running screen…</p>;
+  if (state.status === 'loading') body = <p style={emptyMsg}>Running screen…</p>;
   else if (state.status === 'error') {
     body = (
       <p style={{ ...emptyMsg, color: 'var(--negative)' }}>
@@ -276,15 +274,15 @@ export default function ScreenPage() {
   }
 
   return (
-    <div style={{ padding: '20px 24px', fontFamily: FONT }}>
-      <header style={{ marginBottom: 18 }}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Screen</h1>
+    <section style={{ marginTop: 24, fontFamily: FONT }}>
+      <header style={{ marginBottom: 14 }}>
+        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>Screen</h2>
         <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
           Durable-margin compounders (ROIC ≥ 13%, top-quintile gross-margin stability) trading in a drawdown.
         </p>
       </header>
       {body}
-    </div>
+    </section>
   );
 }
 
