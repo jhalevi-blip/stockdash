@@ -7,9 +7,10 @@
 // too — trimmed to the median/CAGR fields (base stays full) so the client can draw the
 // peer-median lines and the stats strip. hasData reflects fundamentals_quarterly rows.
 //
-// Auth-gated, and the symbol MUST belong to the caller's own watchlist (ownership
-// verified against watchlist_items with user_id in the query filter — never RLS; the
-// service role bypasses it). Peers need NOT be in the watchlist (shared reference data).
+// Auth-gated only — NOT watchlist-gated. These are shared fundamentals tables and the
+// screen loads symbols outside the caller's watchlist. A watchlist row, when present, is
+// used to map display→provider symbol and to honor the unresolved case; otherwise the
+// symbol is treated as an already-resolved provider ticker.
 
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
@@ -51,8 +52,11 @@ export async function GET(request) {
   const sb = getSupabaseAdmin();
   if (!sb) return Response.json({ error: 'Supabase not configured' }, { status: 500, headers: NO_STORE });
 
-  // Ownership: the symbol must be one of THIS user's watchlist rows (user_id is in the
-  // filter, not RLS). Match provider or display symbol; prefer a resolved match.
+  // Resolve the provider symbol. Auth-only (no watchlist-membership gate): this reads
+  // shared fundamentals tables, and the screen loads symbols outside the watchlist. If
+  // the symbol IS one of the caller's watchlist rows we use its provider/display mapping
+  // (and honor the unresolved case); otherwise the symbol is already a resolved provider
+  // ticker (screen names come from fundamentals_snapshot).
   const { data: rows, error: ownErr } = await sb
     .from('watchlist_items')
     .select('provider_symbol, display_symbol, resolved')
@@ -62,25 +66,20 @@ export async function GET(request) {
     .limit(1);
 
   if (ownErr) {
-    console.error(`[watchlist/financials] ownership query failed for ${symbolParam}: ${ownErr.message}`);
-    return Response.json({ error: 'Failed to verify watchlist ownership' }, { status: 500, headers: NO_STORE });
+    console.error(`[watchlist/financials] symbol lookup failed for ${symbolParam}: ${ownErr.message}`);
+    return Response.json({ error: 'Failed to resolve symbol' }, { status: 500, headers: NO_STORE });
   }
 
   const row = rows?.[0];
-  if (!row) {
-    // Not in the caller's watchlist — 404, never reveal whether it exists elsewhere.
-    return Response.json({ error: 'Symbol not in your watchlist' }, { status: 404, headers: NO_STORE });
-  }
-
-  // Unresolved row (e.g. 6479): a clean empty-series shape, not an error.
-  if (!row.resolved || !row.provider_symbol) {
+  // Unresolved watchlist row (e.g. 6479): a clean empty-series shape, not an error.
+  if (row && (!row.resolved || !row.provider_symbol)) {
     return Response.json(
       { symbol: row.display_symbol || symbolParam, resolved: false, periods: { annual: [], quarterly: [], ttm: [] } },
       { headers: NO_STORE },
     );
   }
 
-  const provider = row.provider_symbol.toUpperCase();
+  const provider = (row?.provider_symbol || symbolParam).toUpperCase();
 
   // Optional peer list: base + up to MAX_PEERS distinct, valid tickers (base excluded).
   const peerSyms = [];
@@ -111,7 +110,7 @@ export async function GET(request) {
     }));
 
     return Response.json(
-      { symbol: provider, displaySymbol: row.display_symbol, resolved: true, periods: base.periods, peers },
+      { symbol: provider, displaySymbol: row?.display_symbol ?? null, resolved: true, periods: base.periods, peers },
       { headers: NO_STORE },
     );
   } catch (err) {

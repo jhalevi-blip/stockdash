@@ -1,12 +1,14 @@
 // /api/watchlist/peers?symbol=X — resolve and persist the financials-panel peer set
-// for one of the caller's watchlist symbols.
+// for a symbol.
 //   GET    -> { symbol, peers, source: 'override'|'finnhub' }
 //   PUT    { symbol, peers:[...] } -> save the full curated list (source 'override')
 //   DELETE ?symbol=X -> drop the override (revert to Finnhub live)
 //
 // Default peers come from Finnhub /stock/peers; once a user edits, the full list is
-// persisted in watchlist_peer_overrides (migration 019). Auth-gated, and the symbol
-// must be in the caller's watchlist (user_id in the filter, never RLS).
+// persisted in watchlist_peer_overrides (migration 019). Auth-gated only — NOT
+// watchlist-gated: the screen edits peers for symbols outside the watchlist. Overrides
+// stay keyed by (user_id, symbol), so nothing leaks between users. A watchlist row,
+// when present, maps display→provider symbol; otherwise the symbol is used as-is.
 
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
@@ -17,8 +19,10 @@ const NO_STORE = { 'Cache-Control': 'private, no-store' };
 const SYM = /^[A-Z0-9.\-]{1,20}$/;
 const MAX_PEERS = 8;
 
-// Resolve a caller-owned watchlist symbol to its provider symbol (or a not-found).
-async function resolveOwned(sb, userId, symbolParam) {
+// Resolve a symbol to its provider symbol. Uses the caller's watchlist row for the
+// display→provider mapping when present; otherwise falls back to the symbol itself
+// (screen names are already resolved provider tickers).
+async function resolveProviderSymbol(sb, userId, symbolParam) {
   const { data, error } = await sb
     .from('watchlist_items')
     .select('provider_symbol, display_symbol, resolved')
@@ -28,8 +32,7 @@ async function resolveOwned(sb, userId, symbolParam) {
     .limit(1);
   if (error) return { error };
   const row = data?.[0];
-  if (!row) return { notFound: true };
-  return { provider: (row.provider_symbol || row.display_symbol || symbolParam).toUpperCase() };
+  return { provider: (row?.provider_symbol || row?.display_symbol || symbolParam).toUpperCase() };
 }
 
 // Validate, upper-case, de-dup, drop the base, cap at MAX_PEERS.
@@ -53,12 +56,11 @@ async function finnhubPeers(base) {
   } catch { return []; }
 }
 
-async function ownedOr(sb, userId, symbolParam) {
+async function resolveBase(sb, userId, symbolParam) {
   if (!SYM.test(symbolParam)) return { resp: Response.json({ error: 'Invalid symbol' }, { status: 400, headers: NO_STORE }) };
-  const owned = await resolveOwned(sb, userId, symbolParam);
-  if (owned.error) return { resp: Response.json({ error: 'Failed to verify watchlist ownership' }, { status: 500, headers: NO_STORE }) };
-  if (owned.notFound) return { resp: Response.json({ error: 'Symbol not in your watchlist' }, { status: 404, headers: NO_STORE }) };
-  return { base: owned.provider };
+  const resolved = await resolveProviderSymbol(sb, userId, symbolParam);
+  if (resolved.error) return { resp: Response.json({ error: 'Failed to resolve symbol' }, { status: 500, headers: NO_STORE }) };
+  return { base: resolved.provider };
 }
 
 export async function GET(request) {
@@ -68,7 +70,7 @@ export async function GET(request) {
   if (!sb) return Response.json({ error: 'Supabase not configured' }, { status: 500, headers: NO_STORE });
 
   const symbolParam = (new URL(request.url).searchParams.get('symbol') || '').trim().toUpperCase();
-  const owned = await ownedOr(sb, userId, symbolParam);
+  const owned = await resolveBase(sb, userId, symbolParam);
   if (owned.resp) return owned.resp;
   const { base } = owned;
 
@@ -92,7 +94,7 @@ export async function PUT(request) {
   let body;
   try { body = await request.json(); } catch { return Response.json({ error: 'Invalid JSON body' }, { status: 400, headers: NO_STORE }); }
   const symbolParam = String(body?.symbol ?? '').trim().toUpperCase();
-  const owned = await ownedOr(sb, userId, symbolParam);
+  const owned = await resolveBase(sb, userId, symbolParam);
   if (owned.resp) return owned.resp;
   const { base } = owned;
 
@@ -113,7 +115,7 @@ export async function DELETE(request) {
   if (!sb) return Response.json({ error: 'Supabase not configured' }, { status: 500, headers: NO_STORE });
 
   const symbolParam = (new URL(request.url).searchParams.get('symbol') || '').trim().toUpperCase();
-  const owned = await ownedOr(sb, userId, symbolParam);
+  const owned = await resolveBase(sb, userId, symbolParam);
   if (owned.resp) return owned.resp;
 
   const { error } = await sb.from('watchlist_peer_overrides').delete().eq('user_id', userId).eq('symbol', owned.base);

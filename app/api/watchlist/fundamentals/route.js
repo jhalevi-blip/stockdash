@@ -1,7 +1,7 @@
 // GET /api/watchlist/fundamentals?symbol=X — detail-panel fundamentals for one
-// symbol (STEP 2). Auth-gated, and the symbol MUST belong to the caller's own
-// watchlist (ownership verified against watchlist_items with user_id in the query
-// filter — never rely on RLS; the service role bypasses it).
+// symbol (STEP 2). Auth-gated only — NOT watchlist-gated: the screen loads symbols
+// outside the watchlist, and FMP fundamentals are shared reference data. A watchlist
+// row, when present, maps display→provider symbol; otherwise the symbol is used as-is.
 //
 // Payload: market cap, enterprise value, total debt, cash & equivalents, P/E, P/S,
 // next earnings date, and the last 5 quarters of revenue/gross profit/net income.
@@ -74,9 +74,10 @@ export async function GET(request) {
   const sb = getSupabaseAdmin();
   if (!sb) return Response.json({ error: 'Supabase not configured' }, { status: 500, headers: NO_STORE });
 
-  // Ownership check: the symbol must be one of THIS user's watchlist rows. user_id
-  // is in the query filter (not RLS). Match either the provider or display symbol;
-  // prefer a resolved match if both exist.
+  // Resolve the provider symbol. Auth-only (no watchlist-membership gate): the screen
+  // loads symbols outside the watchlist, and this is shared reference data. A watchlist
+  // row, when present, maps display→provider symbol and honors the unresolved case;
+  // otherwise the symbol is already a resolved provider ticker.
   const { data: rows, error } = await sb
     .from('watchlist_items')
     .select('provider_symbol, display_symbol, resolved, asset_class, exchange')
@@ -86,25 +87,20 @@ export async function GET(request) {
     .limit(1);
 
   if (error) {
-    console.error(`[watchlist/fundamentals] ownership query failed for ${symbolParam}: ${error.message}`);
-    return Response.json({ error: 'Failed to verify watchlist ownership' }, { status: 500, headers: NO_STORE });
+    console.error(`[watchlist/fundamentals] symbol lookup failed for ${symbolParam}: ${error.message}`);
+    return Response.json({ error: 'Failed to resolve symbol' }, { status: 500, headers: NO_STORE });
   }
 
   const row = rows?.[0];
-  if (!row) {
-    // Not in the caller's watchlist — 404, never reveal whether it exists elsewhere.
-    return Response.json({ error: 'Symbol not in your watchlist' }, { status: 404, headers: NO_STORE });
-  }
-
-  // Unresolved row (e.g. 6479): a clean no-data shape, not an error.
-  if (!row.resolved || !row.provider_symbol) {
+  // Unresolved watchlist row (e.g. 6479): a clean no-data shape, not an error.
+  if (row && (!row.resolved || !row.provider_symbol)) {
     return Response.json(
       { symbol: row.display_symbol || symbolParam, resolved: false, reason: 'no data on current plan' },
       { headers: NO_STORE },
     );
   }
 
-  const provider = row.provider_symbol.toUpperCase();
+  const provider = (row?.provider_symbol || symbolParam).toUpperCase();
 
   // 12h cache, keyed per symbol. A hit is logged (acceptance criterion).
   const cached = panelCache.get(provider);
@@ -121,7 +117,7 @@ export async function GET(request) {
 
     const payload = {
       symbol: provider,
-      displaySymbol: row.display_symbol,
+      displaySymbol: row?.display_symbol ?? null,
       resolved: true,
       asOf: Date.now(),
       ...view,

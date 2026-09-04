@@ -467,6 +467,17 @@ function ResolvedDetail({ item }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Screen-surfaced symbol (not tracked): make that state visible. */}
+      {item.notInWatchlist && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{item.displaySymbol}</span>
+          <span style={{
+            fontSize: 11, padding: '1px 7px', borderRadius: 10,
+            border: '1px solid var(--border-color)', color: 'var(--text-muted)', whiteSpace: 'nowrap',
+          }}>not in your watchlist</span>
+        </div>
+      )}
+
       {/* 1. Price chart — reused Stock Research component, larger, light series,
              5Y fetched once + sliced, target line when the row has a target. */}
       <PriceChart
@@ -514,6 +525,21 @@ function ResolvedDetail({ item }) {
   );
 }
 
+// Synthetic detail-panel item for a symbol the screen surfaced that isn't in the
+// watchlist. Same shape ResolvedDetail reads; `notInWatchlist` drives the badge.
+function makeScreenItem(symbol) {
+  return {
+    id: `screen:${symbol}`,
+    displaySymbol: symbol,
+    providerSymbol: symbol,
+    assetClass: 'equity',
+    exchange: null,
+    resolved: true,
+    targetPrice: null,
+    notInWatchlist: true,
+  };
+}
+
 function DetailPanel({ item }) {
   if (!item) {
     return (
@@ -545,6 +571,10 @@ export default function WatchlistPage() {
   // section; recovers to that default if the current selection disappears. A poll
   // refresh keeps the user's live choice (we only reselect when it's gone).
   const [selectedId, setSelectedId] = useState(null);
+
+  // A screen row can also drive the detail panel. When set it takes precedence over the
+  // watchlist selection; cleared whenever a watchlist row is clicked.
+  const [screenSymbol, setScreenSymbol] = useState(null);
 
   // Mount-gated clock, ticking each minute, so the "as of" relative labels stay live
   // without calling Date.now() during render (mirrors the Sidebar clock pattern).
@@ -607,6 +637,20 @@ export default function WatchlistPage() {
     });
   }, []);
 
+  // Screen → detail panel. If the symbol is already tracked, select that watchlist row
+  // (no "not in your watchlist" badge); otherwise open it as a screen-only symbol.
+  const selectScreenSymbol = useCallback((sym) => {
+    const S = String(sym).toUpperCase();
+    for (const s of (dataRef.current?.sections ?? [])) {
+      for (const it of s.items) {
+        if ((it.providerSymbol || '').toUpperCase() === S || (it.displaySymbol || '').toUpperCase() === S) {
+          setScreenSymbol(null); setSelectedId(it.id); return;
+        }
+      }
+    }
+    setSelectedId(null); setScreenSymbol(S);
+  }, []);
+
   // Poll every 60s, but only while the tab is visible AND some relevant market is
   // open (spec §4). Refetch immediately when the tab becomes visible again.
   useEffect(() => {
@@ -644,8 +688,10 @@ export default function WatchlistPage() {
     if (it.id === selectedId) selectionPresent = true;
   }
   const effectiveId = selectionPresent ? selectedId : firstId;
-  let selectedItem = null;
-  for (const s of sections) for (const it of s.items) if (it.id === effectiveId) selectedItem = it;
+  let watchlistSelectedItem = null;
+  for (const s of sections) for (const it of s.items) if (it.id === effectiveId) watchlistSelectedItem = it;
+  // A screen-selected symbol takes precedence over the default/first watchlist row.
+  const selectedItem = screenSymbol ? makeScreenItem(screenSymbol) : watchlistSelectedItem;
 
   return (
     <Shell markets={data?.markets} generatedAt={data?.generatedAt} refreshing={state.status === 'refreshing'} onRefresh={() => load({ silent: true })}>
@@ -679,10 +725,13 @@ export default function WatchlistPage() {
               markets={data?.markets}
               now={now}
               onPatch={patchItem}
-              selectedId={effectiveId}
-              onSelect={it => setSelectedId(it.id)}
+              selectedId={screenSymbol ? null : effectiveId}
+              onSelect={it => { setScreenSymbol(null); setSelectedId(it.id); }}
             />
           ))}
+          {/* Screen — fills the space under the sections; clicking a row loads it into
+              the detail panel on the right (same as a watchlist row). */}
+          <ScreenSection onSelect={selectScreenSymbol} selectedSymbol={screenSymbol} />
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ position: 'sticky', top: 20 }}>
@@ -690,9 +739,6 @@ export default function WatchlistPage() {
           </div>
         </div>
       </div>
-
-      {/* Screen — full-width below the master–detail area (moved off /screen). */}
-      <ScreenSection />
     </Shell>
   );
 }
