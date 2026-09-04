@@ -3,6 +3,7 @@
 export const ROUTES = {
   dashboard:    '/dashboard',
   watchlist:    '/watchlist',
+  screen:       '/screen',
   performance:  '/performance',
   macro:        '/macro',
   insider:      '/insider',
@@ -33,6 +34,7 @@ export const ROUTES = {
 export const NAV_ITEMS = [
   { id: 'dashboard',   label: 'Dashboard',       emoji: '📊', href: ROUTES.dashboard },
   { id: 'watchlist',   label: 'Watchlist',       emoji: '👁', href: ROUTES.watchlist },
+  { id: 'screen',      label: 'Screen',          emoji: '🧪', href: ROUTES.screen },
   { id: 'stock-research', label: 'Stock Research',    emoji: '📑', href: ROUTES.researchPage },
   { id: 'themes',         label: 'Theme Research',    emoji: '🧭', href: ROUTES.themes },
   { id: 'news',           label: 'News',              emoji: '📰', href: ROUTES.news },
