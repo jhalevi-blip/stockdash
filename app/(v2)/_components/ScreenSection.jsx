@@ -1,18 +1,18 @@
 'use client';
 
-// The quality-compounder-at-drawdown screen, embedded full-width on the watchlist page
-// (moved off its former standalone /screen route). One fetch to /api/screen on mount
-// returns the funnel counts and top-quintile-stability survivors; the drawdown threshold
-// is a client-side control (default 35%) that filters those rows live without a refetch
-// (the quintile is drawdown-independent). Table sort mirrors the watchlist: client-side,
+// The quality-compounder-at-drawdown screen, embedded in the left column of the
+// watchlist page below the sections. One fetch to /api/screen on mount returns the
+// funnel counts and top-quintile-stability survivors; the drawdown threshold is a
+// client-side control (default 35%) that filters those rows live without a refetch (the
+// quintile is drawdown-independent). Table sort mirrors the watchlist: client-side,
 // nulls pinned to the bottom, asc/desc toggle, stable order.
 //
-// Row click opens /research?ticker=X rather than the FinancialsChart panel: that panel
-// fetches /api/watchlist/financials, which 404s for symbols not in the caller's
-// watchlist — and screen names generally aren't.
+// Row click calls onSelect(symbol) to load that symbol into the watchlist detail panel
+// (the parent builds a synthetic item for screen-only names). This works for symbols
+// outside the watchlist because /api/watchlist/{financials,peers,fundamentals} are
+// auth-only (not watchlist-gated) — they read shared reference data.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Card from '@/app/(v2)/_components/Card';
 
 const FONT = "'Segoe UI', system-ui, -apple-system, sans-serif";
@@ -22,49 +22,54 @@ const DEFAULT_DRAWDOWN = 35;   // percent, matches the spec's 35% floor
 const finite = v => typeof v === 'number' && Number.isFinite(v);
 const fmtPct1 = n => (finite(n) ? `${(n * 100).toFixed(1)}%` : '—');
 const fmtPct0 = n => (finite(n) ? `${(n * 100).toFixed(0)}%` : '—');
-const fmtPp = n => (finite(n) ? `${(n * 100).toFixed(2)} pp` : '—');
 const fmtPrice = n => (finite(n) ? `$${n.toFixed(2)}` : '—');
 const fmtInt = n => (finite(n) ? n.toLocaleString('en-US') : '—');
 
 // ── columns ─────────────────────────────────────────────────────────────────────
-// num=true → right-aligned, numeric sort; else left-aligned, string sort. `tip` is the
-// header tooltip (title) explaining the metric. (No Name column: these tables carry no
-// company name, so it was always empty.)
+// A trimmed seven-column set for the narrow left-column placement. The dropped fields
+// (ROIC rep., gross margin, GM stdev, stability rank) are still returned by the route
+// and still drive filtering — they're just not shown. num=true → right-aligned, numeric
+// sort; else left-aligned, string sort. `tip` is the header tooltip (title).
 const COLUMNS = [
-  { key: 'symbol',           label: 'Symbol',         num: false },
-  { key: 'sector',           label: 'Sector',         num: false },
-  { key: 'industry',         label: 'Industry',       num: false },
-  { key: 'price',            label: 'Price',          num: true },
-  { key: 'drawdownPct',      label: 'Drawdown',       num: true, tip: 'Percent below the 52-week high.' },
-  { key: 'roic',             label: 'ROIC',           num: true, tip: 'NOPAT over invested capital with goodwill excluded — what the operating business earns on capital employed.' },
-  { key: 'roicReported',     label: 'ROIC (rep.)',    num: true, tip: 'The same with goodwill included — what shareholders earn on all capital deployed. The gap shows how much of the capital base was acquired rather than built.' },
-  { key: 'goodwillShare',    label: 'Goodwill',       num: true, tip: 'Goodwill as a share of reported invested capital.' },
-  { key: 'grossMargin',      label: 'Gross margin',   num: true },
-  { key: 'grossMarginStdev', label: 'GM stdev',       num: true, tip: 'Standard deviation of gross margin across the last five annual periods, in percentage points. Lower means more durable pricing.' },
-  { key: 'rankPct',          label: 'Stability rank', num: true, tip: 'Percentile of that stdev within the peer group, 0% being most stable. The ind/sec marker shows whether the peer group was the industry (15+ members) or the sector.' },
+  { key: 'symbol',        label: 'Symbol',   num: false },
+  { key: 'sector',        label: 'Sector',   num: false },
+  { key: 'industry',      label: 'Industry', num: false },
+  { key: 'price',         label: 'Price',    num: true },
+  { key: 'drawdownPct',   label: 'Drawdown', num: true, tip: 'Percent below the 52-week high.' },
+  { key: 'roic',          label: 'ROIC',     num: true, tip: 'NOPAT over invested capital with goodwill excluded — what the operating business earns on capital employed.' },
+  { key: 'goodwillShare', label: 'Goodwill', num: true, tip: 'Goodwill as a share of reported invested capital.' },
 ];
+
+// FMP prefixes many industry labels with their sector ("Medical - Healthcare Information
+// Services", "Software - Infrastructure"). Strip up to and including the first " - " so
+// the narrow column shows the distinguishing tail; the full original stays on hover.
+const shortenLabel = s => {
+  if (!s) return s;
+  const i = s.indexOf(' - ');
+  return i >= 0 ? s.slice(i + 3) : s;
+};
+
+// Ellipsis-truncated cell with the full, unmodified value on hover (title).
+function Trunc({ value, max }) {
+  return (
+    <span
+      title={value ?? undefined}
+      style={{ display: 'block', maxWidth: max, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}
+    >
+      {shortenLabel(value) || '—'}
+    </span>
+  );
+}
 
 function renderCell(row, key) {
   switch (key) {
-    case 'symbol':           return <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{row.symbol}</span>;
-    case 'sector':           return <span style={{ color: 'var(--text-secondary)' }}>{row.sector ?? '—'}</span>;
-    case 'industry':         return <span style={{ color: 'var(--text-secondary)' }}>{row.industry ?? '—'}</span>;
-    case 'price':            return fmtPrice(row.price);
-    case 'drawdownPct':      return fmtPct1(row.drawdownPct);
-    case 'roic':             return fmtPct1(row.roic);
-    case 'roicReported':     return fmtPct1(row.roicReported);
-    case 'goodwillShare':    return fmtPct0(row.goodwillShare);
-    case 'grossMargin':      return fmtPct1(row.grossMargin);
-    case 'grossMarginStdev': return fmtPp(row.grossMarginStdev);
-    case 'rankPct':
-      return (
-        <span>
-          {fmtPct0(row.rankPct)}
-          <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--text-muted)' }}>
-            · {row.rankBasis === 'industry' ? 'ind' : 'sec'}
-          </span>
-        </span>
-      );
+    case 'symbol':        return <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{row.symbol}</span>;
+    case 'sector':        return <Trunc value={row.sector} max={92} />;
+    case 'industry':      return <Trunc value={row.industry} max={132} />;
+    case 'price':         return fmtPrice(row.price);
+    case 'drawdownPct':   return fmtPct1(row.drawdownPct);
+    case 'roic':          return fmtPct1(row.roic);
+    case 'goodwillShare': return fmtPct0(row.goodwillShare);
     default: return '—';
   }
 }
@@ -93,8 +98,7 @@ const td = {
   whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums',
 };
 
-function ScreenTable({ rows }) {
-  const router = useRouter();
+function ScreenTable({ rows, onSelect, selectedSymbol }) {
   const [sort, setSort] = useState({ key: null, dir: 'asc' });
   const toggle = key => setSort(p => (p.key === key ? { key, dir: p.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
   const sorted = useMemo(
@@ -131,20 +135,28 @@ function ScreenTable({ rows }) {
           </tr>
         </thead>
         <tbody>
-          {sorted.map(row => (
-            <tr
-              key={row.symbol}
-              onClick={() => router.push(`/research?ticker=${encodeURIComponent(row.symbol)}`)}
-              title={`Open ${row.symbol} in Stock Research`}
-              style={{ cursor: 'pointer' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = ''; }}
-            >
-              {COLUMNS.map(c => (
-                <td key={c.key} style={{ ...td, textAlign: c.num ? 'right' : 'left' }}>{renderCell(row, c.key)}</td>
-              ))}
-            </tr>
-          ))}
+          {sorted.map(row => {
+            const selected = selectedSymbol === row.symbol;
+            return (
+              <tr
+                key={row.symbol}
+                onClick={() => onSelect?.(row.symbol)}
+                aria-selected={selected || undefined}
+                title={`Load ${row.symbol} into the detail panel`}
+                style={{
+                  cursor: 'pointer',
+                  background: selected ? 'var(--bg-hover)' : undefined,
+                  boxShadow: selected ? 'inset 3px 0 0 0 var(--accent)' : undefined,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = selected ? 'var(--bg-hover)' : ''; }}
+              >
+                {COLUMNS.map(c => (
+                  <td key={c.key} style={{ ...td, textAlign: c.num ? 'right' : 'left' }}>{renderCell(row, c.key)}</td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -221,7 +233,7 @@ function EmptyState({ rows, threshold }) {
   );
 }
 
-export default function ScreenSection() {
+export default function ScreenSection({ onSelect, selectedSymbol }) {
   const [state, setState] = useState({ status: 'loading' });   // loading | ready | error
   const [threshold, setThreshold] = useState(DEFAULT_DRAWDOWN);
 
@@ -267,7 +279,7 @@ export default function ScreenSection() {
         <Card title="Results" eyebrow="quality compounders at drawdown" padding="0">
           {passing.length === 0
             ? <div style={{ padding: 14 }}><EmptyState rows={data.rows} threshold={threshold} /></div>
-            : <ScreenTable rows={passing} />}
+            : <ScreenTable rows={passing} onSelect={onSelect} selectedSymbol={selectedSymbol} />}
         </Card>
       </div>
     );
