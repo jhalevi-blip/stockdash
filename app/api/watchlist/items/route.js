@@ -1,6 +1,3 @@
-// NOTE: this POST body is snake_case (display_symbol, asset_class, section_id), while
-// GET /api/watchlist/quotes serialises camelCase (displaySymbol, targetPrice) — a
-// follow-up branch should reconcile the two before the add/remove UI is wired.
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { resolveSymbol } from '@/lib/watchlist/resolveSymbol';
@@ -25,12 +22,12 @@ const NO_STORE = { 'Cache-Control': 'no-store' };
 const ROLES = new Set(['candidate', 'theme', 'macro']);
 const ASSET_CLASSES = new Set(['equity', 'fx']);
 
-// Reused from the PATCH whitelist: target_price is a non-negative number or null.
+// Reused from the PATCH whitelist: targetPrice is a non-negative number or null.
 function parseTargetPrice(v) {
   if (v === undefined) return { ok: true, val: null };
   if (v === null || v === '') return { ok: true, val: null };
   const n = Number(v);
-  if (!Number.isFinite(n) || n < 0) return { ok: false, msg: 'target_price must be a non-negative number or null' };
+  if (!Number.isFinite(n) || n < 0) return { ok: false, msg: 'targetPrice must be a non-negative number or null' };
   return { ok: true, val: n };
 }
 
@@ -56,28 +53,28 @@ export async function POST(request) {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  // ── Validate input ──────────────────────────────────────────────────────────
-  const displaySymbol = typeof body.display_symbol === 'string' ? body.display_symbol.trim().toUpperCase() : '';
-  if (!displaySymbol) return Response.json({ error: 'display_symbol is required' }, { status: 400 });
+  // ── Validate input (request body is camelCase, matching /api/watchlist/quotes) ─
+  const displaySymbol = typeof body.displaySymbol === 'string' ? body.displaySymbol.trim().toUpperCase() : '';
+  if (!displaySymbol) return Response.json({ error: 'displaySymbol is required' }, { status: 400 });
 
-  const assetClass = body.asset_class;
+  const assetClass = body.assetClass;
   if (!ASSET_CLASSES.has(assetClass)) {
-    return Response.json({ error: "asset_class must be 'equity' or 'fx'" }, { status: 400 });
+    return Response.json({ error: "assetClass must be 'equity' or 'fx'" }, { status: 400 });
   }
 
-  const sectionId = body.section_id;
-  if (!sectionId) return Response.json({ error: 'section_id is required' }, { status: 400 });
+  const sectionId = body.sectionId;
+  if (!sectionId) return Response.json({ error: 'sectionId is required' }, { status: 400 });
 
   const role = body.role === undefined ? 'candidate' : body.role;
   if (!ROLES.has(role)) {
     return Response.json({ error: "role must be 'candidate', 'theme' or 'macro'" }, { status: 400 });
   }
 
-  const tp = parseTargetPrice(body.target_price);
+  const tp = parseTargetPrice(body.targetPrice);
   if (!tp.ok) return Response.json({ error: tp.msg }, { status: 400 });
   const th = parseThesis(body.thesis);
   if (!th.ok) return Response.json({ error: th.msg }, { status: 400 });
-  const themeSlug = typeof body.theme_slug === 'string' && body.theme_slug.trim() ? body.theme_slug.trim() : null;
+  const themeSlug = typeof body.themeSlug === 'string' && body.themeSlug.trim() ? body.themeSlug.trim() : null;
 
   // ── The section must exist and belong to the caller (sections are fixed here) ─
   const secRes = await sb
