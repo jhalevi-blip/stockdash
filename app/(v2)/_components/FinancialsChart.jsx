@@ -14,10 +14,21 @@ import {
 import Card from '@/app/(v2)/_components/Card';
 import { useChartHeight } from '@/lib/useChartHeight';
 import { peerMedianByLabel, computeRangeStats, peerMedianStats } from '@/lib/financials/stats';
+import { buildValuationRows, makePriceAt } from '@/lib/financials/valuation';
 
 const PERIODS = [['ttm', 'TTM'], ['quarterly', 'Quarterly'], ['annual', 'Annual']];
 const RANGES = ['1Y', '3Y', '5Y', '10Y'];
 const RANGE_YEARS = { '1Y': 1, '3Y': 3, '5Y': 5, '10Y': 10 };
+
+// The valuation chart is capped at 5Y regardless of the shared range toggle: its P/E
+// line depends on the 5-year price series (requested once, reused from the price chart's
+// 24h cache). Longer ranges collapse to 5Y here and the chart's subtitle says so.
+const VAL_MAX_YEARS = 5;
+const cappedValuationRange = range => ((RANGE_YEARS[range] ?? 99) > VAL_MAX_YEARS ? '5Y' : range);
+// The price route only accepts plain alphanumeric tickers, so P/E is unavailable for
+// dotted/hyphenated symbols (e.g. BRK.B). We say so explicitly rather than dropping the
+// line silently — an absent line otherwise looks identical to negative earnings.
+const priceEligibleSymbol = sym => /^[A-Z0-9]+$/.test(String(sym || '').toUpperCase());
 const MODES = [['abs', 'Abs'], ['pct', '%']];
 
 const TOOLTIP = { background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12 };
@@ -199,6 +210,38 @@ function LeverageChart({ rows, height, peerCount }) {
   );
 }
 
+// Valuation: rolling 3-year revenue CAGR (left, %) and TTM P/E (right, multiple), the
+// same dual-axis pattern as Leverage. Always TTM-based and capped at 5Y — it ignores the
+// period toggle. connectNulls is FALSE on both lines on purpose: the P/E line must break
+// where TTM EPS <= 0, and the CAGR line simply starts once a 3-years-prior point exists.
+function ValuationChart({ rows, height, capped, priceEligible }) {
+  const parts = ['Rev CAGR · 3y rolling, TTM (left)'];
+  if (priceEligible) parts.unshift('P/E, TTM (right)');
+  if (capped) parts.push('showing 5Y — P/E limited by 5-year price history');
+  return (
+    <ChartBlock title="Valuation" subtitle={parts.join(' · ')} height={height}>
+      <LineChart data={rows} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} />
+        <XAxis dataKey="label" {...AXIS} minTickGap={24} />
+        <YAxis yAxisId="left" tickFormatter={fmtPct} width={48} {...AXIS} />
+        {priceEligible && <YAxis yAxisId="right" orientation="right" tickFormatter={fmtMult} width={44} {...AXIS} />}
+        <Tooltip
+          contentStyle={TOOLTIP} labelStyle={{ color: 'var(--text-muted)' }}
+          formatter={(v, n) => n === 'pe' ? [fmtMult(v), 'P/E (TTM)'] : [fmtPct(v), 'Rev CAGR · 3y rolling (TTM)']}
+        />
+        <Legend wrapperStyle={{ fontSize: 11 }} payload={[
+          { value: 'Rev CAGR · 3y rolling (TTM)', id: 'revCagr3y', type: 'line', color: 'var(--accent)' },
+          ...(priceEligible ? [{ value: 'P/E (TTM)', id: 'pe', type: 'line', color: 'var(--warn)' }] : []),
+        ]} />
+        <Line yAxisId="left" type="linear" dataKey="revCagr3y" stroke="var(--accent)" strokeWidth={2} dot={false} connectNulls={false} />
+        {priceEligible && (
+          <Line yAxisId="right" type="linear" dataKey="pe" stroke="var(--warn)" strokeWidth={1.75} dot={false} strokeDasharray="5 3" connectNulls={false} />
+        )}
+      </LineChart>
+    </ChartBlock>
+  );
+}
+
 function StatsStrip({ company, peer, peerCount }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', padding: '2px 0 2px' }}>
@@ -254,6 +297,8 @@ export default function FinancialsChart({ symbol }) {
   const [peers, setPeers] = useState(null);       // effective peer tickers (null = resolving)
   const [peerSource, setPeerSource] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [prices, setPrices] = useState(null);   // base-symbol 5Y daily closes: null=loading, []=none
+  const priceEligible = priceEligibleSymbol(symbol);
 
   // 1) Resolve the peer set for this symbol (saved override or Finnhub live).
   useEffect(() => {
@@ -291,6 +336,26 @@ export default function FinancialsChart({ symbol }) {
     })();
     return () => { cancelled = true; };
   }, [symbol, peers]);
+
+  // 3) Fetch the 5-year daily closes for TTM P/E. Requested as exactly years=5&light=true
+  //    so it hits the SAME /api/historical-prices cache entry the price chart primes (one
+  //    FMP call per symbol per 24h). Skipped for symbols the price route rejects (dotted
+  //    tickers): prices=[] so the chart shows the "P/E unavailable" note, not a silent gap.
+  useEffect(() => {
+    if (!priceEligible) { setPrices([]); return undefined; }
+    let cancelled = false;
+    setPrices(null);
+    (async () => {
+      try {
+        const res = await fetch(`/api/historical-prices?tickers=${symbol}&years=5&light=true`);
+        const j = await res.json().catch(() => null);
+        const up = symbol.toUpperCase();
+        const arr = j?.data?.find(d => d.ticker === up)?.prices ?? j?.data?.[0]?.prices ?? [];
+        if (!cancelled) setPrices(Array.isArray(arr) ? arr : []);
+      } catch { if (!cancelled) setPrices([]); }
+    })();
+    return () => { cancelled = true; };
+  }, [symbol, priceEligible]);
 
   const savePeers = useCallback(async (list) => {
     setBusy(true);
@@ -358,6 +423,14 @@ export default function FinancialsChart({ symbol }) {
     const chips = peerList.length ? peerList : (peers ?? []).map(t => ({ ticker: t, hasData: undefined }));
     const years = historyYears(payload.periods);
 
+    // Valuation chart: always TTM-based and capped at 5Y (ignores the period toggle).
+    // Compute CAGR/P-E over the FULL ttm series (so 5Y-window points still have a
+    // 3-years-prior value and a price), then slice to <=5Y for display.
+    const valuationFull = buildValuationRows(payload.periods?.ttm ?? [], makePriceAt(prices ?? []));
+    const valuationRows = sliceByRange(valuationFull, cappedValuationRange(range));
+    const valuationCapped = (RANGE_YEARS[range] ?? 0) > VAL_MAX_YEARS;
+    const priceLoaded = prices !== null;   // null while the 5Y price fetch is in flight
+
     body = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
@@ -371,6 +444,19 @@ export default function FinancialsChart({ symbol }) {
             <StatsStrip company={companyStats} peer={peerStats} peerCount={peerCount} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               <IncomeChart   rows={mergedRows} height={chartHeight} mode={mode} peerCount={peerCount} />
+              <div>
+                <ValuationChart rows={valuationRows} height={chartHeight} capped={valuationCapped} priceEligible={priceEligible} />
+                {!priceEligible && (
+                  <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--warn)' }}>
+                    P/E is unavailable for {symbol} — the price source doesn’t support dotted tickers, so only the revenue-CAGR line is shown.
+                  </p>
+                )}
+                {priceEligible && priceLoaded && prices.length === 0 && (
+                  <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--warn)' }}>
+                    P/E is unavailable — price data couldn’t be loaded for {symbol}.
+                  </p>
+                )}
+              </div>
               <LeverageChart rows={mergedRows} height={chartHeight} peerCount={peerCount} />
             </div>
           </>
