@@ -61,6 +61,7 @@ export async function GET(request) {
     .from('watchlist_items')
     .select('provider_symbol, display_symbol, resolved')
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .or(`provider_symbol.eq.${symbolParam},display_symbol.eq.${symbolParam}`)
     .order('resolved', { ascending: false })
     .limit(1);

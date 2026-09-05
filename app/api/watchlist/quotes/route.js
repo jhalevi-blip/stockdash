@@ -33,7 +33,7 @@ export async function GET() {
   // Load sections + items fresh (per-user; not cacheable). Both errors surface.
   const [secRes, itemRes] = await Promise.all([
     sb.from('watchlist_sections').select('*').eq('user_id', userId).order('sort_order', { ascending: true }),
-    sb.from('watchlist_items').select('*').eq('user_id', userId).order('sort_order', { ascending: true }),
+    sb.from('watchlist_items').select('*').eq('user_id', userId).is('deleted_at', null).order('sort_order', { ascending: true }),
   ]);
   if (secRes.error) {
     return Response.json({ error: `Failed to load sections: ${secRes.error.message}` }, { status: 500 });

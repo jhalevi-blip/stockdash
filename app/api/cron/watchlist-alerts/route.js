@@ -85,6 +85,7 @@ export async function GET(request) {
     .eq('user_id', ownerId)
     .eq('role', 'candidate')
     .eq('resolved', true)
+    .is('deleted_at', null)
     .not('target_price', 'is', null)
     .not('provider_symbol', 'is', null);
   if (itemErr) return Response.json({ error: `Failed to load items: ${itemErr.message}` }, { status: 500 });
