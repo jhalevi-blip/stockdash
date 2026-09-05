@@ -55,7 +55,7 @@ function AsOf({ ms, marketOpen, now }) {
   const rel = ageMin <= 0 ? 'just now' : ageMin < 60 ? `${ageMin}m ago` : `${Math.floor(ageMin / 60)}h ago`;
   return (
     <span style={{ color: stale ? 'var(--warn)' : 'var(--text-muted)', fontSize: 11, whiteSpace: 'nowrap' }}>
-      {fmtClock(ms)} · {rel}{stale ? ' · stale' : ''}
+      {rel}{stale ? ' · stale' : ''}
     </span>
   );
 }
@@ -75,17 +75,29 @@ function VsTarget({ price, target }) {
 
 // ── column sets by role (spec §3) ─────────────────────────────────────────────
 const COLUMNS = {
-  candidate: ['Symbol', 'Price', 'Chg%', 'Target', 'vs Target', 'As of'],
+  candidate: ['Symbol', 'Price', 'Chg%', 'Target', 'vs Tgt', 'As of'],
   theme:     ['Symbol', 'Price', 'Chg%', 'Theme', 'Thesis', 'As of'],
   macro:     ['Symbol', 'Price', 'Chg%', 'As of'],
 };
 
+// Fixed per-column widths (px) for table-layout: fixed — order matches COLUMNS with a
+// trailing entry for the × actions column. Content no longer sizes columns, so a long
+// symbol or a five-figure price can't push × out of view. In normal use the left grid
+// track is ~480px, so the table (width:100%) scales these up and nothing scrolls; the
+// overflowX wrapper only engages below the summed width (min-content per role:
+// candidate 356, theme 382, macro 286).
+const COL_WIDTHS = {
+  candidate: [72, 54, 48, 52, 50, 50, 30], // Symbol Price Chg% Target vs-Tgt As-of ×
+  theme:     [68, 52, 46, 56, 84, 48, 28], // Symbol Price Chg% Theme Thesis As-of ×
+  macro:     [84, 60, 54, 56, 32],         // Symbol Price Chg% As-of ×
+};
+
 const th = {
-  textAlign: 'left', padding: '6px 10px', fontSize: 10, fontWeight: 600,
+  textAlign: 'left', padding: '6px 6px', fontSize: 10, fontWeight: 600,
   letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-muted)',
   borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap',
 };
-const td = { padding: '8px 10px', fontSize: 13, borderBottom: '1px solid var(--border-color)', verticalAlign: 'top' };
+const td = { padding: '8px 6px', fontSize: 13, borderBottom: '1px solid var(--border-color)', verticalAlign: 'top' };
 
 function SymbolCell({ item }) {
   const grey = !item.resolved;
@@ -276,7 +288,7 @@ function Row({ item, role, marketOpen, now, onPatch, onRemove, selected, onSelec
 // ── client-side sort within a section (no new API calls) ──────────────────────
 // Header label → sort key. Only these columns are sortable; the rest (Theme,
 // Thesis, As of) render as plain, non-clickable headers.
-const SORT_KEYS = { Symbol: 'symbol', Price: 'price', 'Chg%': 'chg', Target: 'target', 'vs Target': 'vsTarget' };
+const SORT_KEYS = { Symbol: 'symbol', Price: 'price', 'Chg%': 'chg', Target: 'target', 'vs Tgt': 'vsTarget' };
 
 // The value a row sorts by for a given key. Returns null when it's missing — a
 // missing target is never 0, and null-valued rows always sink to the bottom.
@@ -456,7 +468,10 @@ function SectionTable({ section, markets, now, onPatch, onRemove, onAdd, selecte
         <p style={{ padding: 14, color: 'var(--text-muted)', fontSize: 13 }}>No symbols in this section.</p>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT }}>
+          <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontFamily: FONT }}>
+            <colgroup>
+              {COL_WIDTHS[role].map((w, i) => <col key={i} style={{ width: w }} />)}
+            </colgroup>
             <thead>
               <tr>
                 {cols.map(c => {
@@ -479,7 +494,7 @@ function SectionTable({ section, markets, now, onPatch, onRemove, onAdd, selecte
                     </th>
                   );
                 })}
-                <th style={{ ...th, width: 1 }} aria-label="Actions" />
+                <th style={th} aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
