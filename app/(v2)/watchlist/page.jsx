@@ -219,7 +219,7 @@ function EditableCell({ value, kind, assetClass, placeholder, onSave, styleExtra
   );
 }
 
-function Row({ item, role, marketOpen, now, onPatch, selected, onSelect }) {
+function Row({ item, role, marketOpen, now, onPatch, onRemove, selected, onSelect }) {
   const q = item.quote;
   const asOf = q.status === 'ok'
     ? <AsOf ms={q.asOf} marketOpen={marketOpen} now={now} />
@@ -268,6 +268,7 @@ function Row({ item, role, marketOpen, now, onPatch, selected, onSelect }) {
       )}
       {/* macro: no extra columns */}
       <td style={td}>{asOf}</td>
+      <RemoveCell item={item} onRemove={onRemove} />
     </tr>
   );
 }
@@ -310,7 +311,131 @@ function makeComparator(key, dir) {
   };
 }
 
-function SectionTable({ section, markets, now, onPatch, selectedId, onSelect }) {
+// Per-row remove control with an inline two-step confirm (destructive from the
+// user's view, even though the API soft-deletes). Clicks stopPropagation so they
+// don't also select the row. On success the row vanishes with the refetch; on
+// failure (e.g. 404 already removed) the error shows inline.
+function RemoveCell({ item, onRemove }) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const stop = e => e.stopPropagation();
+
+  async function doRemove(e) {
+    stop(e);
+    if (busy) return;
+    setBusy(true); setError(null);
+    try {
+      await onRemove(item.id); // row disappears on the refetch that follows
+    } catch (err) {
+      setError(err?.message || 'Remove failed');
+      setBusy(false);
+    }
+  }
+
+  if (error) {
+    return (
+      <td style={{ ...td, whiteSpace: 'nowrap' }} onClick={stop}>
+        <span style={{ fontSize: 11, color: 'var(--negative)' }}>{error}</span>{' '}
+        <button type="button" onClick={e => { stop(e); setError(null); setConfirming(false); }} style={linkBtn}>dismiss</button>
+      </td>
+    );
+  }
+  if (confirming) {
+    return (
+      <td style={{ ...td, whiteSpace: 'nowrap' }} onClick={stop}>
+        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Remove {item.displaySymbol}?</span>{' '}
+        <button type="button" disabled={busy} onClick={doRemove} style={{ ...linkBtn, color: 'var(--negative)' }}>{busy ? '…' : 'Remove'}</button>{' '}
+        <button type="button" disabled={busy} onClick={e => { stop(e); setConfirming(false); }} style={linkBtn}>Cancel</button>
+      </td>
+    );
+  }
+  return (
+    <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={stop}>
+      <button
+        type="button"
+        title={`Remove ${item.displaySymbol}`}
+        aria-label={`Remove ${item.displaySymbol}`}
+        onClick={e => { stop(e); setConfirming(true); }}
+        style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 4px' }}
+      >×</button>
+    </td>
+  );
+}
+
+// Per-section add control. The equity/fx toggle is explicit (not derived from the
+// section role) so a symbol can be added to an empty section without guessing its
+// asset class. Input + toggle + button are all disabled while a POST is in flight,
+// so a double-click can't fire two adds. onAdd throws on failure; 409 (already in
+// the list) and 502 (resolution failed, retry) surface inline here.
+function AddSymbolForm({ section, onAdd }) {
+  const [symbol, setSymbol] = useState('');
+  const [assetClass, setAssetClass] = useState(section.role === 'macro' ? 'fx' : 'equity');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function submit(e) {
+    e.preventDefault();
+    const sym = symbol.trim().toUpperCase();
+    if (!sym || busy) return;
+    setBusy(true); setError(null);
+    try {
+      await onAdd({ displaySymbol: sym, assetClass, sectionId: section.id, role: section.role });
+      setSymbol('');
+    } catch (err) {
+      setError(err?.message || 'Add failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const canSubmit = symbol.trim() !== '' && !busy;
+
+  return (
+    <form onSubmit={submit} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '10px 14px', borderTop: '1px solid var(--border-color)' }}>
+      <input
+        value={symbol}
+        onChange={e => setSymbol(e.target.value)}
+        disabled={busy}
+        placeholder="Add ticker…"
+        aria-label={`Add a symbol to ${section.name}`}
+        style={{
+          width: 130, padding: '4px 8px', fontSize: 13, fontFamily: FONT, borderRadius: 4, outline: 'none',
+          background: 'var(--bg-page-deep)', color: 'var(--text-primary)',
+          border: `1px solid ${error ? 'var(--negative)' : 'var(--border-color)'}`, opacity: busy ? 0.6 : 1,
+        }}
+      />
+      <div role="group" aria-label="Asset class" style={{ display: 'inline-flex', border: '1px solid var(--border-color)', borderRadius: 4, overflow: 'hidden' }}>
+        {['equity', 'fx'].map(ac => (
+          <button
+            key={ac}
+            type="button"
+            disabled={busy}
+            aria-pressed={assetClass === ac}
+            onClick={() => setAssetClass(ac)}
+            style={{
+              padding: '4px 10px', fontSize: 12, border: 'none', cursor: busy ? 'default' : 'pointer',
+              background: assetClass === ac ? 'var(--accent)' : 'transparent',
+              color: assetClass === ac ? '#fff' : 'var(--text-secondary)',
+            }}
+          >{ac === 'equity' ? 'Equity' : 'FX'}</button>
+        ))}
+      </div>
+      <button
+        type="submit"
+        disabled={!canSubmit}
+        style={{
+          padding: '4px 12px', fontSize: 12, borderRadius: 4, cursor: canSubmit ? 'pointer' : 'default',
+          background: canSubmit ? 'var(--bg-hover)' : 'transparent', color: 'var(--text-primary)',
+          border: '1px solid var(--border-color)', opacity: canSubmit ? 1 : 0.5,
+        }}
+      >{busy ? 'Adding…' : 'Add'}</button>
+      {error && <span style={{ fontSize: 11, color: 'var(--negative)' }}>{error}</span>}
+    </form>
+  );
+}
+
+function SectionTable({ section, markets, now, onPatch, onRemove, onAdd, selectedId, onSelect }) {
   const role = COLUMNS[section.role] ? section.role : 'candidate';
   const cols = COLUMNS[role];
   // Which session governs this section's "stale" flag: fx sections → FX, else US.
@@ -354,14 +479,16 @@ function SectionTable({ section, markets, now, onPatch, selectedId, onSelect }) 
                     </th>
                   );
                 })}
+                <th style={{ ...th, width: 1 }} aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
-              {items.map(it => <Row key={it.id} item={it} role={role} marketOpen={marketOpen} now={now} onPatch={onPatch} selected={it.id === selectedId} onSelect={onSelect} />)}
+              {items.map(it => <Row key={it.id} item={it} role={role} marketOpen={marketOpen} now={now} onPatch={onPatch} onRemove={onRemove} selected={it.id === selectedId} onSelect={onSelect} />)}
             </tbody>
           </table>
         </div>
       )}
+      {section.id != null && <AddSymbolForm section={section} onAdd={onAdd} />}
     </Card>
   );
 }
@@ -637,6 +764,37 @@ export default function WatchlistPage() {
     });
   }, []);
 
+  // Add a symbol to a section, then refetch so the (possibly unresolved) row shows
+  // exactly as the server stored it. Throws on failure so the add form can surface
+  // 409 (already present) / 502 (resolution failed, retry) inline.
+  const addItem = useCallback(async ({ displaySymbol, assetClass, sectionId, role }) => {
+    const res = await fetch('/api/watchlist/items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displaySymbol, assetClass, sectionId, role }),
+    });
+    if (!res.ok) {
+      let msg = `Add failed (HTTP ${res.status})`;
+      try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* keep status-line msg */ }
+      throw new Error(msg);
+    }
+    await res.json(); // confirmed write (revive or insert)
+    await load({ silent: true });
+  }, [load]);
+
+  // Soft-delete a row, then refetch. Throws on failure so the row's remove control
+  // can surface it inline (e.g. 404 if it was already removed elsewhere).
+  const removeItem = useCallback(async (itemId) => {
+    const res = await fetch(`/api/watchlist/items/${itemId}`, { method: 'DELETE' });
+    if (!res.ok) {
+      let msg = `Remove failed (HTTP ${res.status})`;
+      try { const j = await res.json(); if (j?.error) msg = j.error; } catch { /* keep status-line msg */ }
+      throw new Error(msg);
+    }
+    await res.json();
+    await load({ silent: true });
+  }, [load]);
+
   // Screen → detail panel. If the symbol is already tracked, select that watchlist row
   // (no "not in your watchlist" badge); otherwise open it as a screen-only symbol.
   const selectScreenSymbol = useCallback((sym) => {
@@ -725,6 +883,8 @@ export default function WatchlistPage() {
               markets={data?.markets}
               now={now}
               onPatch={patchItem}
+              onRemove={removeItem}
+              onAdd={addItem}
               selectedId={screenSymbol ? null : effectiveId}
               onSelect={it => { setScreenSymbol(null); setSelectedId(it.id); }}
             />
@@ -763,6 +923,10 @@ const msg = { color: 'var(--text-secondary)', fontSize: 14, padding: '8px 2px' }
 const retryBtn = {
   marginLeft: 12, padding: '2px 10px', fontSize: 12, borderRadius: 4, cursor: 'pointer',
   background: 'transparent', color: 'var(--negative)', border: '1px solid var(--negative)',
+};
+const linkBtn = {
+  background: 'transparent', border: 'none', padding: 0, fontSize: 11,
+  cursor: 'pointer', color: 'var(--accent)', textDecoration: 'underline',
 };
 
 function Shell({ children, markets, generatedAt, refreshing, onRefresh }) {
