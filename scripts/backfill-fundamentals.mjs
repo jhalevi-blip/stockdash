@@ -16,6 +16,7 @@ import fs from 'fs';
 import readline from 'node:readline';
 import { pathToFileURL } from 'url';
 import { fetchSymbolFundamentals, computeDerived, buildPeriodRows, num, latestCogsRev, grossMarginYears } from '../lib/watchlist/fundamentals.js';
+import { snapToCalendarQuarter, calIndex } from '../lib/financials/calendarQuarter.js';
 
 // Startup flags parsed up front: --prod selects which env file to load, so it must
 // be known before credentials are read. Without --prod the script reads .env.local
@@ -70,6 +71,16 @@ const WATCHLIST = argv.includes('--watchlist');
 // user's watchlist is included (the run logs the distinct-user count loudly so an
 // unintended fan-out across every signup is visible, not discovered later).
 const USER = (() => { const i = argv.indexOf('--user'); return i >= 0 ? (argv[i + 1] || null) : null; })();
+// --check-quarters: read-only. List symbols whose fundamentals_quarterly rows have a
+// gap in consecutive calendar quarters (prints + appends to a local log). No writes.
+const CHECK_QUARTERS = argv.includes('--check-quarters');
+// --remap-quarters: recompute every quarterly row's calendar key from report_date with
+// the shared snap, and rewrite affected symbols. "Affected" = the snap changes a stored
+// key OR the symbol has a calendar-quarter gap (a gap can be a quarter dropped by the
+// old floor rule's collision, recoverable only by re-fetching FMP). Scoped to affected
+// symbols; unaffected ones are never touched. --dry-run prints the affected list with
+// per-symbol old->new key changes and writes nothing.
+const REMAP_QUARTERS = argv.includes('--remap-quarters');
 // ── Abort guards ──────────────────────────────────────────────────────────────
 // These guard against CATASTROPHIC failure — a missing exchange, a truncated
 // response, an inverted exclusion rule — NOT against normal drift. Raw has slid
@@ -313,6 +324,139 @@ async function checkUniverse() {
   console.log(`combined raw: ${total}${total < MIN_SCREENER_RAW ? `  (< ${MIN_SCREENER_RAW} — refresh would abort)` : ''}`);
 }
 
+// ── Quarterly calendar-key maintenance (check-quarters / remap-quarters) ────────
+// Load every fundamentals_quarterly row's calendar key + report_date, paginated.
+async function loadAllQuarterly() {
+  const out = []; const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await sb.from('fundamentals_quarterly')
+      .select('symbol,calendar_year,calendar_quarter,report_date')
+      .order('symbol').range(from, from + PAGE - 1);
+    if (error) { console.error(`fundamentals_quarterly read error: ${error.message}`); process.exit(1); }
+    out.push(...(data || []));
+    if (!data || data.length < PAGE) break;
+  }
+  return out;
+}
+function groupBySymbol(rows) {
+  const m = new Map();
+  for (const r of rows) { if (!m.has(r.symbol)) m.set(r.symbol, []); m.get(r.symbol).push(r); }
+  return m;
+}
+const fmtCal = i => `${Math.floor(i / 4)}Q${(i % 4) + 1}`;   // inverse of calIndex
+// Gaps in a symbol's consecutive calendar quarters (from STORED keys). Returns
+// [{ from, to, missing }]. A newly listed name shows real short history, not a gap.
+function calendarGaps(rows) {
+  const idx = rows.map(r => calIndex(r.calendar_year, r.calendar_quarter)).sort((a, b) => a - b);
+  const gaps = [];
+  for (let i = 1; i < idx.length; i++) {
+    const d = idx[i] - idx[i - 1];
+    if (d > 1) gaps.push({ from: fmtCal(idx[i - 1]), to: fmtCal(idx[i]), missing: d - 1 });
+  }
+  return gaps;
+}
+
+// Read-only gap detector, following the --check-universe pattern: prints a report and
+// appends a TSV line per flagged symbol to a local log; makes NO database writes.
+async function checkQuarters() {
+  const ts = new Date().toISOString();
+  const bySym = groupBySymbol(await loadAllQuarterly());
+  console.log(`\n=== QUARTERLY GAP CHECK (${bySym.size} symbols) ===`);
+  let flagged = 0, totalGaps = 0; const logLines = [];
+  for (const [sym, rs] of [...bySym].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
+    const gaps = calendarGaps(rs);
+    if (!gaps.length) continue;
+    flagged++; totalGaps += gaps.length;
+    const desc = gaps.map(g => `${g.from}->${g.to}(${g.missing})`).join(' ');
+    console.log(`  ${sym.padEnd(8)} rows=${String(rs.length).padStart(3)}  gaps=${gaps.length}  ${desc}`);
+    logLines.push(`${ts}\t${sym}\t${rs.length}\t${gaps.length}\t${desc}`);
+  }
+  console.log(`\nsymbols with a calendar-quarter gap: ${flagged} of ${bySym.size}  (${totalGaps} gaps total)`);
+  console.log(`note: newly listed names show real short history — not every gap is a mapping bug.`);
+  fs.appendFileSync('scripts/quarterly-gaps.log', (logLines.length ? logLines.join('\n') : `${ts}\t(none)`) + '\n');
+}
+
+// Recompute calendar keys from report_date and rewrite affected symbols. Affected =
+// the snap changes a stored key, OR a calendar gap exists (a gap can be a quarter the
+// old floor rule collided away — only re-fetching FMP restores it). Scoped: unaffected
+// symbols are never read from FMP or written. --dry-run prints the affected list with
+// per-symbol old->new key changes and touches nothing.
+async function remapQuarters() {
+  const bySym = groupBySymbol(await loadAllQuarterly());
+  const affected = [];
+  for (const [sym, rs] of [...bySym].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
+    const changes = [];
+    for (const r of rs) {
+      const cal = snapToCalendarQuarter(r.report_date);
+      if (!cal) continue;
+      if (cal.year !== r.calendar_year || cal.quarter !== r.calendar_quarter) {
+        changes.push(`${r.report_date}: ${r.calendar_year}Q${r.calendar_quarter} -> ${cal.year}Q${cal.quarter}`);
+      }
+    }
+    const gaps = calendarGaps(rs);
+    if (changes.length || gaps.length) affected.push({ sym, before: rs.length, changes, gaps });
+  }
+
+  console.log(`\n=== REMAP QUARTERS ${DRY_RUN ? '[DRY RUN]' : '[WRITE]'} ===`);
+  console.log(`affected: ${affected.length} of ${bySym.size} symbols (snap key-change and/or calendar gap)`);
+
+  if (DRY_RUN) {
+    for (const a of affected) {
+      const why = [a.changes.length ? `${a.changes.length} key-change` : null, a.gaps.length ? `${a.gaps.length} gap` : null].filter(Boolean).join(', ');
+      console.log(`  ${a.sym.padEnd(8)} rows=${String(a.before).padStart(3)}  [${why}]`);
+      for (const c of a.changes) console.log(`      ${c}`);
+      for (const g of a.gaps) console.log(`      gap ${g.from}->${g.to} (${g.missing} missing)`);
+    }
+    console.log(`\n[DRY RUN] nothing deleted or written. ${affected.length} symbols would be re-fetched from FMP and rewritten.`);
+    return;
+  }
+
+  // WRITE: per symbol — build FIRST (so a build/FMP failure never deletes good data),
+  // refuse to wipe a symbol to nothing, then delete its quarterly rows and rewrite.
+  // Log before/after quarterly counts; a symbol that comes back with FEWER rows than it
+  // started with is flagged loudly (⚠) rather than discovered later.
+  let remapped = 0, failed = 0, shrunk = 0;
+  for (const a of affected) {
+    let built;
+    try { built = await buildRow({ symbol: a.sym, marketCap: null, sector: null, industry: null }); }
+    catch (e) { console.log(`  ${a.sym.padEnd(8)} build error ${e.message} — SKIPPED (rows left intact)`); failed++; continue; }
+
+    const after = built.quarterly.length;
+    if (after === 0) { console.log(`  ${a.sym.padEnd(8)} before=${String(a.before).padStart(3)}  FMP returned 0 quarterly — SKIPPED (rows left intact)`); failed++; continue; }
+
+    const nowIso = new Date().toISOString();
+    const { __gmDropped, ...snap0 } = built.snapshot;
+    const dbRow = { ...snap0, updated_at: nowIso };
+    const annualRows = built.annual.map(r => ({ ...r, updated_at: nowIso }));
+    const quarterlyRows = built.quarterly.map(r => ({ ...r, updated_at: nowIso }));
+
+    // Delete the old (mis-keyed) quarterly rows — a plain upsert would leave them beside
+    // the corrected rows and the series would double-count — then rewrite quarterly FIRST
+    // to minimize the window with no history. snapshot/annual are upserts (never deleted).
+    const del = await sb.from('fundamentals_quarterly').delete().eq('symbol', a.sym);
+    if (del.error) { console.log(`  ${a.sym.padEnd(8)} delete error ${del.error.message}`); failed++; continue; }
+
+    let stepFailed = false;
+    for (const [table, payload, onConflict] of [
+      ['fundamentals_quarterly', quarterlyRows, 'symbol,calendar_year,calendar_quarter'],
+      ['fundamentals_annual', annualRows, 'symbol,fiscal_year'],
+      ['fundamentals_snapshot', dbRow, 'symbol'],
+    ]) {
+      const arr = Array.isArray(payload) ? payload : [payload];
+      if (!arr.length) continue;
+      const { error } = await sb.from(table).upsert(payload, { onConflict });
+      if (error) { console.log(`  ${a.sym.padEnd(8)} ${table} upsert error ${error.message}`); stepFailed = true; break; }
+    }
+    if (stepFailed) { failed++; continue; }
+
+    const flag = after < a.before ? '  ⚠ FEWER than before' : (after > a.before ? '  ↑ restored' : '');
+    if (after < a.before) shrunk++;
+    console.log(`  ${a.sym.padEnd(8)} before=${String(a.before).padStart(3)}  after=${String(after).padStart(3)}${flag}`);
+    remapped++;
+  }
+  console.log(`\nremapped ${remapped} symbols; ${failed} failed/skipped; ${shrunk} came back with FEWER quarterly rows (investigate).`);
+}
+
 // ── Per-symbol computation ─────────────────────────────────────────────────────
 // Thin wrapper: fetch via the lib (injecting our throttled getJson so pacing stays
 // a script concern), then compute the derived row via the lib. All fetching and
@@ -340,7 +484,7 @@ async function confirmProd() {
 
 // ── Main ────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log(`backfill-fundamentals  ${TODAY}  ${DRY_RUN ? '[DRY RUN]' : '[WRITE]'}${LIMIT ? `  limit=${LIMIT}` : ''}${SAMPLE ? `  sample=${SAMPLE}` : ''}${REFRESH_UNIVERSE ? '  [refresh-universe]' : ''}${CHECK_UNIVERSE ? '  [check-universe]' : ''}${SYMBOL ? `  symbol=${SYMBOL}` : ''}${WATCHLIST ? `  [watchlist${USER ? ` user=${USER}` : ' all users'}]` : ''}${REFRESH ? '  [refresh]' : ''}`);
+  console.log(`backfill-fundamentals  ${TODAY}  ${DRY_RUN ? '[DRY RUN]' : '[WRITE]'}${LIMIT ? `  limit=${LIMIT}` : ''}${SAMPLE ? `  sample=${SAMPLE}` : ''}${REFRESH_UNIVERSE ? '  [refresh-universe]' : ''}${CHECK_UNIVERSE ? '  [check-universe]' : ''}${CHECK_QUARTERS ? '  [check-quarters]' : ''}${REMAP_QUARTERS ? '  [remap-quarters]' : ''}${SYMBOL ? `  symbol=${SYMBOL}` : ''}${WATCHLIST ? `  [watchlist${USER ? ` user=${USER}` : ' all users'}]` : ''}${REFRESH ? '  [refresh]' : ''}`);
 
   // Target banner — always printed before any write, loud and hard to miss, so the
   // destination project is never ambiguous. A --prod run must also be confirmed.
@@ -349,6 +493,8 @@ async function main() {
   if (PROD) await confirmProd();
 
   if (CHECK_UNIVERSE) { await checkUniverse(); return; }
+  if (CHECK_QUARTERS) { await checkQuarters(); return; }
+  if (REMAP_QUARTERS) { await remapQuarters(); return; }
   if (REFRESH_UNIVERSE) { await refreshUniverse(); return; }
 
   let universe, todo;
