@@ -57,6 +57,19 @@ const SYMBOL = (() => { const i = argv.indexOf('--symbol'); return i >= 0 ? (arg
 // that marker LAST under --refresh so its presence means the symbol is fully written.
 // (Distinct from --refresh-universe, which repopulates symbol_universe.)
 const REFRESH = argv.includes('--refresh');
+// --watchlist: backfill every symbol on user watchlists into all three tables,
+// bypassing the universe table and its guards — just like --symbol, but for the
+// distinct provider_symbol set of watchlist_items (deleted_at IS NULL, resolved,
+// asset_class='equity'). provider_symbol is the FMP spelling the tables key on
+// (BRK-B, not BRK.B). Resume marker is a fundamentals_quarterly row; --refresh
+// reprocesses everything. Universe-level sector/cap/exchange exclusions do NOT
+// apply here, so watchlist names FMP excludes from the screener (CEG, OSS, UEC…)
+// still get written.
+const WATCHLIST = argv.includes('--watchlist');
+// --user <clerk_id>: scope --watchlist to ONE user's watchlist. Absent -> every
+// user's watchlist is included (the run logs the distinct-user count loudly so an
+// unintended fan-out across every signup is visible, not discovered later).
+const USER = (() => { const i = argv.indexOf('--user'); return i >= 0 ? (argv[i + 1] || null) : null; })();
 // ── Abort guards ──────────────────────────────────────────────────────────────
 // These guard against CATASTROPHIC failure — a missing exchange, a truncated
 // response, an inverted exclusion rule — NOT against normal drift. Raw has slid
@@ -327,7 +340,7 @@ async function confirmProd() {
 
 // ── Main ────────────────────────────────────────────────────────────────────
 async function main() {
-  console.log(`backfill-fundamentals  ${TODAY}  ${DRY_RUN ? '[DRY RUN]' : '[WRITE]'}${LIMIT ? `  limit=${LIMIT}` : ''}${SAMPLE ? `  sample=${SAMPLE}` : ''}${REFRESH_UNIVERSE ? '  [refresh-universe]' : ''}${CHECK_UNIVERSE ? '  [check-universe]' : ''}${SYMBOL ? `  symbol=${SYMBOL}` : ''}${REFRESH ? '  [refresh]' : ''}`);
+  console.log(`backfill-fundamentals  ${TODAY}  ${DRY_RUN ? '[DRY RUN]' : '[WRITE]'}${LIMIT ? `  limit=${LIMIT}` : ''}${SAMPLE ? `  sample=${SAMPLE}` : ''}${REFRESH_UNIVERSE ? '  [refresh-universe]' : ''}${CHECK_UNIVERSE ? '  [check-universe]' : ''}${SYMBOL ? `  symbol=${SYMBOL}` : ''}${WATCHLIST ? `  [watchlist${USER ? ` user=${USER}` : ' all users'}]` : ''}${REFRESH ? '  [refresh]' : ''}`);
 
   // Target banner — always printed before any write, loud and hard to miss, so the
   // destination project is never ambiguous. A --prod run must also be confirmed.
@@ -346,6 +359,57 @@ async function main() {
     universe = [{ symbol: SYMBOL, marketCap: null, sector: null, industry: null }];
     todo = universe;
     console.log(`single-symbol mode: ${SYMBOL} — bypassing universe/guard/resume; writing all three tables.\n`);
+  } else if (WATCHLIST) {
+    // Watchlist mode: distinct provider_symbol across watchlist_items, bypassing the
+    // universe table and its evaluable/exclusion guards (same synthetic screen row as
+    // --symbol, so cap/sector/industry are NULL). Scoped to one user with --user, else
+    // every user — the distinct-user count is logged loudly so an all-users fan-out is
+    // never a silent surprise.
+    let q = sb.from('watchlist_items')
+      .select('provider_symbol,user_id')
+      .is('deleted_at', null).eq('resolved', true).eq('asset_class', 'equity')
+      .not('provider_symbol', 'is', null);
+    if (USER) q = q.eq('user_id', USER);
+    // Paginate: a busy install can exceed the 1000-row default page cap.
+    const rowsRaw = [];
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await q.order('provider_symbol').range(from, from + PAGE - 1);
+      if (error) { console.error(`watchlist_items read error: ${error.message}`); process.exit(1); }
+      rowsRaw.push(...(data || []));
+      if (!data || data.length < PAGE) break;
+    }
+    const users = new Set(rowsRaw.map(r => r.user_id));
+    const symbols = [...new Set(rowsRaw.map(r => r.provider_symbol))].sort();
+    if (USER) {
+      console.log(`watchlist mode: user ${USER} — ${symbols.length} distinct equity provider_symbols.`);
+    } else {
+      console.log(`watchlist mode: ALL USERS — ${users.size} distinct user(s), ${symbols.length} distinct equity provider_symbols. (scope to one with --user <clerk_id>)`);
+    }
+    if (symbols.length === 0) { console.log('nothing to do — no matching watchlist symbols.\n'); return; }
+
+    universe = symbols.map(s => ({ symbol: s, marketCap: null, sector: null, industry: null }));
+    if (LIMIT) universe = universe.slice(0, LIMIT);
+
+    // Resume marker is a fundamentals_quarterly row (written LAST in watchlist mode, so
+    // its presence means the symbol is fully written). --refresh reprocesses everything.
+    const done = new Set();
+    if (!REFRESH) {
+      const wanted = universe.map(r => r.symbol);
+      const QPAGE = 1000;
+      for (let i = 0; i < wanted.length; i += 200) {
+        const batch = wanted.slice(i, i + 200);
+        for (let qf = 0; ; qf += QPAGE) {
+          const { data, error } = await sb.from('fundamentals_quarterly')
+            .select('symbol').in('symbol', batch).range(qf, qf + QPAGE - 1);
+          if (error) { console.error(`fundamentals_quarterly read error: ${error.message}`); process.exit(1); }
+          (data || []).forEach(r => done.add(r.symbol));
+          if (!data || data.length < QPAGE) break;
+        }
+      }
+    }
+    todo = universe.filter(r => !done.has(r.symbol));
+    console.log(`to process: ${todo.length}  (skipped ${universe.length - todo.length} ${REFRESH ? 'none — --refresh reprocesses all' : 'already have fundamentals_quarterly rows'})\n`);
   } else {
     // Universe comes from the persisted symbol_universe table — the screener is never
     // called on a normal run (repopulate it explicitly with --refresh-universe).
@@ -450,12 +514,13 @@ async function main() {
     // Write the current mode's RESUME MARKER last, so "marker present" always implies
     // the symbol is fully written (crash-safe resume — a crash before the marker just
     // re-fetches the whole symbol next run):
-    //   normal  -> fundamentals_snapshot (as_of=today) is the marker -> written last
-    //   refresh -> fundamentals_annual rows are the marker           -> written last
+    //   normal    -> fundamentals_snapshot (as_of=today) is the marker  -> written last
+    //   refresh   -> fundamentals_annual rows are the marker            -> written last
+    //   watchlist -> fundamentals_quarterly rows are the marker         -> written last
     const S = ['fundamentals_snapshot', dbRow, 'symbol'];
     const Q = ['fundamentals_quarterly', quarterlyRows, 'symbol,calendar_year,calendar_quarter'];
     const A = ['fundamentals_annual', annualRows, 'symbol,fiscal_year'];
-    const steps = REFRESH ? [S, Q, A] : [A, Q, S];
+    const steps = WATCHLIST ? [S, A, Q] : REFRESH ? [S, Q, A] : [A, Q, S];
     let stepFailed = false;
     for (const [table, payload, onConflict] of steps) {
       const rows = Array.isArray(payload) ? payload : [payload];
