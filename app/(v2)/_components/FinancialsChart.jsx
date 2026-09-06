@@ -216,7 +216,7 @@ function LeverageChart({ rows, height, peerCount }) {
 // where TTM EPS <= 0, and the CAGR line simply starts once a 3-years-prior point exists.
 function ValuationChart({ rows, height, capped, priceEligible }) {
   const parts = ['Rev CAGR · 3y rolling, TTM (left)'];
-  if (priceEligible) parts.unshift('P/E, TTM (right)');
+  if (priceEligible) { parts.unshift('P/E, TTM (right)'); parts.push('latest point at live price'); }
   if (capped) parts.push('showing 5Y — P/E limited by 5-year price history');
   return (
     <ChartBlock title="Valuation" subtitle={parts.join(' · ')} height={height}>
@@ -242,12 +242,12 @@ function ValuationChart({ rows, height, capped, priceEligible }) {
   );
 }
 
-function StatsStrip({ company, peer, peerCount }) {
+function StatsStrip({ company, peer, peerCount, range }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', padding: '2px 0 2px' }}>
       {STAT_ROWS.map(([key, label, fmt]) => (
         <div key={key} style={{ minWidth: 92 }}>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{key === 'revenueCagr' ? `${label} (${range})` : label}</div>
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(company[key])}</div>
           <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>peer {peerCount ? fmt(peer[key]) : '—'}</div>
         </div>
@@ -426,7 +426,8 @@ export default function FinancialsChart({ symbol }) {
     // Valuation chart: always TTM-based and capped at 5Y (ignores the period toggle).
     // Compute CAGR/P-E over the FULL ttm series (so 5Y-window points still have a
     // 3-years-prior value and a price), then slice to <=5Y for display.
-    const valuationFull = buildValuationRows(payload.periods?.ttm ?? [], makePriceAt(prices ?? []));
+    const livePrice = (prices && prices.length) ? prices[prices.length - 1].close : null;
+    const valuationFull = buildValuationRows(payload.periods?.ttm ?? [], makePriceAt(prices ?? []), livePrice);
     const valuationRows = sliceByRange(valuationFull, cappedValuationRange(range));
     const valuationCapped = (RANGE_YEARS[range] ?? 0) > VAL_MAX_YEARS;
     const priceLoaded = prices !== null;   // null while the 5Y price fetch is in flight
@@ -441,7 +442,7 @@ export default function FinancialsChart({ symbol }) {
           <Msg italic>No {period} data in this range.</Msg>
         ) : (
           <>
-            <StatsStrip company={companyStats} peer={peerStats} peerCount={peerCount} />
+            <StatsStrip company={companyStats} peer={peerStats} peerCount={peerCount} range={range} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               <IncomeChart   rows={mergedRows} height={chartHeight} mode={mode} peerCount={peerCount} />
               <div>
