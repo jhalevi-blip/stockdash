@@ -24,7 +24,7 @@ const SYM = /^[A-Z0-9.\-]{1,20}$/;
 const MAX_PEERS = 8;
 const FLOW_BS = 'report_date, revenue, gross_profit, operating_income, net_income, ebitda, total_debt, operating_lease_liability, cash_and_equivalents';
 const ANNUAL_COLS = `${FLOW_BS}, fiscal_year`;
-const QUARTERLY_COLS = `${FLOW_BS}, fiscal_year, fiscal_quarter, calendar_year, calendar_quarter`;
+const QUARTERLY_COLS = `${FLOW_BS}, fiscal_year, fiscal_quarter, calendar_year, calendar_quarter, weighted_average_shares_diluted`;
 
 // Read one symbol's annual + quarterly fundamentals and build its period series.
 // Throws on a DB error so callers can decide (base -> 500, peer -> treated as no data).
