@@ -1,6 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { computeSampleStats, SAMPLE_AI_SUMMARY, SAMPLE_STOCK_INTEL } from '@/lib/dTerminalSampleData';
+import { SignUpButton } from '@clerk/nextjs';
+import { computeSampleStats, computeSampleTopStats, SAMPLE_AI_SUMMARY, SAMPLE_STOCK_INTEL } from '@/lib/dTerminalSampleData';
+import { startDemo } from '@/lib/startDemo';
 import DTAISummary from './DTAISummary';
 import DTSummaryStrip from './DTSummaryStrip';
 import DTHoldingsTable from './DTHoldingsTable';
@@ -10,8 +12,9 @@ import DTStickyCTA from './DTStickyCTA';
 import { FLAGSHIP_LABEL } from '@/lib/aiModels';
 
 export default function DTerminalHero() {
-  const [selectedTicker, setSelectedTicker] = useState('NVDA');  // NVDA per brief
+  const [selectedTicker, setSelectedTicker] = useState('ASML');  // EUR flagship holding
   const sampleStats = computeSampleStats();
+  const topStats = computeSampleTopStats();
 
   return (
     <section data-theme="dark" style={{
@@ -27,7 +30,7 @@ export default function DTerminalHero() {
         maxWidth: 820,
         margin: '0 auto',
       }}>
-        {/* Powered-by capsule */}
+        {/* Powered-by capsule — model named via FLAGSHIP_LABEL so copy can't drift */}
         <span style={{
           display: 'inline-block',
           fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
@@ -39,7 +42,7 @@ export default function DTerminalHero() {
           textTransform: 'uppercase',
           marginBottom: 16,
         }}>
-          Powered by Claude {FLAGSHIP_LABEL}
+          For DEGIRO &amp; Saxo · Powered by Claude {FLAGSHIP_LABEL}
         </span>
 
         {/* H1 */}
@@ -50,7 +53,7 @@ export default function DTerminalHero() {
           lineHeight: 1.05,
           margin: '0 0 14px',
         }}>
-          A professional-grade research<br/>terminal for your portfolio.
+          See the real DEGIRO and Saxo return your broker won&apos;t show you.
         </h1>
 
         {/* Lede */}
@@ -61,10 +64,44 @@ export default function DTerminalHero() {
           margin: '0 auto',
           maxWidth: 600,
         }}>
-          Institutional-quality analysis on every holding — from Claude Opus 4.8. Free, no ads, your data stays private — EU-hosted, never sold.
+          Import one Account Statement export. Real time-weighted return, benchmarked, with historical FX handled. Free, ad-free, EU-hosted.
         </p>
 
-        {/* TICKER CHIPS — deferred to Step 9 polish pass per Phase 3 plan */}
+        {/* CTAs — primary routes to the demo (not sign-up); secondary is sign-up */}
+        <div style={{
+          display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap',
+          marginTop: 22,
+        }}>
+          <button
+            onClick={() => startDemo('/dashboard')}
+            style={{
+              padding: '13px 30px', borderRadius: 10,
+              background: 'var(--accent-cta)', border: '1px solid var(--accent-cta)',
+              color: '#fff', fontWeight: 700, fontSize: 15, fontFamily: 'inherit',
+              cursor: 'pointer', boxShadow: '0 0 28px rgba(59,130,246,0.3)',
+            }}
+          >
+            See my real return
+          </button>
+          <SignUpButton mode="modal" forceRedirectUrl="/dashboard">
+            <button style={{
+              padding: '13px 30px', borderRadius: 10,
+              background: 'transparent', border: '1px solid #30363d',
+              color: 'var(--text-primary)', fontWeight: 700, fontSize: 15, fontFamily: 'inherit',
+              cursor: 'pointer',
+            }}>
+              Sign up free
+            </button>
+          </SignUpButton>
+        </div>
+
+        {/* Trust fine print under the CTA */}
+        <p style={{
+          fontSize: 12, color: 'rgba(230,237,243,0.35)',
+          margin: '14px auto 0', maxWidth: 560, lineHeight: 1.5,
+        }}>
+          No broker login. Read-only CSV. EU-hosted. Delete in one click. We never sell your data.
+        </p>
       </div>
 
       {/* APP SHELL */}
@@ -84,7 +121,7 @@ export default function DTerminalHero() {
           flexDirection: 'column',
           gap: 14,
         }}>
-          <DTSummaryStrip stats={sampleStats} />
+          <DTSummaryStrip stats={sampleStats} topStats={topStats} />
 
           <DTMidCards stats={sampleStats} />
 

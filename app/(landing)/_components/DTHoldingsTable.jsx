@@ -34,15 +34,24 @@ export default function DTHoldingsTable({ holdings, selectedTicker, onSelect }) 
                 onClick={() => onSelect(h.ticker)}
                 style={{ cursor: 'pointer', borderLeft: selected ? '2px solid var(--accent-cta)' : '2px solid transparent' }}
               >
-                <td style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: 'var(--accent-cta)', borderBottom: '1px solid var(--border-color)' }}>{h.ticker}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, color: 'var(--accent-cta)', borderBottom: '1px solid var(--border-color)' }}>
+                  {h.ticker}
+                  {h.ccy === 'USD' && (
+                    <span title="USD-listed — euro value is FX-converted" style={{
+                      marginLeft: 5, fontSize: 8, fontWeight: 700, letterSpacing: '0.04em',
+                      color: 'var(--text-secondary)', border: '1px solid var(--border-color)',
+                      borderRadius: 3, padding: '1px 3px', verticalAlign: 'middle',
+                    }}>USD</span>
+                  )}
+                </td>
                 <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>{h.shares}</td>
-                <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>${(h.costBasis / h.shares).toFixed(2)}</td>
-                <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>${h.price.toFixed(2)}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>€{(h.costBasis / h.shares).toFixed(2)}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>€{h.price.toFixed(2)}</td>
                 <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums', color: h.change >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
                   {h.change >= 0 ? '+' : ''}{h.change.toFixed(2)}%
                 </td>
                 <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums', color: h.pl >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
-                  {h.pl >= 0 ? '+' : ''}${h.pl.toLocaleString('en-US')}
+                  {h.pl >= 0 ? '+' : ''}€{h.pl.toLocaleString('en-GB')}
                 </td>
                 <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>{h.weight}</td>
                 <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>{h.rating}</td>
