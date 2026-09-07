@@ -17,34 +17,41 @@ export default function DTStepsWalkthrough() {
           margin: 0 auto;
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 24px;
-          align-items: start;
+          grid-template-rows: auto auto;   /* row 1: captions, row 2: images */
+          gap: 16px 24px;                  /* row gap = caption→image; col gap between steps */
+        }
+        /* Each step spans both rows as a subgrid, so every caption shares row 1's
+           height and the images line up on row 2 — no matter how many lines a
+           caption wraps to at a given column width. (A fixed em reserve broke
+           around 900px, where step 1's Saxo line wraps to an extra line.) */
+        .dt-step {
+          display: grid;
+          grid-row: span 2;
+          grid-template-rows: subgrid;
         }
         @media (max-width: 860px) {
-          .dt-steps-grid { grid-template-columns: 1fr; gap: 40px; }
+          .dt-steps-grid { grid-template-columns: 1fr; grid-template-rows: none; gap: 40px; }
+          .dt-step { display: block; }
+          .dt-step .dt-step-imgwrap { margin-top: 16px; }
         }
-        /* Reserve equal text height so the images line up along the top of each
-           column even when the captions wrap to a different number of lines. */
-        .dt-step-body { min-height: 6.6em; }
-        @media (max-width: 860px) { .dt-step-body { min-height: 0; } }
-        /* Images render at their natural proportions — no cropping. The three
-           screenshots have different aspect ratios, so the row is intentionally
-           a little ragged at the bottom; a readable image beats a tidy crop. */
+        /* Images render at their natural proportions — no cropping. Different
+           aspect ratios leave the row a little ragged at the bottom; align-self:
+           start keeps each image its natural height, pinned to the row top. */
         .dt-step-imgwrap {
           position: relative;
-          margin-top: 16px;
+          align-self: start;
           border: 1px solid #1e2530;
           border-radius: 8px;
           overflow: hidden;
           background: #0d1117;
         }
         .dt-step-img { display: block; width: 100%; height: auto; }
-        /* Step-2 annotation points at the export/download icon, which sits at the
-           right edge of the filter-bar crop. The label rides in the empty gap
-           just left of the icon; vertically centred since the strip is short. */
+        /* Step-2 annotation points at the export/download icon in the filter bar
+           (~40% down the crop, far right). The label rides in the empty gap just
+           left of the icon. */
         .dt-step2-annotation {
           position: absolute;
-          top: 50%;
+          top: 40%;
           right: 3%;
           transform: translateY(-50%);
           display: flex;
@@ -152,19 +159,23 @@ export default function DTStepsWalkthrough() {
 
 function Step({ num, title, body, children }) {
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{
-          fontSize: 13, fontWeight: 800, color: '#3b82f6',
-          fontVariantNumeric: 'tabular-nums', letterSpacing: '0.04em',
-          border: '1px solid rgba(59,130,246,0.35)', borderRadius: 6,
-          padding: '2px 8px', background: 'rgba(59,130,246,0.08)',
-        }}>{num}</span>
-        <h3 style={{ fontSize: 17, fontWeight: 700, color: '#e6edf3', margin: 0 }}>{title}</h3>
+    <div className="dt-step">
+      {/* caption block = subgrid row 1 (all captions share its height) */}
+      <div className="dt-step-caption">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{
+            fontSize: 13, fontWeight: 800, color: '#3b82f6',
+            fontVariantNumeric: 'tabular-nums', letterSpacing: '0.04em',
+            border: '1px solid rgba(59,130,246,0.35)', borderRadius: 6,
+            padding: '2px 8px', background: 'rgba(59,130,246,0.08)',
+          }}>{num}</span>
+          <h3 style={{ fontSize: 17, fontWeight: 700, color: '#e6edf3', margin: 0 }}>{title}</h3>
+        </div>
+        <p style={{ fontSize: 14, color: 'rgba(230,237,243,0.6)', lineHeight: 1.55, margin: '10px 0 0' }}>
+          {body}
+        </p>
       </div>
-      <p className="dt-step-body" style={{ fontSize: 14, color: 'rgba(230,237,243,0.6)', lineHeight: 1.55, margin: '10px 0 0' }}>
-        {body}
-      </p>
+      {/* image = subgrid row 2 */}
       {children}
     </div>
   );
