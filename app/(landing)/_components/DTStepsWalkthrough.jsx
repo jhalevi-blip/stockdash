@@ -10,7 +10,7 @@ const STEP2_IMG = '/landing/degiro-step2-rekeningoverzicht.png';
 
 export default function DTStepsWalkthrough() {
   return (
-    <section style={{ padding: '72px 24px', borderTop: '1px solid #1e2530' }}>
+    <section id="how-it-works" style={{ padding: '72px 24px', borderTop: '1px solid #1e2530' }}>
       <style>{`
         .dt-steps-grid {
           max-width: 1200px;
@@ -18,10 +18,18 @@ export default function DTStepsWalkthrough() {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
           gap: 24px;
+          align-items: start;
         }
         @media (max-width: 860px) {
           .dt-steps-grid { grid-template-columns: 1fr; gap: 40px; }
         }
+        /* Reserve equal text height so the images line up along the top of each
+           column even when the captions wrap to a different number of lines. */
+        .dt-step-body { min-height: 6.6em; }
+        @media (max-width: 860px) { .dt-step-body { min-height: 0; } }
+        /* Images render at their natural proportions — no cropping. The three
+           screenshots have different aspect ratios, so the row is intentionally
+           a little ragged at the bottom; a readable image beats a tidy crop. */
         .dt-step-imgwrap {
           position: relative;
           margin-top: 16px;
@@ -31,22 +39,23 @@ export default function DTStepsWalkthrough() {
           background: #0d1117;
         }
         .dt-step-img { display: block; width: 100%; height: auto; }
-        /* Step-2 annotation: sits over the top-right download icon */
+        /* Step-2 annotation points at the export/download icon, which sits at the
+           right edge of the filter-bar crop. The label rides in the empty gap
+           just left of the icon; vertically centred since the strip is short. */
         .dt-step2-annotation {
           position: absolute;
-          top: 8%;
-          right: 4%;
-          max-width: 62%;
+          top: 50%;
+          right: 3%;
+          transform: translateY(-50%);
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 6px;
           pointer-events: none;
         }
         .dt-step2-annotation .dt-arrow {
           font-size: 22px;
           line-height: 1;
           color: #3b82f6;
-          transform: translateY(-2px);
           filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
         }
         .dt-step2-annotation .dt-label {
@@ -58,12 +67,12 @@ export default function DTStepsWalkthrough() {
           padding: 6px 10px;
           border-radius: 6px;
           box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+          white-space: nowrap;
         }
         @media (max-width: 500px) {
-          /* Degrade on mobile: drop the arrow, shrink + anchor the label so it
-             never overflows the screenshot. */
-          .dt-step2-annotation { top: 4%; right: 3%; left: 3%; max-width: none; justify-content: flex-end; }
-          .dt-step2-annotation .dt-arrow { display: none; }
+          /* Degrade on mobile: shrink the label/arrow; the focal crop keeps the
+             icon in the same relative spot, so the annotation still lands. */
+          .dt-step2-annotation .dt-arrow { font-size: 18px; }
           .dt-step2-annotation .dt-label { font-size: 10px; padding: 4px 7px; }
         }
       `}</style>
@@ -88,7 +97,7 @@ export default function DTStepsWalkthrough() {
         <Step
           num="01"
           title="Export from DEGIRO"
-          body={<>Inbox → <strong>Rekeningoverzicht</strong> (Account Statement), pick your full date range, export as XLSX or CSV.</>}
+          body={<>Inbox → <strong>Rekeningoverzicht</strong> (Account Statement), pick your full date range, export as XLSX or CSV.<span style={{ display: 'block', marginTop: 6, color: 'rgba(230,237,243,0.4)' }}>Using Saxo? The same works with your Saxo account statement.</span></>}
         >
           <div className="dt-step-imgwrap">
             <img
@@ -116,7 +125,7 @@ export default function DTStepsWalkthrough() {
             {/* CSS-overlaid annotation — points at DEGIRO's top-right download icon */}
             <div className="dt-step2-annotation" aria-hidden="true">
               <span className="dt-label">Export here</span>
-              <span className="dt-arrow">↗</span>
+              <span className="dt-arrow">→</span>
             </div>
           </div>
         </Step>
@@ -153,7 +162,7 @@ function Step({ num, title, body, children }) {
         }}>{num}</span>
         <h3 style={{ fontSize: 17, fontWeight: 700, color: '#e6edf3', margin: 0 }}>{title}</h3>
       </div>
-      <p style={{ fontSize: 14, color: 'rgba(230,237,243,0.6)', lineHeight: 1.55, margin: '10px 0 0' }}>
+      <p className="dt-step-body" style={{ fontSize: 14, color: 'rgba(230,237,243,0.6)', lineHeight: 1.55, margin: '10px 0 0' }}>
         {body}
       </p>
       {children}

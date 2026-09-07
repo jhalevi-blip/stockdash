@@ -45,3 +45,7 @@ next-env.d.ts
 
 .vercel
 .claude/
+
+# local dev / scratch artifacts (headless screenshots, PR body drafts)
+.shots/
+.pr-body.md
