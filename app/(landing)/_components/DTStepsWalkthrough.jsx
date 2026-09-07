@@ -1,9 +1,6 @@
 // Three-step "how it works" section, directly under the hero.
 //
-// Step images live in /public/landing. Steps 1 & 2 are real screenshots;
-// step 3 is a labelled placeholder until the result screenshot is supplied
-// (drop it at /public/landing/stockdashes-step3-real-return.png and swap the
-// placeholder <div> for the commented-out <img> below).
+// Step images live in /public/landing — all three are real screenshots.
 //
 // Step 2's annotation (arrow + label pointing at DEGIRO's download icon) is
 // rendered in CSS over the screenshot — NOT baked into the PNG — so it stays
@@ -124,26 +121,19 @@ export default function DTStepsWalkthrough() {
           </div>
         </Step>
 
-        {/* STEP 03 — see your real return (placeholder until result screenshot supplied) */}
+        {/* STEP 03 — see your real return */}
         <Step
           num="03"
           title="See your real return"
           body={<>Time-weighted return vs benchmark, per-position P&amp;L, and an AI research brief on every holding.</>}
         >
-          {/* Swap for: <img className="dt-step-img" src="/landing/stockdashes-step3-real-return.png" alt="StockDashes dashboard showing time-weighted return vs MSCI World" loading="lazy" /> */}
-          <div
-            className="dt-step-imgwrap"
-            style={{
-              aspectRatio: '16 / 10',
-              display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              gap: 8, border: '1px dashed #30363d',
-              color: '#6e7681', textAlign: 'center', padding: 16,
-            }}
-          >
-            <div style={{ fontSize: 24 }}>📷</div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#8b949e' }}>Result screenshot</div>
-            <code style={{ fontSize: 11, color: '#6e7681' }}>/landing/stockdashes-step3-real-return.png</code>
+          <div className="dt-step-imgwrap">
+            <img
+              className="dt-step-img"
+              src="/landing/stockdashes-step3-real-return.png"
+              alt="StockDashes dashboard showing time-weighted return vs MSCI World, per-position P&L and an AI research brief"
+              loading="lazy"
+            />
           </div>
         </Step>
       </div>
