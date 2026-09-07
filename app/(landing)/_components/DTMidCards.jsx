@@ -1,22 +1,23 @@
+import { SAMPLE_BENCHMARK } from '@/lib/dTerminalSampleData';
+
 export default function DTMidCards({ stats }) {
   const POS = '#16a34a';
   const NEG = '#dc2626';
-  const SP500_DAILY = 0.91;
 
   const best  = [...stats.rows].sort((a, b) => b.change - a.change)[0];
   const worst = [...stats.rows].sort((a, b) => a.change - b.change)[0];
   const dayPct   = (stats.dayPL / stats.total) * 100;
-  const relative = dayPct - SP500_DAILY;
+  const relative = dayPct - SAMPLE_BENCHMARK.dailyPct;
 
-  const fmtUSD = (n, dp = 2) =>
-    '$' + n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  const fmtEUR = (n, dp = 2) =>
+    '€' + n.toLocaleString('en-GB', { minimumFractionDigits: dp, maximumFractionDigits: dp });
   const fmtPct = (n) => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 
   const cards = [
-    { label: "TODAY'S P&L", value: fmtUSD(stats.dayPL, 2), sub: `${fmtPct(dayPct)} on $${Math.round(stats.total).toLocaleString('en-US')}`, color: stats.dayPL >= 0 ? POS : NEG },
-    { label: 'BEST TODAY',  value: best.ticker,  sub: `${fmtPct(best.change)} · ${fmtUSD(best.price)}`,   color: best.change  >= 0 ? POS : NEG },
-    { label: 'WORST TODAY', value: worst.ticker, sub: `${fmtPct(worst.change)} · ${fmtUSD(worst.price)}`, color: worst.change >= 0 ? POS : NEG },
-    { label: 'VS S&P 500',  value: fmtPct(relative), sub: relative >= 0 ? 'Outperforming today' : 'Underperforming today', color: relative >= 0 ? POS : NEG },
+    { label: "TODAY'S P&L", value: fmtEUR(stats.dayPL, 2), sub: `${fmtPct(dayPct)} on €${Math.round(stats.total).toLocaleString('en-GB')}`, color: stats.dayPL >= 0 ? POS : NEG },
+    { label: 'BEST TODAY',  value: best.ticker,  sub: `${fmtPct(best.change)} · ${fmtEUR(best.price)}`,   color: best.change  >= 0 ? POS : NEG },
+    { label: 'WORST TODAY', value: worst.ticker, sub: `${fmtPct(worst.change)} · ${fmtEUR(worst.price)}`, color: worst.change >= 0 ? POS : NEG },
+    { label: 'VS MSCI WORLD', value: fmtPct(relative), sub: relative >= 0 ? 'Outperforming today' : 'Underperforming today', color: relative >= 0 ? POS : NEG },
   ];
 
   return (

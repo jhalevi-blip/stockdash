@@ -1,12 +1,10 @@
-import { SAMPLE_TOP_STATS } from '@/lib/dTerminalSampleData';
-
-export default function DTSummaryStrip({ stats }) {
+export default function DTSummaryStrip({ stats, topStats }) {
   const totalPct = (stats.totalPL / stats.totalCost) * 100;
   const POS = '#16a34a';
   const NEG = '#dc2626';
 
-  const fmtUSD = (n, dp = 2) =>
-    '$' + n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  const fmtEUR = (n, dp = 2) =>
+    '€' + n.toLocaleString('en-GB', { minimumFractionDigits: dp, maximumFractionDigits: dp });
   const fmtPct = (n) => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 
   return (
@@ -18,7 +16,7 @@ export default function DTSummaryStrip({ stats }) {
       {/* 1. PORTFOLIO HEALTH */}
       <div style={cardStyle}>
         <div style={labelStyle}>PORTFOLIO HEALTH</div>
-        <div style={numStyle('#e6edf3', 16)}>{fmtUSD(stats.total, 2)}</div>
+        <div style={numStyle('#e6edf3', 16)}>{fmtEUR(stats.total, 2)}</div>
         <div style={{
           fontSize: 10, marginTop: 4, fontVariantNumeric: 'tabular-nums',
           color: stats.totalPL >= 0 ? POS : NEG,
@@ -32,15 +30,15 @@ export default function DTSummaryStrip({ stats }) {
         <div style={labelStyle}>NEXT EARNINGS</div>
         <div style={{
           fontSize: 15, fontWeight: 700, color: '#e6edf3', fontFamily: 'monospace',
-        }}>{SAMPLE_TOP_STATS.nextEarnings.ticker}</div>
-        <div style={subStyle}>{SAMPLE_TOP_STATS.nextEarnings.when}</div>
+        }}>{topStats.nextEarnings.ticker}</div>
+        <div style={subStyle}>{topStats.nextEarnings.when}</div>
       </div>
 
       {/* 3. ANALYST TARGETS */}
       <div style={cardStyle}>
         <div style={labelStyle}>ANALYST TARGETS</div>
-        <div style={numStyle(POS, 14)}>+{SAMPLE_TOP_STATS.analystTargets.upsidePct.toFixed(1)}%</div>
-        <div style={subStyle}>{SAMPLE_TOP_STATS.analystTargets.sub}</div>
+        <div style={numStyle(POS, 14)}>+{topStats.analystTargets.upsidePct.toFixed(1)}%</div>
+        <div style={subStyle}>{topStats.analystTargets.sub}</div>
       </div>
 
       {/* 4. INSIDER ACTIVITY */}
@@ -48,8 +46,8 @@ export default function DTSummaryStrip({ stats }) {
         <div style={labelStyle}>INSIDER ACTIVITY</div>
         <div style={{
           fontSize: 15, fontWeight: 700, color: NEG, fontFamily: 'monospace',
-        }}>{SAMPLE_TOP_STATS.insiderActivity.state}</div>
-        <div style={subStyle}>{SAMPLE_TOP_STATS.insiderActivity.sub}</div>
+        }}>{topStats.insiderActivity.state}</div>
+        <div style={subStyle}>{topStats.insiderActivity.sub}</div>
       </div>
 
       {/* 5. MOST SHORTED */}
@@ -58,12 +56,12 @@ export default function DTSummaryStrip({ stats }) {
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
           <span style={{
             fontSize: 15, fontWeight: 700, color: '#e6edf3', fontFamily: 'monospace',
-          }}>{SAMPLE_TOP_STATS.mostShorted.ticker}</span>
+          }}>{topStats.mostShorted.ticker}</span>
           <span style={{
             fontSize: 11, color: NEG, fontVariantNumeric: 'tabular-nums',
-          }}>{SAMPLE_TOP_STATS.mostShorted.floatPct}</span>
+          }}>{topStats.mostShorted.floatPct}</span>
         </div>
-        <div style={subStyle}>{SAMPLE_TOP_STATS.mostShorted.sub}</div>
+        <div style={subStyle}>{topStats.mostShorted.sub}</div>
       </div>
 
       {/* 6. MARKET PULSE */}
@@ -75,9 +73,9 @@ export default function DTSummaryStrip({ stats }) {
           }}>VIX</span>
           <span style={{
             fontSize: 13, color: NEG, fontVariantNumeric: 'tabular-nums',
-          }}>{SAMPLE_TOP_STATS.marketPulse.vix}</span>
+          }}>{topStats.marketPulse.vix}</span>
         </div>
-        <div style={subStyle}>{SAMPLE_TOP_STATS.marketPulse.sub}</div>
+        <div style={subStyle}>{topStats.marketPulse.sub}</div>
       </div>
 
       {/* 7. TOP NEWS */}
@@ -85,7 +83,7 @@ export default function DTSummaryStrip({ stats }) {
         <div style={labelStyle}>TOP NEWS</div>
         <div style={{
           fontSize: 11, color: '#c9d1d9', lineHeight: 1.35, fontWeight: 500,
-        }}>{SAMPLE_TOP_STATS.topNews}</div>
+        }}>{topStats.topNews}</div>
       </div>
     </div>
   );

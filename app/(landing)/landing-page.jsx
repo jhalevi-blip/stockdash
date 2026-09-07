@@ -7,6 +7,8 @@ import { startDemo } from "@/lib/startDemo";
 import { track } from "@/lib/posthog";
 import { getAttribution } from "@/lib/attribution";
 import DTerminalHero from "./_components/DTerminalHero";
+import DTStepsWalkthrough from "./_components/DTStepsWalkthrough";
+import DTComparisonTable from "./_components/DTComparisonTable";
 import DTCapabilityStrip from "./_components/DTCapabilityStrip";
 import DTTrustStrip from "./_components/DTTrustStrip";
 
@@ -57,23 +59,15 @@ export default function LandingPage() {
       {/* ── HERO ── */}
       <DTerminalHero />
 
+      {/* ── HOW IT WORKS (directly under the hero) ── */}
+      <DTStepsWalkthrough />
+
+      {/* ── COMPARISON ── */}
+      <DTComparisonTable />
+
+      {/* ── TEN-DASHBOARD GRID (moved below the comparison table) ── */}
       <DTCapabilityStrip />
       <DTTrustStrip />
-
-      {/* ── SECTION 3: Why Claude Opus 4.8? ── */}
-      <section style={{ borderTop: "1px solid #1e2530", padding: "48px 24px", background: "rgba(255,255,255,0.015)" }}>
-        <div style={{ maxWidth: 680, margin: "0 auto", textAlign: "center" }}>
-          <div style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: "0.1em",
-            color: "rgba(230,237,243,0.35)", textTransform: "uppercase", marginBottom: 16,
-          }}>
-            Why Claude Opus 4.8?
-          </div>
-          <p style={{ fontSize: 16, color: "rgba(230,237,243,0.6)", lineHeight: 1.7, margin: 0 }}>
-            Opus 4.8 is Anthropic's most capable AI model. It's the same technology used in professional research and legal analysis. When you analyze a portfolio on StockDashes, you're getting the best AI available for the job, free.
-          </p>
-        </div>
-      </section>
 
       {/* ── FINAL CTA ── */}
       <section style={{ maxWidth: 760, margin: "0 auto", textAlign: "center", padding: "64px 24px 80px" }}>

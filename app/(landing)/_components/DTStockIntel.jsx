@@ -1,5 +1,6 @@
 'use client';
 import { SignUpButton } from '@clerk/nextjs';
+import { earnLabel } from '@/lib/dTerminalSampleData';
 
 const cardStyle = {
   padding: '8px 10px',
@@ -24,8 +25,8 @@ export default function DTStockIntel({ intel, selectedTicker, row }) {
   const POS = '#16a34a';
   const NEG = '#dc2626';
 
-  const fmtUSD = (n, dp = 2) =>
-    '$' + n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  const fmtEUR = (n, dp = 2) =>
+    '€' + n.toLocaleString('en-GB', { minimumFractionDigits: dp, maximumFractionDigits: dp });
   const fmtPct = (n) => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 
   const ratingColor = entry.rating >= 7 ? POS : entry.rating >= 5 ? '#d29922' : NEG;
@@ -52,7 +53,7 @@ export default function DTStockIntel({ intel, selectedTicker, row }) {
             {selectedTicker}
           </span>
           <span style={{ fontSize: 14, color: '#e6edf3', fontVariantNumeric: 'tabular-nums' }}>
-            {fmtUSD(row.price)}
+            {fmtEUR(row.price)}
           </span>
           <span style={{
             fontSize: 12, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
@@ -123,7 +124,7 @@ export default function DTStockIntel({ intel, selectedTicker, row }) {
           { label: 'P/E (TTM)',     value: entry.pe.toFixed(1) },
           { label: 'Market Cap',    value: entry.mcap },
           { label: 'Short Float',   value: entry.shortFloat },
-          { label: 'Next Earnings', value: entry.earnDate },
+          { label: 'Next Earnings', value: earnLabel(entry.earnOffsetDays).date },
           { label: 'Div Yield',     value: entry.dy },
           { label: 'Beta',          value: entry.beta.toFixed(2) },
         ].map(({ label, value }) => (
