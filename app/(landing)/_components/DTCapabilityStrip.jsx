@@ -45,7 +45,7 @@ export default function DTCapabilityStrip() {
           fontSize: 16, color: 'rgba(230,237,243,0.6)', lineHeight: 1.6,
           textAlign: 'center', maxWidth: 600, margin: '0 auto 48px',
         }}>
-          From insider transactions to AI-powered research — every dashboard a Bloomberg user expects, free for retail investors.
+          From insider transactions to AI-powered research — every dashboard your portfolio needs, free for retail investors.
         </p>
 
         {/* 5×2 grid */}

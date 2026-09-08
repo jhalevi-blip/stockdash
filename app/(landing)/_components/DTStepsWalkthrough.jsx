@@ -10,43 +10,59 @@ const STEP2_IMG = '/landing/degiro-step2-rekeningoverzicht.png';
 
 export default function DTStepsWalkthrough() {
   return (
-    <section style={{ padding: '72px 24px', borderTop: '1px solid #1e2530' }}>
+    <section id="how-it-works" style={{ padding: '72px 24px', borderTop: '1px solid #1e2530' }}>
       <style>{`
         .dt-steps-grid {
           max-width: 1200px;
           margin: 0 auto;
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 24px;
+          grid-template-rows: auto auto;   /* row 1: captions, row 2: images */
+          gap: 16px 24px;                  /* row gap = caption→image; col gap between steps */
+        }
+        /* Each step spans both rows as a subgrid, so every caption shares row 1's
+           height and the images line up on row 2 — no matter how many lines a
+           caption wraps to at a given column width. (A fixed em reserve broke
+           around 900px, where step 1's Saxo line wraps to an extra line.) */
+        .dt-step {
+          display: grid;
+          grid-row: span 2;
+          grid-template-rows: subgrid;
         }
         @media (max-width: 860px) {
-          .dt-steps-grid { grid-template-columns: 1fr; gap: 40px; }
+          .dt-steps-grid { grid-template-columns: 1fr; grid-template-rows: none; gap: 40px; }
+          .dt-step { display: block; }
+          .dt-step .dt-step-imgwrap { margin-top: 16px; }
         }
+        /* Images render at their natural proportions — no cropping. Different
+           aspect ratios leave the row a little ragged at the bottom; align-self:
+           start keeps each image its natural height, pinned to the row top. */
         .dt-step-imgwrap {
           position: relative;
-          margin-top: 16px;
+          align-self: start;
           border: 1px solid #1e2530;
           border-radius: 8px;
           overflow: hidden;
           background: #0d1117;
         }
         .dt-step-img { display: block; width: 100%; height: auto; }
-        /* Step-2 annotation: sits over the top-right download icon */
+        /* Step-2 annotation points at the export/download icon in the filter bar
+           (~40% down the crop, far right). The label rides in the empty gap just
+           left of the icon. */
         .dt-step2-annotation {
           position: absolute;
-          top: 8%;
-          right: 4%;
-          max-width: 62%;
+          top: 40%;
+          right: 3%;
+          transform: translateY(-50%);
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 6px;
           pointer-events: none;
         }
         .dt-step2-annotation .dt-arrow {
           font-size: 22px;
           line-height: 1;
           color: #3b82f6;
-          transform: translateY(-2px);
           filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
         }
         .dt-step2-annotation .dt-label {
@@ -58,12 +74,12 @@ export default function DTStepsWalkthrough() {
           padding: 6px 10px;
           border-radius: 6px;
           box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+          white-space: nowrap;
         }
         @media (max-width: 500px) {
-          /* Degrade on mobile: drop the arrow, shrink + anchor the label so it
-             never overflows the screenshot. */
-          .dt-step2-annotation { top: 4%; right: 3%; left: 3%; max-width: none; justify-content: flex-end; }
-          .dt-step2-annotation .dt-arrow { display: none; }
+          /* Degrade on mobile: shrink the label/arrow; the focal crop keeps the
+             icon in the same relative spot, so the annotation still lands. */
+          .dt-step2-annotation .dt-arrow { font-size: 18px; }
           .dt-step2-annotation .dt-label { font-size: 10px; padding: 4px 7px; }
         }
       `}</style>
@@ -88,7 +104,7 @@ export default function DTStepsWalkthrough() {
         <Step
           num="01"
           title="Export from DEGIRO"
-          body={<>Inbox → <strong>Rekeningoverzicht</strong> (Account Statement), pick your full date range, export as XLSX or CSV.</>}
+          body={<>Inbox → <strong>Rekeningoverzicht</strong> (Account Statement), pick your full date range, export as XLSX or CSV.<span style={{ display: 'block', marginTop: 6, color: 'rgba(230,237,243,0.4)' }}>Using Saxo? The same works with your Saxo account statement.</span></>}
         >
           <div className="dt-step-imgwrap">
             <img
@@ -116,7 +132,7 @@ export default function DTStepsWalkthrough() {
             {/* CSS-overlaid annotation — points at DEGIRO's top-right download icon */}
             <div className="dt-step2-annotation" aria-hidden="true">
               <span className="dt-label">Export here</span>
-              <span className="dt-arrow">↗</span>
+              <span className="dt-arrow">→</span>
             </div>
           </div>
         </Step>
@@ -143,19 +159,23 @@ export default function DTStepsWalkthrough() {
 
 function Step({ num, title, body, children }) {
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{
-          fontSize: 13, fontWeight: 800, color: '#3b82f6',
-          fontVariantNumeric: 'tabular-nums', letterSpacing: '0.04em',
-          border: '1px solid rgba(59,130,246,0.35)', borderRadius: 6,
-          padding: '2px 8px', background: 'rgba(59,130,246,0.08)',
-        }}>{num}</span>
-        <h3 style={{ fontSize: 17, fontWeight: 700, color: '#e6edf3', margin: 0 }}>{title}</h3>
+    <div className="dt-step">
+      {/* caption block = subgrid row 1 (all captions share its height) */}
+      <div className="dt-step-caption">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{
+            fontSize: 13, fontWeight: 800, color: '#3b82f6',
+            fontVariantNumeric: 'tabular-nums', letterSpacing: '0.04em',
+            border: '1px solid rgba(59,130,246,0.35)', borderRadius: 6,
+            padding: '2px 8px', background: 'rgba(59,130,246,0.08)',
+          }}>{num}</span>
+          <h3 style={{ fontSize: 17, fontWeight: 700, color: '#e6edf3', margin: 0 }}>{title}</h3>
+        </div>
+        <p style={{ fontSize: 14, color: 'rgba(230,237,243,0.6)', lineHeight: 1.55, margin: '10px 0 0' }}>
+          {body}
+        </p>
       </div>
-      <p style={{ fontSize: 14, color: 'rgba(230,237,243,0.6)', lineHeight: 1.55, margin: '10px 0 0' }}>
-        {body}
-      </p>
+      {/* image = subgrid row 2 */}
       {children}
     </div>
   );
