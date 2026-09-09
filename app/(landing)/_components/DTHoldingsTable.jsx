@@ -12,7 +12,7 @@ export default function DTHoldingsTable({ holdings, selectedTicker, onSelect }) 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
-            {['Ticker', 'Shares', 'Cost', 'Price', 'Day %', 'P&L', 'Weight', 'Rating', ''].map((h, i) => (
+            {['Ticker', 'Shares', 'Cost', 'Price', 'Day %', 'P&L', 'Weight', ''].map((h, i) => (
               <th key={i} style={{
                 padding: '8px 10px', fontSize: 10, textTransform: 'uppercase',
                 letterSpacing: '0.07em', color: 'var(--text-secondary)',
@@ -47,14 +47,13 @@ export default function DTHoldingsTable({ holdings, selectedTicker, onSelect }) 
                 <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>{h.shares}</td>
                 <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>€{(h.costBasis / h.shares).toFixed(2)}</td>
                 <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>€{h.price.toFixed(2)}</td>
-                <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums', color: h.change >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
-                  {h.change >= 0 ? '+' : ''}{h.change.toFixed(2)}%
+                <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums', color: h.change == null ? 'var(--text-muted)' : h.change >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
+                  {h.change == null ? '—' : `${h.change >= 0 ? '+' : ''}${h.change.toFixed(2)}%`}
                 </td>
                 <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums', color: h.pl >= 0 ? 'var(--positive)' : 'var(--negative)' }}>
                   {h.pl >= 0 ? '+' : ''}€{h.pl.toLocaleString('en-GB')}
                 </td>
                 <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>{h.weight}</td>
-                <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>{h.rating}</td>
                 <td style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-color)' }}>
                   <SignUpButton mode="modal">
                     <button style={{

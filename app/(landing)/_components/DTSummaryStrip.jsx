@@ -1,4 +1,4 @@
-export default function DTSummaryStrip({ stats, topStats }) {
+export default function DTSummaryStrip({ stats, market }) {
   const totalPct = (stats.totalPL / stats.totalCost) * 100;
   const POS = '#16a34a';
   const NEG = '#dc2626';
@@ -6,85 +6,54 @@ export default function DTSummaryStrip({ stats, topStats }) {
   const fmtEUR = (n, dp = 2) =>
     '€' + n.toLocaleString('en-GB', { minimumFractionDigits: dp, maximumFractionDigits: dp });
   const fmtPct = (n) => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+  const fmtDayMonth = (iso) =>
+    new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' });
 
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(7, 1fr)',
-      gap: 8,
-    }}>
-      {/* 1. PORTFOLIO HEALTH */}
-      <div style={cardStyle}>
-        <div style={labelStyle}>PORTFOLIO HEALTH</div>
-        <div style={numStyle('#e6edf3', 16)}>{fmtEUR(stats.total, 2)}</div>
-        <div style={{
-          fontSize: 10, marginTop: 4, fontVariantNumeric: 'tabular-nums',
-          color: stats.totalPL >= 0 ? POS : NEG,
-        }}>
-          {fmtPct(totalPct)} all-time
-        </div>
+  const nextEarn = market?.nextEarningsSoonest ?? null; // { ticker, date } | null
+  const vix = market?.vix ?? null;
+
+  const cards = [];
+
+  // 1. PORTFOLIO HEALTH — the demo book's own value (hardcoded book; always shown).
+  cards.push(
+    <div key="ph" style={cardStyle}>
+      <div style={labelStyle}>PORTFOLIO HEALTH</div>
+      <div style={numStyle('#e6edf3', 16)}>{fmtEUR(stats.total, 2)}</div>
+      <div style={{ fontSize: 10, marginTop: 4, fontVariantNumeric: 'tabular-nums', color: stats.totalPL >= 0 ? POS : NEG }}>
+        {fmtPct(totalPct)} all-time
       </div>
+    </div>,
+  );
 
-      {/* 2. NEXT EARNINGS */}
-      <div style={cardStyle}>
+  // 2. NEXT EARNINGS — fetched; the card is omitted entirely when not available.
+  if (nextEarn) {
+    cards.push(
+      <div key="ne" style={cardStyle}>
         <div style={labelStyle}>NEXT EARNINGS</div>
-        <div style={{
-          fontSize: 15, fontWeight: 700, color: '#e6edf3', fontFamily: 'monospace',
-        }}>{topStats.nextEarnings.ticker}</div>
-        <div style={subStyle}>{topStats.nextEarnings.when}</div>
-      </div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#e6edf3', fontFamily: 'monospace' }}>{nextEarn.ticker}</div>
+        <div style={subStyle}>{fmtDayMonth(nextEarn.date)}</div>
+      </div>,
+    );
+  }
 
-      {/* 3. ANALYST TARGETS */}
-      <div style={cardStyle}>
-        <div style={labelStyle}>ANALYST TARGETS</div>
-        <div style={numStyle(POS, 14)}>+{topStats.analystTargets.upsidePct.toFixed(1)}%</div>
-        <div style={subStyle}>{topStats.analystTargets.sub}</div>
-      </div>
-
-      {/* 4. INSIDER ACTIVITY */}
-      <div style={cardStyle}>
-        <div style={labelStyle}>INSIDER ACTIVITY</div>
-        <div style={{
-          fontSize: 15, fontWeight: 700, color: NEG, fontFamily: 'monospace',
-        }}>{topStats.insiderActivity.state}</div>
-        <div style={subStyle}>{topStats.insiderActivity.sub}</div>
-      </div>
-
-      {/* 5. MOST SHORTED */}
-      <div style={cardStyle}>
-        <div style={labelStyle}>MOST SHORTED</div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-          <span style={{
-            fontSize: 15, fontWeight: 700, color: '#e6edf3', fontFamily: 'monospace',
-          }}>{topStats.mostShorted.ticker}</span>
-          <span style={{
-            fontSize: 11, color: NEG, fontVariantNumeric: 'tabular-nums',
-          }}>{topStats.mostShorted.floatPct}</span>
-        </div>
-        <div style={subStyle}>{topStats.mostShorted.sub}</div>
-      </div>
-
-      {/* 6. MARKET PULSE */}
-      <div style={cardStyle}>
+  // 3. MARKET PULSE (VIX) — fetched; omitted when not available.
+  if (vix != null) {
+    const col = vix < 20 ? POS : NEG;
+    cards.push(
+      <div key="mp" style={cardStyle}>
         <div style={labelStyle}>MARKET PULSE</div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-          <span style={{
-            fontSize: 14, fontWeight: 700, color: NEG, fontFamily: 'monospace',
-          }}>VIX</span>
-          <span style={{
-            fontSize: 13, color: NEG, fontVariantNumeric: 'tabular-nums',
-          }}>{topStats.marketPulse.vix}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: col, fontFamily: 'monospace' }}>VIX</span>
+          <span style={{ fontSize: 13, color: col, fontVariantNumeric: 'tabular-nums' }}>{vix.toFixed(2)}</span>
         </div>
-        <div style={subStyle}>{topStats.marketPulse.sub}</div>
-      </div>
+        <div style={subStyle}>{vix < 20 ? 'Below 20 · calm' : 'Above 20 · elevated'}</div>
+      </div>,
+    );
+  }
 
-      {/* 7. TOP NEWS */}
-      <div style={cardStyle}>
-        <div style={labelStyle}>TOP NEWS</div>
-        <div style={{
-          fontSize: 11, color: '#c9d1d9', lineHeight: 1.35, fontWeight: 500,
-        }}>{topStats.topNews}</div>
-      </div>
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cards.length}, minmax(0, 1fr))`, gap: 8 }}>
+      {cards}
     </div>
   );
 }
