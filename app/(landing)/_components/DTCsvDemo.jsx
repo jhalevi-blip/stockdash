@@ -136,7 +136,7 @@ const DTCsvDemo = forwardRef(function DTCsvDemo(_props, ref) {
 
   if (phase === 'result') {
     return (
-      <div style={{ margin: '0 24px 22px' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto 22px', padding: '0 24px' }}>
         {fileInput}
         <DTResultView perf={perf} result={detail} onReset={reset} />
       </div>
