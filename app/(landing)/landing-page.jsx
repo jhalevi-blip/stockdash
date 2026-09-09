@@ -12,7 +12,7 @@ import DTComparisonTable from "./_components/DTComparisonTable";
 import DTCapabilityStrip from "./_components/DTCapabilityStrip";
 import DTTrustStrip from "./_components/DTTrustStrip";
 
-export default function LandingPage() {
+export default function LandingPage({ market }) {
   const { isLoaded, isSignedIn } = useUser();
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ── HERO ── */}
-      <DTerminalHero />
+      <DTerminalHero market={market} />
 
       {/* ── HOW IT WORKS (directly under the hero) ── */}
       <DTStepsWalkthrough />

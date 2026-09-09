@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef } from 'react';
 import { SignUpButton } from '@clerk/nextjs';
-import { computeSampleStats, computeSampleTopStats, SAMPLE_AI_SUMMARY, SAMPLE_STOCK_INTEL } from '@/lib/dTerminalSampleData';
+import { computeSampleStats } from '@/lib/dTerminalSampleData';
 import DTAISummary from './DTAISummary';
 import DTSummaryStrip from './DTSummaryStrip';
 import DTHoldingsTable from './DTHoldingsTable';
@@ -11,10 +11,9 @@ import DTStickyCTA from './DTStickyCTA';
 import DTCsvDemo from './DTCsvDemo';
 import { FLAGSHIP_LABEL } from '@/lib/aiModels';
 
-export default function DTerminalHero() {
+export default function DTerminalHero({ market }) {
   const [selectedTicker, setSelectedTicker] = useState('ASML');  // EUR flagship holding
-  const sampleStats = computeSampleStats();
-  const topStats = computeSampleTopStats();
+  const sampleStats = computeSampleStats(market);
   const demoRef = useRef(null);   // exposes openPicker() from DTCsvDemo
 
   return (
@@ -134,9 +133,9 @@ export default function DTerminalHero() {
           flexDirection: 'column',
           gap: 14,
         }}>
-          <DTSummaryStrip stats={sampleStats} topStats={topStats} />
+          <DTSummaryStrip stats={sampleStats} market={market} />
 
-          <DTMidCards stats={sampleStats} />
+          <DTMidCards stats={sampleStats} market={market} />
 
           <DTHoldingsTable
             holdings={sampleStats.rows}
@@ -145,12 +144,12 @@ export default function DTerminalHero() {
           />
 
           <DTStockIntel
-            intel={SAMPLE_STOCK_INTEL}
+            market={market}
             selectedTicker={selectedTicker}
             row={sampleStats.rows.find(r => r.ticker === selectedTicker)}
           />
 
-          <DTAISummary summary={SAMPLE_AI_SUMMARY} />
+          <DTAISummary />
         </div>
 
         {/* STICKY BOTTOM CTA — sits inside the app shell at the bottom */}
