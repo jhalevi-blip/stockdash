@@ -82,7 +82,7 @@ export default function DTResultView({ perf, result, onReset }) {
           Matched {matchedCount} of {totalCount} positions.
         </span>
         {excludedCount > 0 && (
-          <> {excludedCount} {excludedCount === 1 ? 'was' : 'were'} excluded — no priced listing we could match (unlisted ticker or no price history).</>
+          <> {excludedCount} {excludedCount === 1 ? 'was' : 'were'} excluded — we couldn&apos;t confirm a priced listing for the right company (no match, no price history, or an ambiguous ticker).</>
         )}
         {cappedTo != null && (
           <div style={{ marginTop: 4 }}>

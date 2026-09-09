@@ -1,4 +1,4 @@
-import { pickPreferredTicker, OPENFIGI_BATCH } from '@/lib/brokers/isinResolver';
+import { pickPreferredEntry, OPENFIGI_BATCH } from '@/lib/brokers/isinResolver';
 
 const OPENFIGI_URL = 'https://api.openfigi.com/v3/mapping';
 
@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     const isins: unknown = body?.isins;
 
     if (!Array.isArray(isins) || isins.length === 0) {
-      return Response.json({ resolved: {}, error: 'isins must be a non-empty array' });
+      return Response.json({ resolved: {}, names: {}, error: 'isins must be a non-empty array' });
     }
 
     // Dedupe + type-guard. Chunk into ≤OPENFIGI_BATCH-job requests, sequentially:
@@ -16,10 +16,11 @@ export async function POST(req: Request) {
     // concurrent callers, so one 100-ISIN request silently dropped every holding.
     const unique = [...new Set(isins.filter((i): i is string => typeof i === 'string'))];
 
-    type FigiEntry = { ticker: string; exchCode: string };
+    type FigiEntry = { ticker: string; exchCode: string; name?: string };
     type FigiResult = { data?: FigiEntry[]; error?: string };
 
     const resolved: Record<string, string> = {};
+    const names: Record<string, string> = {};   // OpenFIGI company name, for the demo identity check
     let lastError: string | null = null;
 
     for (let i = 0; i < unique.length; i += OPENFIGI_BATCH) {
@@ -39,19 +40,22 @@ export async function POST(req: Request) {
       const figiData = (await figiRes.json()) as FigiResult[];
       for (let j = 0; j < batch.length; j++) {
         // Home-market listing for European ISINs, US listing otherwise; never a US OTC proxy.
-        const ticker = pickPreferredTicker(batch[j], figiData[j]?.data);
-        if (ticker) resolved[batch[j]] = ticker;
+        const entry = pickPreferredEntry(batch[j], figiData[j]?.data);
+        if (entry) {
+          resolved[batch[j]] = entry.ticker;
+          names[batch[j]] = entry.name;
+        }
       }
     }
 
     // Only surface an error when nothing resolved — a partial map is still useful.
     return Response.json(
       Object.keys(resolved).length === 0 && lastError
-        ? { resolved, error: lastError }
-        : { resolved },
+        ? { resolved, names, error: lastError }
+        : { resolved, names },
     );
   } catch (err) {
     console.error('[resolve-isin] error:', err);
-    return Response.json({ resolved: {}, error: 'Internal error during ISIN resolution' });
+    return Response.json({ resolved: {}, names: {}, error: 'Internal error during ISIN resolution' });
   }
 }
