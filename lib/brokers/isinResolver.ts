@@ -23,6 +23,11 @@ const HOME_EXCH: Record<string, string> = {
   ES: 'SM', IT: 'IM', CH: 'SW', SE: 'SS', DK: 'DC', NO: 'NO', AT: 'AV', PT: 'PL',
 };
 
+// OpenFIGI exchange codes for genuine US primary venues (NYSE, NASDAQ tiers,
+// NYSE American, NYSE Arca) — as opposed to the US composite ('US') / OTC ('PQ',
+// 'UV') lines, which for non-US-listed names carry only the foreign-ordinary proxy.
+const US_PRIMARY_EXCH = new Set(['UN', 'UW', 'UQ', 'UR', 'UA', 'UP']);
+
 /**
  * Pick the ticker + company name for one ISIN from OpenFIGI's `data[]` entries.
  *
@@ -42,8 +47,17 @@ export function pickPreferredEntry(
 
   let hit: FigiEntry | undefined;
   if (EU_ISIN_PREFIXES.has(cc)) {
+    // A genuine US PRIMARY-venue listing (NYSE/NASDAQ/Arca, exchCode UN/UW/UQ/UA/UP)
+    // means the company actually trades in the US, so prefer it over a native or
+    // stale home listing — Transocean (CH) → RIG, CRH (IE) → CRH. This is distinct
+    // from the US composite/OTC line ('US'/'PQ'/'UV'), which for names that don't
+    // really list in the US is only the thin foreign-ordinary proxy (Adyen ADYYF,
+    // Nokia NOKBF, ASML ASMLF, Shell RYDAF) — those have NO primary-venue entry, so
+    // we keep the home listing instead.
+    const usPrimary = data.find((d) => US_PRIMARY_EXCH.has(d.exchCode) && d.ticker);
     const home = HOME_EXCH[cc];
-    hit = home ? data.find((d) => d.exchCode === home && d.ticker) : undefined;
+    const homeHit = home ? data.find((d) => d.exchCode === home && d.ticker) : undefined;
+    hit = usPrimary ?? homeHit;
   } else {
     // US / rest-of-world ISIN path — unchanged.
     hit = data.find((d) => d.exchCode === 'US') ?? data[0];

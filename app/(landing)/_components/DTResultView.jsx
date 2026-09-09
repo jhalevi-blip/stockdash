@@ -42,6 +42,7 @@ export default function DTResultView({ perf, result, onReset }) {
   const {
     matchedCount, totalCount, excludedCount,
     positionsTotal, cappedTo, holdings,
+    closedIncluded = 0, droppedTickers = [],
   } = result;
 
   const xInterval = perf.ready && perf.chartData?.length
@@ -87,6 +88,16 @@ export default function DTResultView({ perf, result, onReset }) {
         {cappedTo != null && (
           <div style={{ marginTop: 4 }}>
             Showing your {cappedTo} largest positions by cost basis (of {positionsTotal}).
+          </div>
+        )}
+        {closedIncluded > 0 && (
+          <div style={{ marginTop: 4 }}>
+            Return also counts {closedIncluded} position{closedIncluded === 1 ? '' : 's'} you bought and sold within this window (not shown in the list above).
+          </div>
+        )}
+        {droppedTickers.length > 0 && (
+          <div style={{ marginTop: 4, color: 'var(--negative)' }}>
+            {droppedTickers.length} traded position{droppedTickers.length === 1 ? '' : 's'} past the 18-ticker limit {droppedTickers.length === 1 ? 'is' : 'are'} not in the return: {droppedTickers.slice(0, 8).join(', ')}{droppedTickers.length > 8 ? '…' : ''}.
           </div>
         )}
       </div>

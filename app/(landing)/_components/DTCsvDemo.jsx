@@ -33,6 +33,11 @@ function errorContent(detail) {
         title: 'We couldn’t match any of your holdings',
         body: `We read your statement but none of your ${detail.totalCount} position${detail.totalCount === 1 ? '' : 's'} could be matched to a ticker. This usually happens with funds or non-US-listed names our lookup doesn’t cover yet.`,
       };
+    case 'partial_export':
+      return {
+        title: 'This looks like a partial export',
+        body: `Your statement has ${detail.tickers.length} position${detail.tickers.length === 1 ? '' : 's'} sold with no matching purchase (${detail.tickers.slice(0, 6).join(', ')}${detail.tickers.length > 6 ? '…' : ''}) — a sign it covers a date range, not your full history. A return from a partial file would be wrong, so re-export your DEGIRO Account Statement with the full date range (all history) and drop it again.`,
+      };
     case 'no_positions':
       return {
         title: 'No open positions to show',

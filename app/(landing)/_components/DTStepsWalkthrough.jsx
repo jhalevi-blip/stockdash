@@ -104,7 +104,7 @@ export default function DTStepsWalkthrough() {
         <Step
           num="01"
           title="Export from DEGIRO"
-          body={<>Inbox → <strong>Rekeningoverzicht</strong> (Account Statement), pick your full date range, export as XLSX or CSV.<span style={{ display: 'block', marginTop: 6, color: 'rgba(230,237,243,0.4)' }}>Using Saxo? The same works with your Saxo account statement.</span></>}
+          body={<>Inbox → <strong>Rekeningoverzicht</strong> (Account Statement). Set the range to your <strong>full history</strong>, not just the last year — a partial export makes the return wrong. Export as XLSX or CSV.<span style={{ display: 'block', marginTop: 6, color: 'rgba(230,237,243,0.4)' }}>Using Saxo? The same works with your Saxo account statement.</span></>}
         >
           <div className="dt-step-imgwrap">
             <img
