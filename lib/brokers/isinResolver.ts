@@ -48,7 +48,13 @@ export function pickPreferredEntry(
     // US / rest-of-world ISIN path — unchanged.
     hit = data.find((d) => d.exchCode === 'US') ?? data[0];
   }
-  return hit?.ticker ? { ticker: hit.ticker, name: hit.name ?? '' } : null;
+  if (!hit?.ticker) return null;
+  // OpenFIGI returns Bloomberg-style LSE tickers with a trailing slash (BP → 'BP/').
+  // Strip it so the symbol matches FMP ('BP') and isn't misread as an option symbol
+  // by the slash guard downstream. Only a TRAILING slash — mid-slash option tickers
+  // like 'QBTS/15F27P2' are untouched and still filtered.
+  const ticker = hit.ticker.replace(/[/∕／]+$/, '');
+  return ticker ? { ticker, name: hit.name ?? '' } : null;
 }
 
 /** Ticker-only view of pickPreferredEntry — the contract the import parsers rely on. */
