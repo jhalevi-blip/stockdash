@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { BrokerTrade, SkipSummary } from './types';
-import { resolveBatchIsins } from './isinResolver';
+import { resolveBatchIsinsWithNames } from './isinResolver';
 
 // ── Shared types ─────────────────────────────────────────────────────────────
 
@@ -22,6 +22,9 @@ export interface DeGiroParseResult {
   /** Current cash in EUR from the Saldo running-balance column (latest EUR Saldo +
    *  latest USD Saldo × FX). null when there is no Saldo column to read. */
   currentCashEur:  number | null;
+  /** OpenFIGI company name per resolved ticker. Additive — carried through for the
+   *  logged-out demo's identity check; the authenticated import path ignores it. */
+  namesByTicker?:  Record<string, string>;
   /** Temporary diagnostic field — remove before Stage 1 cleanup. */
   _debug?: {
     groupCount:           number;
@@ -170,10 +173,11 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
   }
 
   // ── Pass 2: batch-resolve all ISINs via shared resolver ───────────────────
-  const isinMap = await resolveBatchIsins([...tradeIsins]);
+  const isinMap = await resolveBatchIsinsWithNames([...tradeIsins]);
 
   // ── Pass 3: process each Order Id group → trades + per-order fees ─────────
   const trades:          BrokerTrade[] = [];
+  const namesByTicker:   Record<string, string> = {};
   const fees:            CashEntry[]   = [];
   const unresolvedIsins: string[]      = [];
   const seenUnresolved   = new Set<string>();
@@ -248,9 +252,10 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
       continue;
     }
 
-    const ticker   = isinMap.get(isin)!;
+    const { ticker, name } = isinMap.get(isin)!;
     // OpenFIGI may return option ticker symbols (e.g. 'QBTS/15F27P2') for option ISINs.
     if (/[/\u2215\uFF0F]/.test(ticker)) { skip.optionsSkipped = (skip.optionsSkipped ?? 0) + 1; continue; }
+    if (name) namesByTicker[ticker] = name;
     const avgPrice = totalValue / totalShares;
     // BrokerTrade.shares convention: positive = buy, negative = sell
     const signedShares = action === 'sell' ? -totalShares : totalShares;
@@ -332,11 +337,12 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
     fees,
     cashEvents,
     currentCashEur,
+    namesByTicker,
     _debug: {
       groupCount:           groups.size,
       tradeIsins:           [...tradeIsins],
       isinMapSize:          isinMap.size,
-      isinMapSample:        [...isinMap.entries()].slice(0, 5) as [string, string][],
+      isinMapSample:        [...isinMap.entries()].slice(0, 5).map(([i, v]) => [i, v.ticker]) as [string, string][],
       tradesBuilt:          trades.length,
       unresolvedCount:      unresolvedIsins.length,
       droppedForUnresolved,
@@ -391,10 +397,11 @@ async function parseTransacties(wb: XLSX.WorkBook): Promise<DeGiroParseResult> {
   }
 
   // ── Batch-resolve all ISINs in one call ───────────────────────────────────
-  const isinMap = await resolveBatchIsins([...allIsins]);
+  const isinMap = await resolveBatchIsinsWithNames([...allIsins]);
 
   // ── Pass 2: build trades ──────────────────────────────────────────────────
   const trades:          BrokerTrade[] = [];
+  const namesByTicker:   Record<string, string> = {};
   const unresolvedIsins: string[]      = [];
   const seenUnresolved   = new Set<string>();
 
@@ -412,9 +419,11 @@ async function parseTransacties(wb: XLSX.WorkBook): Promise<DeGiroParseResult> {
       continue;
     }
 
-    const ticker = isinMap.get(isin)!;
+    const { ticker, name } = isinMap.get(isin)!;
     // OpenFIGI may return option ticker symbols for option ISINs.
     if (/[/\u2215\uFF0F]/.test(ticker)) { skip.optionsSkipped = (skip.optionsSkipped ?? 0) + 1; continue; }
+
+    if (name) namesByTicker[ticker] = name;
 
     // Aantal (shares) — signed: negative = sell
     const aantalRaw = row[aantalCol];
@@ -452,6 +461,7 @@ async function parseTransacties(wb: XLSX.WorkBook): Promise<DeGiroParseResult> {
     fees:            [],
     cashEvents:      [],
     currentCashEur:  null,
+    namesByTicker,
   };
 }
 

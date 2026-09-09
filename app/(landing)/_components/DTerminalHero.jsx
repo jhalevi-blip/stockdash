@@ -1,20 +1,21 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { SignUpButton } from '@clerk/nextjs';
 import { computeSampleStats, computeSampleTopStats, SAMPLE_AI_SUMMARY, SAMPLE_STOCK_INTEL } from '@/lib/dTerminalSampleData';
-import { startDemo } from '@/lib/startDemo';
 import DTAISummary from './DTAISummary';
 import DTSummaryStrip from './DTSummaryStrip';
 import DTHoldingsTable from './DTHoldingsTable';
 import DTStockIntel from './DTStockIntel';
 import DTMidCards from './DTMidCards';
 import DTStickyCTA from './DTStickyCTA';
+import DTCsvDemo from './DTCsvDemo';
 import { FLAGSHIP_LABEL } from '@/lib/aiModels';
 
 export default function DTerminalHero() {
   const [selectedTicker, setSelectedTicker] = useState('ASML');  // EUR flagship holding
   const sampleStats = computeSampleStats();
   const topStats = computeSampleTopStats();
+  const demoRef = useRef(null);   // exposes openPicker() from DTCsvDemo
 
   return (
     <section data-theme="dark" style={{
@@ -73,7 +74,7 @@ export default function DTerminalHero() {
           marginTop: 22,
         }}>
           <button
-            onClick={() => startDemo('/dashboard')}
+            onClick={() => demoRef.current?.openPicker()}
             style={{
               padding: '13px 30px', borderRadius: 10,
               background: 'var(--accent-cta)', border: '1px solid var(--accent-cta)',
@@ -102,6 +103,18 @@ export default function DTerminalHero() {
         }}>
           No broker login. Read-only CSV. EU-hosted. Delete in one click. We never sell your data.
         </p>
+      </div>
+
+      {/* CSV DEMO — dropzone + real-return result (replaces the mock with the visitor's file) */}
+      <DTCsvDemo ref={demoRef} />
+
+      {/* SAMPLE LABEL — the app shell below is an illustration, not the visitor's data */}
+      <div style={{
+        maxWidth: 1100, margin: '0 auto', padding: '0 24px',
+        fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+        color: 'rgba(230,237,243,0.3)', marginBottom: 8,
+      }}>
+        Sample portfolio · example data
       </div>
 
       {/* APP SHELL */}

@@ -49,3 +49,6 @@ next-env.d.ts
 # local dev / scratch artifacts (headless screenshots, PR body drafts)
 .shots/
 .pr-body.md
+
+# local test fixtures / scratch (not for commit)
+.scratch/
