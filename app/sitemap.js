@@ -18,9 +18,19 @@ export default function sitemap() {
     };
   });
 
+  // Broker landing pages (config-driven; keep in sync with lib/landing/brokerConfigs.js).
+  const brokerPaths = ['/degiro', '/nl/degiro'];
+  const brokerEntries = brokerPaths.map((p) => ({
+    url: `${SITE_URL}${p}`,
+    lastModified: new Date(),
+    changeFrequency: 'weekly',
+    priority: 0.9,
+  }));
+
   return [
     { url: SITE_URL, lastModified: new Date(), changeFrequency: 'weekly', priority: 1 },
     { url: `${SITE_URL}/blog`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
+    ...brokerEntries,
     ...blogEntries,
   ];
 }

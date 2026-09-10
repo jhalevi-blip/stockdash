@@ -6,9 +6,14 @@
 // rendered in CSS over the screenshot — NOT baked into the PNG — so it stays
 // sharp and restyleable, and collapses to a compact label on narrow screens.
 
+import { UI_STRINGS } from '@/lib/landing/brokerConfigs';
+
 const STEP2_IMG = '/landing/degiro-step2-rekeningoverzicht.png';
 
-export default function DTStepsWalkthrough() {
+export default function DTStepsWalkthrough({ lang = 'en' }) {
+  // English stays inline below (to keep its bold emphasis and leave the homepage
+  // byte-identical); non-English pulls plain strings from the config.
+  const t = lang !== 'en' ? UI_STRINGS[lang]?.steps ?? null : null;
   return (
     <section id="how-it-works" style={{ padding: '72px 24px', borderTop: '1px solid #1e2530' }}>
       <style>{`
@@ -89,13 +94,13 @@ export default function DTStepsWalkthrough() {
           fontSize: 12, fontWeight: 700, letterSpacing: '0.08em',
           color: '#3b82f6', textTransform: 'uppercase', marginBottom: 12,
         }}>
-          From export to insight in three steps
+          {t ? t.eyebrow : 'From export to insight in three steps'}
         </div>
         <h2 style={{
           fontSize: 34, fontWeight: 800, color: '#e6edf3',
           letterSpacing: '-0.02em', margin: 0,
         }}>
-          One file. No broker login.
+          {t ? t.heading : 'One file. No broker login.'}
         </h2>
       </div>
 
@@ -103,8 +108,8 @@ export default function DTStepsWalkthrough() {
         {/* STEP 01 — export from DEGIRO */}
         <Step
           num="01"
-          title="Export from DEGIRO"
-          body={<>Inbox → <strong>Rekeningoverzicht</strong> (Account Statement). Set the range to your <strong>full history</strong>, not just the last year — a partial export makes the return wrong. Export as XLSX or CSV.<span style={{ display: 'block', marginTop: 6, color: 'rgba(230,237,243,0.4)' }}>Using Saxo? The same works with your Saxo account statement.</span></>}
+          title={t ? t.s1.title : 'Export from DEGIRO'}
+          body={t ? t.s1.body : <>Inbox → <strong>Rekeningoverzicht</strong> (Account Statement). Set the range to your <strong>full history</strong>, not just the last year — a partial export makes the return wrong. Export as XLSX or CSV.<span style={{ display: 'block', marginTop: 6, color: 'rgba(230,237,243,0.4)' }}>Using Saxo? The same works with your Saxo account statement.</span></>}
         >
           <div className="dt-step-imgwrap">
             <img
@@ -119,8 +124,8 @@ export default function DTStepsWalkthrough() {
         {/* STEP 02 — drop the file in (annotation bridges DEGIRO download → StockDashes) */}
         <Step
           num="02"
-          title="Drop the file in"
-          body={<>We parse it: ISINs resolved, deposits split from trades, historical FX applied, same-day trades ordered.</>}
+          title={t ? t.s2.title : 'Drop the file in'}
+          body={t ? t.s2.body : <>We parse it: ISINs resolved, deposits split from trades, historical FX applied, same-day trades ordered.</>}
         >
           <div className="dt-step-imgwrap">
             <img
@@ -131,7 +136,7 @@ export default function DTStepsWalkthrough() {
             />
             {/* CSS-overlaid annotation — points at DEGIRO's top-right download icon */}
             <div className="dt-step2-annotation" aria-hidden="true">
-              <span className="dt-label">Export here</span>
+              <span className="dt-label">{t ? t.s2.annotation : 'Export here'}</span>
               <span className="dt-arrow">→</span>
             </div>
           </div>
@@ -140,8 +145,8 @@ export default function DTStepsWalkthrough() {
         {/* STEP 03 — see your real return */}
         <Step
           num="03"
-          title="See your real return"
-          body={<>Time-weighted return vs benchmark, per-position P&amp;L, and an AI research brief on every holding.</>}
+          title={t ? t.s3.title : 'See your real return'}
+          body={t ? t.s3.body : <>Time-weighted return vs benchmark, per-position P&amp;L, and an AI research brief on every holding.</>}
         >
           <div className="dt-step-imgwrap">
             <img
