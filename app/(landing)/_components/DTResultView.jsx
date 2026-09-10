@@ -44,7 +44,7 @@ export default function DTResultView({ perf, result, onReset, lang = 'en' }) {
   const {
     matchedCount, totalCount, excludedCount,
     positionsTotal, cappedTo, holdings,
-    closedIncluded = 0, droppedTickers = [],
+    closedIncluded = 0, droppedTickers = [], unsizedTickers = [],
   } = result;
 
   const xInterval = perf.ready && perf.chartData?.length
@@ -100,6 +100,11 @@ export default function DTResultView({ perf, result, onReset, lang = 'en' }) {
         {droppedTickers.length > 0 && (
           <div style={{ marginTop: 4, color: 'var(--negative)' }}>
             {S.dropped(droppedTickers)}
+          </div>
+        )}
+        {unsizedTickers.length > 0 && (
+          <div style={{ marginTop: 4, color: 'var(--negative)' }}>
+            {S.unsized(unsizedTickers)}
           </div>
         )}
       </div>
