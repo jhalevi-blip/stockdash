@@ -70,8 +70,10 @@ export default function BrokerLanding({ config }) {
           </p>
         </div>
 
-        {/* The demo, reused (its own dropzone + result view), language-aware. */}
-        <DTCsvDemo ref={demoRef} lang={config.lang} />
+        {/* The demo, reused (its own dropzone + result view), language-aware. The
+            result view is framed as a full-width panel here — unlike the homepage,
+            nothing follows it in the hero to give a bare 1200 card context. */}
+        <DTCsvDemo ref={demoRef} lang={config.lang} framed />
       </section>
 
       {/* ── PROBLEM (states it, links out to the blog for the teaching) ── */}

@@ -24,7 +24,7 @@ const CARD = {
   boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
 };
 
-const DTCsvDemo = forwardRef(function DTCsvDemo({ lang = 'en' }, ref) {
+const DTCsvDemo = forwardRef(function DTCsvDemo({ lang = 'en', framed = false }, ref) {
   const S = UI_STRINGS[lang]?.demo ?? UI_STRINGS.en.demo;
   const [phase, setPhase]   = useState('idle');   // idle | parsing | error | result
   const [detail, setDetail] = useState(null);     // error detail OR ok result
@@ -104,6 +104,22 @@ const DTCsvDemo = forwardRef(function DTCsvDemo({ lang = 'en' }, ref) {
   );
 
   if (phase === 'result') {
+    // On the broker pages the result stands alone — unlike the homepage, there's
+    // no sample dashboard below to fill the width — so at 2560 a bare 1200 card
+    // reads as marooned. When framed, wrap it in a full-width panel using the same
+    // border language as the walkthrough / trust strip (a subtly darker band with
+    // top + bottom borders), so it reads as a deliberate section. The card itself
+    // stays 1200 to line up with the walkthrough and comparison table below.
+    if (framed) {
+      return (
+        <div style={{ borderTop: '1px solid #1e2530', borderBottom: '1px solid #1e2530', background: '#0b0e13', padding: '32px 0' }}>
+          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
+            {fileInput}
+            <DTResultView perf={perf} result={detail} onReset={reset} lang={lang} />
+          </div>
+        </div>
+      );
+    }
     return (
       <div style={{ maxWidth: 1200, margin: '0 auto 22px', padding: '0 24px' }}>
         {fileInput}
