@@ -8,7 +8,12 @@ const dmSans = DM_Sans({
   display: 'swap',
 });
 
-export const metadata = { title: 'StockDashes — Research your portfolio like a professional' };
+export const metadata = {
+  // Resolves relative canonical / OpenGraph URLs across the landing group, so
+  // pages no longer hardcode absolute URLs.
+  metadataBase: new URL('https://stockdashes.com'),
+  title: 'StockDashes — Research your portfolio like a professional',
+};
 
 export default function LandingLayout({ children }: { children: React.ReactNode }) {
   return (

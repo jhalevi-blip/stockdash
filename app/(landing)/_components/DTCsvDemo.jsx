@@ -10,48 +10,13 @@ import { useState, useRef, useMemo, forwardRef, useImperativeHandle } from 'reac
 import { parseFileInBrowser } from '@/lib/brokers/parseInBrowser';
 import { usePerformanceLedger } from '@/lib/performance/usePerformanceLedger';
 import DTResultView from './DTResultView';
+import { UI_STRINGS } from '@/lib/landing/brokerConfigs';
 
-// Explicit copy per failure mode — never a generic "something went wrong".
-function errorContent(detail) {
-  switch (detail?.status) {
-    case 'not_degiro':
-      return {
-        title: 'That doesn’t look like a DEGIRO statement',
-        body: `This demo reads the DEGIRO Account Statement (Rekeningoverzicht) export.${
-          detail.detectedFormat && detail.detectedFormat !== 'generic' && detail.detectedFormat !== 'unknown'
-            ? ` We detected a ${detail.detectedFormat} file instead.`
-            : ''
-        } In DEGIRO: Inbox → Account Statement → export to XLSX, then drop it here.`,
-      };
-    case 'degiro_transactions_export':
-      return {
-        title: 'That’s the DEGIRO Transactions export',
-        body: 'For your real return we need the Account Statement (Rekeningoverzicht) export instead — it carries the full history. In DEGIRO: Inbox → Account Statement → export to XLSX.',
-      };
-    case 'zero_resolved':
-      return {
-        title: 'We couldn’t match any of your holdings',
-        body: `We read your statement but none of your ${detail.totalCount} position${detail.totalCount === 1 ? '' : 's'} could be matched to a ticker. This usually happens with funds or non-US-listed names our lookup doesn’t cover yet.`,
-      };
-    case 'partial_export':
-      return {
-        title: 'This looks like a partial export',
-        body: `Your statement has ${detail.tickers.length} position${detail.tickers.length === 1 ? '' : 's'} sold with no matching purchase (${detail.tickers.slice(0, 6).join(', ')}${detail.tickers.length > 6 ? '…' : ''}) — a sign it covers a date range, not your full history. A return from a partial file would be wrong, so re-export your DEGIRO Account Statement with the full date range (all history) and drop it again.`,
-      };
-    case 'no_positions':
-      return {
-        title: 'No open positions to show',
-        body: detail.matchedCount > 0
-          ? 'We matched your trades, but they’ve all been fully closed — there are no open positions left to chart.'
-          : 'We read your DEGIRO statement but found no buy/sell transactions in it.',
-      };
-    case 'parse_error':
-    default:
-      return {
-        title: 'We couldn’t read that file',
-        body: detail?.message ?? 'Please try exporting your DEGIRO Account Statement again as XLSX.',
-      };
-  }
+// Explicit copy per failure mode — pulled from the language strings (never a
+// generic "something went wrong").
+function errorContent(detail, S) {
+  const e = S.errors[detail?.status] ?? S.errors.parse_error;
+  return { title: e.title, body: e.body(detail) };
 }
 
 const CARD = {
@@ -59,7 +24,8 @@ const CARD = {
   boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
 };
 
-const DTCsvDemo = forwardRef(function DTCsvDemo(_props, ref) {
+const DTCsvDemo = forwardRef(function DTCsvDemo({ lang = 'en' }, ref) {
+  const S = UI_STRINGS[lang]?.demo ?? UI_STRINGS.en.demo;
   const [phase, setPhase]   = useState('idle');   // idle | parsing | error | result
   const [detail, setDetail] = useState(null);     // error detail OR ok result
   const [dragActive, setDragActive] = useState(false);
@@ -122,9 +88,7 @@ const DTCsvDemo = forwardRef(function DTCsvDemo(_props, ref) {
 
   const trust = (
     <p style={{ fontSize: 12, color: 'rgba(230,237,243,0.45)', lineHeight: 1.55, margin: '12px auto 0', maxWidth: 520 }}>
-      Your file never leaves your browser — it&apos;s parsed on your device. To match your
-      holdings to tickers, only the ISIN codes are sent to a lookup service. No account,
-      and your statement is never uploaded.
+      {S.trust}
     </p>
   );
 
@@ -143,7 +107,7 @@ const DTCsvDemo = forwardRef(function DTCsvDemo(_props, ref) {
     return (
       <div style={{ maxWidth: 1200, margin: '0 auto 22px', padding: '0 24px' }}>
         {fileInput}
-        <DTResultView perf={perf} result={detail} onReset={reset} />
+        <DTResultView perf={perf} result={detail} onReset={reset} lang={lang} />
       </div>
     );
   }
@@ -172,17 +136,17 @@ const DTCsvDemo = forwardRef(function DTCsvDemo(_props, ref) {
       >
         {phase === 'parsing' ? (
           <div style={{ color: 'var(--text-secondary)', fontSize: 15, fontWeight: 600 }}>
-            Reading your statement… nothing is being uploaded.
+            {S.parsing}
           </div>
         ) : (
           <>
             <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
-              Drop your DEGIRO Account Statement here
+              {S.dropHeadline}
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>
-              XLSX or CSV · or{' '}
+              {S.browsePrefix}
               <span style={{ color: 'var(--accent-cta)', fontWeight: 600, textDecoration: 'underline' }}>
-                browse your files
+                {S.browseLink}
               </span>
             </div>
 
@@ -193,10 +157,10 @@ const DTCsvDemo = forwardRef(function DTCsvDemo(_props, ref) {
                 padding: '12px 14px', background: 'rgba(248,81,73,0.06)',
               }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--negative)' }}>
-                  {errorContent(detail).title}
+                  {errorContent(detail, S).title}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.5 }}>
-                  {errorContent(detail).body}
+                  {errorContent(detail, S).body}
                 </div>
               </div>
             )}

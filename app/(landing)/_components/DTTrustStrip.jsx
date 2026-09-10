@@ -1,11 +1,7 @@
-const TRUST = [
-  { icon: '✓', text: '100% Free' },
-  { icon: '✓', text: 'No credit card' },
-  { icon: '✓', text: 'No ads, ever' },
-  { icon: '🔒', text: 'Your data stays private — EU-hosted, never sold' },
-];
+import { UI_STRINGS } from '@/lib/landing/brokerConfigs';
 
-export default function DTTrustStrip() {
+export default function DTTrustStrip({ lang = 'en' }) {
+  const items = UI_STRINGS[lang]?.trust ?? UI_STRINGS.en.trust;
   return (
     <section style={{
       padding: '32px 24px',
@@ -21,7 +17,7 @@ export default function DTTrustStrip() {
         gap: 24,
         flexWrap: 'wrap',
       }}>
-        {TRUST.map(({ icon, text }) => (
+        {items.map(({ icon, text }) => (
           <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{
               fontSize: 14,

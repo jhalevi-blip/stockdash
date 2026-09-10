@@ -6,6 +6,7 @@
 // correct current-quote FX, which we don't have. Cost basis below is shown in
 // each position's native currency, exactly as parsed, and nothing else.
 import dynamic from 'next/dynamic';
+import { UI_STRINGS } from '@/lib/landing/brokerConfigs';
 
 // recharts in an async chunk, same as the /performance page.
 const PortfolioVsSpyChart = dynamic(
@@ -38,7 +39,8 @@ function Stat({ label, value, valueColor }) {
   );
 }
 
-export default function DTResultView({ perf, result, onReset }) {
+export default function DTResultView({ perf, result, onReset, lang = 'en' }) {
+  const S = UI_STRINGS[lang]?.result ?? UI_STRINGS.en.result;
   const {
     matchedCount, totalCount, excludedCount,
     positionsTotal, cappedTo, holdings,
@@ -59,10 +61,10 @@ export default function DTResultView({ perf, result, onReset }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
-            Your real return
+            {S.heading}
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
-            Time-weighted, in EUR, with historical FX handled — benchmarked against SPY.
+            {S.subhead}
           </div>
         </div>
         <button
@@ -73,71 +75,71 @@ export default function DTResultView({ perf, result, onReset }) {
             padding: '7px 14px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
           }}
         >
-          Try another file
+          {S.tryAnother}
         </button>
       </div>
 
       {/* Matched-position count + cap notice — never hidden */}
       <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
         <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
-          Matched {matchedCount} of {totalCount} positions.
+          {S.matched(matchedCount, totalCount)}
         </span>
         {excludedCount > 0 && (
-          <> {excludedCount} {excludedCount === 1 ? 'was' : 'were'} excluded — we couldn&apos;t confirm a priced listing for the right company (no match, no price history, or an ambiguous ticker).</>
+          <> {S.excluded(excludedCount)}</>
         )}
         {cappedTo != null && (
           <div style={{ marginTop: 4 }}>
-            Showing your {cappedTo} largest positions by cost basis (of {positionsTotal}).
+            {S.capped(cappedTo, positionsTotal)}
           </div>
         )}
         {closedIncluded > 0 && (
           <div style={{ marginTop: 4 }}>
-            Return also counts {closedIncluded} position{closedIncluded === 1 ? '' : 's'} you bought and sold within this window (not shown in the list above).
+            {S.closed(closedIncluded)}
           </div>
         )}
         {droppedTickers.length > 0 && (
           <div style={{ marginTop: 4, color: 'var(--negative)' }}>
-            {droppedTickers.length} traded position{droppedTickers.length === 1 ? '' : 's'} past the 18-ticker limit {droppedTickers.length === 1 ? 'is' : 'are'} not in the return: {droppedTickers.slice(0, 8).join(', ')}{droppedTickers.length > 8 ? '…' : ''}.
+            {S.dropped(droppedTickers)}
           </div>
         )}
       </div>
 
       {/* Headline percentages */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <Stat label="Portfolio TWR" value={perf.ready ? fmt(perf.twrPct) : '…'} valueColor={perf.ready ? clr(perf.twrPct) : undefined} />
-        <Stat label="SPY total return" value={perf.ready ? fmt(perf.spyPct) : '…'} valueColor={perf.ready ? clr(perf.spyPct) : undefined} />
-        <Stat label="vs SPY" value={perf.ready ? fmt(perf.vsSpyPct) : '…'} valueColor={perf.ready ? clr(perf.vsSpyPct) : undefined} />
+        <Stat label={S.statTwr} value={perf.ready ? fmt(perf.twrPct) : '…'} valueColor={perf.ready ? clr(perf.twrPct) : undefined} />
+        <Stat label={S.statSpy} value={perf.ready ? fmt(perf.spyPct) : '…'} valueColor={perf.ready ? clr(perf.spyPct) : undefined} />
+        <Stat label={S.statVs} value={perf.ready ? fmt(perf.vsSpyPct) : '…'} valueColor={perf.ready ? clr(perf.vsSpyPct) : undefined} />
       </div>
 
       {/* TWR vs SPY chart */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 10, padding: '18px 20px' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>
-          Your holdings vs SPY
+          {S.chartHeading}
           <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 8 }}>
-            time-weighted · total return · cash excluded
+            {S.chartCaption}
           </span>
         </div>
         {perf.loading ? (
           <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
-            Building daily ledger…
+            {S.chartBuilding}
           </div>
         ) : !perf.ready ? (
           <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
-            Couldn&apos;t load price history for these positions.
+            {S.chartNoPrice}
           </div>
         ) : !perf.integrity?.ok ? (
           <div style={{ padding: 16, border: '1px solid var(--negative)', borderRadius: 8, color: 'var(--negative)', fontSize: 13, lineHeight: 1.5 }}>
-            Couldn&apos;t chart this range — {perf.integrity?.reason}. Some price history for your positions is missing.
+            {S.chartRangeErr(perf.integrity?.reason)}
           </div>
         ) : (
           <>
             <PortfolioVsSpyChart data={perf.chartData} xInterval={xInterval} />
             <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 12 }}>
-              <span style={{ color: '#58a6ff', fontWeight: 600 }}>— Portfolio TWR ({fmt(perf.twrPct)})</span>
-              <span style={{ color: '#4ade80', fontWeight: 600 }}>— SPY total return ({fmt(perf.spyPct)})</span>
+              <span style={{ color: '#58a6ff', fontWeight: 600 }}>{S.legendPortfolio(fmt(perf.twrPct))}</span>
+              <span style={{ color: '#4ade80', fontWeight: 600 }}>{S.legendSpy(fmt(perf.spyPct))}</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-              Time-weighted return since {perf.D0}, cash excluded. Deposits don&apos;t move the line.
+              {S.chartSince(perf.D0)}
             </div>
           </>
         )}
@@ -146,18 +148,18 @@ export default function DTResultView({ perf, result, onReset }) {
       {/* Position list with cost basis (native currency, as parsed) */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 10, padding: '16px 20px' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>
-          Your open positions
+          {S.posHeading}
           <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 8 }}>
-            {holdings.length} held · cost basis in native currency
+            {S.posCaption(holdings.length)}
           </span>
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ color: 'var(--text-muted)', textAlign: 'left' }}>
-              <th style={{ padding: '4px 8px 8px 0', fontWeight: 600 }}>Ticker</th>
-              <th style={{ padding: '4px 8px 8px', fontWeight: 600, textAlign: 'right' }}>Shares</th>
-              <th style={{ padding: '4px 8px 8px', fontWeight: 600, textAlign: 'right' }}>Avg cost</th>
-              <th style={{ padding: '4px 0 8px 8px', fontWeight: 600, textAlign: 'right' }}>Cost basis</th>
+              <th style={{ padding: '4px 8px 8px 0', fontWeight: 600 }}>{S.thTicker}</th>
+              <th style={{ padding: '4px 8px 8px', fontWeight: 600, textAlign: 'right' }}>{S.thShares}</th>
+              <th style={{ padding: '4px 8px 8px', fontWeight: 600, textAlign: 'right' }}>{S.thAvgCost}</th>
+              <th style={{ padding: '4px 0 8px 8px', fontWeight: 600, textAlign: 'right' }}>{S.thCostBasis}</th>
             </tr>
           </thead>
           <tbody>
@@ -183,8 +185,7 @@ export default function DTResultView({ perf, result, onReset }) {
       </div>
 
       <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-        Returns are time-weighted and cash-excluded. Cost basis is shown in each position&apos;s
-        native currency as parsed from your statement. Informational only, not investment advice.
+        {S.footer}
       </div>
     </div>
   );
