@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import type { BrokerTrade, SkipSummary } from './types';
 import { resolveBatchIsinsWithNames } from './isinResolver';
+import { UnrecognizedColumnsError } from './errors';
 
 // ── Shared types ─────────────────────────────────────────────────────────────
 
@@ -114,6 +115,15 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
   const saldoCol    = findCol(headers, ['saldo']);
   const saldoValCol = saldoCol >= 0 ? saldoCol + 1 : -1;
   const fxCol       = findCol(headers, ['fx']);
+
+  // Fail loudly if a structurally required column is absent (a renamed/localised
+  // header). Without these the parser would return zero trades or a fabricated cash
+  // figure — surface "columns not recognised" rather than a silent empty result.
+  const requiredCols: [string, number][] = [
+    ['Datum', datumCol], ['ISIN', isinCol], ['Omschrijving', omschrCol], ['Mutatie', mutatieCol],
+  ];
+  const missingCols = requiredCols.filter(([, i]) => i < 0).map(([n]) => n);
+  if (missingCols.length) throw new UnrecognizedColumnsError('degiro', missingCols);
 
   // Current cash, captured from the Saldo column. The export is reverse-chronological
   // and rows are iterated in file order, so the FIRST row carrying a given Saldo

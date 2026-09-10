@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import type { BrokerTrade, SkipSummary } from './types';
 import type { CashEntry } from './degiro';
+import { UnrecognizedColumnsError } from './errors';
 
 // Matches: "Koop 30 @ 29.05 USD" | "Verkoop -1000 @ 6.67 USD" | "Expiry -4 @ 0.00 USD"
 // US number format: comma = thousands separator, dot = decimal (e.g. "1,702.00").
@@ -93,6 +94,18 @@ export function parseSaxo(wb: XLSX.WorkBook): {
   // for the audited export). If a future export carries a non-EUR booking currency
   // we must NOT convert blindly — skip + flag instead. Absent column → assume EUR.
   const boekingsvalutaCol  = col('boekingsvaluta');
+
+  // Fail loudly if a structurally required column is absent (a renamed/localised
+  // header). Without these every row would be skipped and the parser would return
+  // zero trades — surface "columns not recognised" rather than a silent empty
+  // result. Boekingsbedrag is handled separately (currentCashEur → null below), so
+  // a booking-amount-less file still parses its trades instead of throwing.
+  const requiredCols: [string, number][] = [
+    ['Type', typeCol], ['Acties', actiesCol],
+    ['Instrumentsymbool', symboolCol], ['Transactiedatum', datumCol],
+  ];
+  const missingCols = requiredCols.filter(([, i]) => i < 0).map(([n]) => n);
+  if (missingCols.length) throw new UnrecognizedColumnsError('saxo', missingCols);
 
   const trades: BrokerTrade[] = [];
   // Cash-flow buckets — same { date, amountEur } shape as the DeGiro parser, so
@@ -219,8 +232,12 @@ export function parseSaxo(wb: XLSX.WorkBook): {
   }
 
   // Current cash = Σ of every cashEvent's signed Boekingsbedrag (all EUR account
-  // currency). This nets deposits + buys − sells + fees + dividends to the live balance.
-  const currentCashEur = cashEvents.reduce((sum, e) => sum + e.amountEur, 0);
+  // currency). This nets deposits + buys − sells + fees + dividends to the live
+  // balance. With no Boekingsbedrag column there are no cashEvents, so the sum would
+  // be a fabricated €0 — return null (unknown) instead, so the UI shows "—" not €0.
+  const currentCashEur = boekingsbedragCol < 0
+    ? null
+    : cashEvents.reduce((sum, e) => sum + e.amountEur, 0);
 
   return { trades, skipSummary: skip, deposits, dividends, fees, cashEvents, currentCashEur };
 }
