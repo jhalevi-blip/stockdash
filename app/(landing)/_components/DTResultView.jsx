@@ -7,6 +7,7 @@
 // each position's native currency, exactly as parsed, and nothing else.
 import dynamic from 'next/dynamic';
 import { UI_STRINGS } from '@/lib/landing/brokerConfigs';
+import { money } from '@/lib/landing/money';
 
 // recharts in an async chunk, same as the /performance page.
 const PortfolioVsSpyChart = dynamic(
@@ -16,12 +17,6 @@ const PortfolioVsSpyChart = dynamic(
 
 const fmt  = (n, d = 1) => (n == null ? '—' : (n >= 0 ? '+' : '') + n.toFixed(d) + '%');
 const clr  = (n) => (n == null ? 'var(--text-secondary)' : n >= 0 ? 'var(--positive)' : 'var(--negative)');
-
-function money(amount, ccy) {
-  const sym = ccy === 'EUR' ? '€' : ccy === 'USD' ? '$' : ccy === 'GBP' ? '£' : '';
-  const n = (amount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  return sym ? `${sym}${n}` : `${n} ${ccy}`;
-}
 
 function Stat({ label, value, valueColor }) {
   return (
