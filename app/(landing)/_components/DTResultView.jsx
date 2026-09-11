@@ -7,6 +7,7 @@
 // each position's native currency, exactly as parsed, and nothing else.
 import dynamic from 'next/dynamic';
 import { UI_STRINGS } from '@/lib/landing/brokerConfigs';
+import { money } from '@/lib/landing/money';
 
 // recharts in an async chunk, same as the /performance page.
 const PortfolioVsSpyChart = dynamic(
@@ -16,12 +17,6 @@ const PortfolioVsSpyChart = dynamic(
 
 const fmt  = (n, d = 1) => (n == null ? '—' : (n >= 0 ? '+' : '') + n.toFixed(d) + '%');
 const clr  = (n) => (n == null ? 'var(--text-secondary)' : n >= 0 ? 'var(--positive)' : 'var(--negative)');
-
-function money(amount, ccy) {
-  const sym = ccy === 'EUR' ? '€' : ccy === 'USD' ? '$' : ccy === 'GBP' ? '£' : '';
-  const n = (amount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  return sym ? `${sym}${n}` : `${n} ${ccy}`;
-}
 
 function Stat({ label, value, valueColor }) {
   return (
@@ -45,6 +40,7 @@ export default function DTResultView({ perf, result, onReset, lang = 'en' }) {
     matchedCount, totalCount, excludedCount,
     positionsTotal, cappedTo, holdings,
     closedIncluded = 0, droppedTickers = [], unsizedTickers = [],
+    collisionTickers = [], optionsExcluded = 0,
   } = result;
 
   const xInterval = perf.ready && perf.chartData?.length
@@ -87,6 +83,11 @@ export default function DTResultView({ perf, result, onReset, lang = 'en' }) {
         {excludedCount > 0 && (
           <> {S.excluded(excludedCount)}</>
         )}
+        {optionsExcluded > 0 && (
+          <div style={{ marginTop: 4 }}>
+            {S.options(optionsExcluded)}
+          </div>
+        )}
         {cappedTo != null && (
           <div style={{ marginTop: 4 }}>
             {S.capped(cappedTo, positionsTotal)}
@@ -105,6 +106,11 @@ export default function DTResultView({ perf, result, onReset, lang = 'en' }) {
         {unsizedTickers.length > 0 && (
           <div style={{ marginTop: 4, color: 'var(--negative)' }}>
             {S.unsized(unsizedTickers)}
+          </div>
+        )}
+        {collisionTickers.length > 0 && (
+          <div style={{ marginTop: 4, color: 'var(--negative)' }}>
+            {S.collision(collisionTickers)}
           </div>
         )}
       </div>

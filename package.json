@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
     "generate-summaries": "node --env-file=.env.local scripts/generate-blog-summaries.mjs",
     "generate-summaries:force": "node --env-file=.env.local scripts/generate-blog-summaries.mjs --force"
   },
@@ -37,6 +38,8 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
-    "typescript": "^5"
+    "puppeteer-core": "^25.10.0",
+    "typescript": "^5",
+    "vitest": "^2.1.9"
   }
 }
