@@ -26,6 +26,11 @@ export interface DeGiroParseResult {
   /** OpenFIGI company name per resolved ticker. Additive — carried through for the
    *  logged-out demo's identity check; the authenticated import path ignores it. */
   namesByTicker?:  Record<string, string>;
+  /** Tickers that were derived from an ISIN → OpenFIGI resolution (as opposed to
+   *  supplied directly by the broker). The demo's identity check runs only on these:
+   *  a broker-supplied ticker has no resolution step to second-guess. Every DEGIRO
+   *  trade ticker comes from a resolved ISIN, so this is all of them. */
+  isinResolvedTickers?: string[];
   /** Temporary diagnostic field — remove before Stage 1 cleanup. */
   _debug?: {
     groupCount:           number;
@@ -348,6 +353,7 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
     cashEvents,
     currentCashEur,
     namesByTicker,
+    isinResolvedTickers: [...new Set(trades.map((t) => t.ticker))],
     _debug: {
       groupCount:           groups.size,
       tradeIsins:           [...tradeIsins],
