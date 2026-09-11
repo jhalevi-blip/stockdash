@@ -40,7 +40,7 @@ export default function DTResultView({ perf, result, onReset, lang = 'en' }) {
     matchedCount, totalCount, excludedCount,
     positionsTotal, cappedTo, holdings,
     closedIncluded = 0, droppedTickers = [], unsizedTickers = [],
-    collisionTickers = [], optionsExcluded = 0,
+    collisionTickers = [], optionsExcluded = 0, splitTickers = [],
   } = result;
 
   const xInterval = perf.ready && perf.chartData?.length
@@ -111,6 +111,11 @@ export default function DTResultView({ perf, result, onReset, lang = 'en' }) {
         {collisionTickers.length > 0 && (
           <div style={{ marginTop: 4, color: 'var(--negative)' }}>
             {S.collision(collisionTickers)}
+          </div>
+        )}
+        {splitTickers.length > 0 && (
+          <div style={{ marginTop: 4, color: 'var(--negative)' }}>
+            {S.split(splitTickers)}
           </div>
         )}
       </div>

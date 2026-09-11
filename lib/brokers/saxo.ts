@@ -56,12 +56,17 @@ export function parseSaxo(wb: XLSX.WorkBook): {
   fees: CashEntry[];
   cashEvents: CashEntry[];
   currentCashEur: number | null;
+  /** Tickers carrying a "Stock split" corporate-action row. Saxo books the split as
+   *  a bare marker with no ratio (Boekingsbedrag 0, no quantity), and lists the raw
+   *  pre-split buy against the post-split sell — so the shares can't be reconciled.
+   *  The demo excludes these tickers rather than guessing a ratio. */
+  splitTickers: string[];
 } {
   const sheetName = wb.SheetNames.find(
     (n) => n.trim().toLowerCase() === 'transacties'
   );
   if (!sheetName) {
-    return { trades: [], skipSummary: { parseErrors: 1 }, deposits: [], dividends: [], fees: [], cashEvents: [], currentCashEur: null };
+    return { trades: [], skipSummary: { parseErrors: 1 }, deposits: [], dividends: [], fees: [], cashEvents: [], currentCashEur: null, splitTickers: [] };
   }
 
   const sheet = wb.Sheets[sheetName];
@@ -119,6 +124,9 @@ export function parseSaxo(wb: XLSX.WorkBook): {
   // the client can reconstruct the cash balance as of any date. Boekingsbedrag
   // is the account-currency signed booking amount (EUR for the audited export).
   const cashEvents: CashEntry[] = [];
+  // Tickers with a "Stock split" corporate-action row — collected, not applied:
+  // Saxo states no ratio, so the position can't be reconciled and is excluded downstream.
+  const splitTickers = new Set<string>();
   const skip: SkipSummary = {
     optionsSkipped:       0,
     expirySkipped:        0,
@@ -178,7 +186,10 @@ export function parseSaxo(wb: XLSX.WorkBook): {
         // Dividend income — NOT a deposit (never enters external cash flow).
         if (amount != null && amount > 0) dividends.push({ date: cashDate, amountEur: amount });
       } else if (actiesLow.startsWith('stock split')) {
-        // Non-cash — ignore entirely (no bucket).
+        // Non-cash and no ratio in the row — record the ticker so the demo can
+        // exclude it (the pre-split buy can't be reconciled with the post-split sell).
+        const sym = String(row[symboolCol] ?? '').split(':')[0].trim().toUpperCase();
+        if (sym) splitTickers.add(sym);
       } else {
         skip.dividendsSkipped!++;
       }
@@ -239,5 +250,5 @@ export function parseSaxo(wb: XLSX.WorkBook): {
     ? null
     : cashEvents.reduce((sum, e) => sum + e.amountEur, 0);
 
-  return { trades, skipSummary: skip, deposits, dividends, fees, cashEvents, currentCashEur };
+  return { trades, skipSummary: skip, deposits, dividends, fees, cashEvents, currentCashEur, splitTickers: [...splitTickers] };
 }
