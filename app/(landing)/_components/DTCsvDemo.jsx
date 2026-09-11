@@ -24,7 +24,7 @@ const CARD = {
   boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
 };
 
-const DTCsvDemo = forwardRef(function DTCsvDemo({ lang = 'en', framed = false }, ref) {
+const DTCsvDemo = forwardRef(function DTCsvDemo({ lang = 'en', framed = false, dropHeadline, broker }, ref) {
   const S = UI_STRINGS[lang]?.demo ?? UI_STRINGS.en.demo;
   const [phase, setPhase]   = useState('idle');   // idle | parsing | error | result
   const [detail, setDetail] = useState(null);     // error detail OR ok result
@@ -88,7 +88,7 @@ const DTCsvDemo = forwardRef(function DTCsvDemo({ lang = 'en', framed = false },
 
   const trust = (
     <p style={{ fontSize: 12, color: 'rgba(230,237,243,0.45)', lineHeight: 1.55, margin: '12px auto 0', maxWidth: 520 }}>
-      {S.trust}
+      {S.trust(broker)}
     </p>
   );
 
@@ -159,7 +159,7 @@ const DTCsvDemo = forwardRef(function DTCsvDemo({ lang = 'en', framed = false },
         ) : (
           <>
             <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
-              {S.dropHeadline}
+              {dropHeadline ?? S.dropHeadline}
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>
               {S.browsePrefix}

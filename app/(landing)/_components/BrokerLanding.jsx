@@ -73,7 +73,7 @@ export default function BrokerLanding({ config }) {
         {/* The demo, reused (its own dropzone + result view), language-aware. The
             result view is framed as a full-width panel here — unlike the homepage,
             nothing follows it in the hero to give a bare 1200 card context. */}
-        <DTCsvDemo ref={demoRef} lang={config.lang} framed />
+        <DTCsvDemo ref={demoRef} lang={config.lang} framed dropHeadline={config.demoHeadline} broker={config.slug} />
       </section>
 
       {/* ── PROBLEM (states it, links out to the blog for the teaching) ── */}
@@ -91,8 +91,9 @@ export default function BrokerLanding({ config }) {
         </div>
       </section>
 
-      {/* ── HOW IT WORKS ── */}
-      <DTStepsWalkthrough lang={config.lang} />
+      {/* ── HOW IT WORKS ── (DEGIRO-illustrated; hidden per-broker until a broker-
+          specific walkthrough exists — see config.hideWalkthrough) */}
+      {!config.hideWalkthrough && <DTStepsWalkthrough lang={config.lang} />}
 
       {/* ── TRUST ── */}
       <DTTrustStrip lang={config.lang} />
