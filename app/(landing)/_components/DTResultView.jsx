@@ -40,6 +40,7 @@ export default function DTResultView({ perf, result, onReset, lang = 'en' }) {
     matchedCount, totalCount, excludedCount,
     positionsTotal, cappedTo, holdings,
     closedIncluded = 0, droppedTickers = [], unsizedTickers = [],
+    collisionTickers = [], optionsExcluded = 0,
   } = result;
 
   const xInterval = perf.ready && perf.chartData?.length
@@ -82,6 +83,11 @@ export default function DTResultView({ perf, result, onReset, lang = 'en' }) {
         {excludedCount > 0 && (
           <> {S.excluded(excludedCount)}</>
         )}
+        {optionsExcluded > 0 && (
+          <div style={{ marginTop: 4 }}>
+            {S.options(optionsExcluded)}
+          </div>
+        )}
         {cappedTo != null && (
           <div style={{ marginTop: 4 }}>
             {S.capped(cappedTo, positionsTotal)}
@@ -100,6 +106,11 @@ export default function DTResultView({ perf, result, onReset, lang = 'en' }) {
         {unsizedTickers.length > 0 && (
           <div style={{ marginTop: 4, color: 'var(--negative)' }}>
             {S.unsized(unsizedTickers)}
+          </div>
+        )}
+        {collisionTickers.length > 0 && (
+          <div style={{ marginTop: 4, color: 'var(--negative)' }}>
+            {S.collision(collisionTickers)}
           </div>
         )}
       </div>

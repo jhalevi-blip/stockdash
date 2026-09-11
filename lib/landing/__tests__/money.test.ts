@@ -14,6 +14,19 @@ describe('money()', () => {
     expect(money(1000, 'GBP')).toBe('£1,000');
   });
 
+  it('renders GBp/GBX as pence, not pounds', () => {
+    // 0-decimal rounding would turn 108p into "£1" if converted — keep it as pence.
+    expect(money(108, 'GBp')).toBe('108p');
+    expect(money(108, 'GBX')).toBe('108p');
+    expect(money(2900, 'GBX')).toBe('2,900p');
+    expect(money(290000, 'GBX')).toBe('290,000p');
+  });
+
+  it('prefixes CAD with C$ and JPY with ¥', () => {
+    expect(money(1000, 'CAD')).toBe('C$1,000');
+    expect(money(1000, 'JPY')).toBe('¥1,000');
+  });
+
   it('falls back to a trailing currency code for unknown currencies', () => {
     expect(money(1000, 'CHF')).toBe('1,000 CHF');
   });
