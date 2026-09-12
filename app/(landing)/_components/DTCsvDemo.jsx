@@ -7,24 +7,18 @@
 // daily closes + EURUSD from the unauthenticated /api/historical-prices. Nothing
 // here writes to Supabase and the statement bytes are never uploaded.
 import { useState, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
+import { SignUpButton } from '@clerk/nextjs';
 import { parseFileInBrowser } from '@/lib/brokers/parseInBrowser';
 import { usePerformanceLedger } from '@/lib/performance/usePerformanceLedger';
 import DTResultView from './DTResultView';
 import { UI_STRINGS } from '@/lib/landing/brokerConfigs';
-
-// Explicit copy per failure mode — pulled from the language strings (never a
-// generic "something went wrong").
-function errorContent(detail, S) {
-  const e = S.errors[detail?.status] ?? S.errors.parse_error;
-  return { title: e.title, body: e.body(detail) };
-}
 
 const CARD = {
   border: '1px solid #1c232c', borderRadius: 10, background: '#07090d',
   boxShadow: '0 24px 60px rgba(0,0,0,0.45)',
 };
 
-const DTCsvDemo = forwardRef(function DTCsvDemo({ lang = 'en', framed = false }, ref) {
+const DTCsvDemo = forwardRef(function DTCsvDemo({ lang = 'en', framed = false, dropHeadline, broker }, ref) {
   const S = UI_STRINGS[lang]?.demo ?? UI_STRINGS.en.demo;
   const [phase, setPhase]   = useState('idle');   // idle | parsing | error | result
   const [detail, setDetail] = useState(null);     // error detail OR ok result
@@ -88,7 +82,7 @@ const DTCsvDemo = forwardRef(function DTCsvDemo({ lang = 'en', framed = false },
 
   const trust = (
     <p style={{ fontSize: 12, color: 'rgba(230,237,243,0.45)', lineHeight: 1.55, margin: '12px auto 0', maxWidth: 520 }}>
-      {S.trust}
+      {S.trust(broker)}
     </p>
   );
 
@@ -159,7 +153,7 @@ const DTCsvDemo = forwardRef(function DTCsvDemo({ lang = 'en', framed = false },
         ) : (
           <>
             <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
-              {S.dropHeadline}
+              {dropHeadline ?? S.dropHeadline}
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>
               {S.browsePrefix}
@@ -168,20 +162,45 @@ const DTCsvDemo = forwardRef(function DTCsvDemo({ lang = 'en', framed = false },
               </span>
             </div>
 
-            {phase === 'error' && detail && (
-              <div style={{
-                margin: '18px auto 0', maxWidth: 520, textAlign: 'left',
-                border: '1px solid var(--negative)', borderRadius: 8,
-                padding: '12px 14px', background: 'rgba(248,81,73,0.06)',
-              }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--negative)' }}>
-                  {errorContent(detail, S).title}
+            {phase === 'error' && detail && (() => {
+              const e = S.errors[detail.status] ?? S.errors.parse_error;
+              // too_many_positions is NOT a failure — nothing broke, the anonymous demo
+              // just has a ceiling. Render it as a neutral informational card (not the
+              // red treatment used for fixable errors like a partial export) and point
+              // the visitor at the signed-in product, which isn't capped at 18.
+              const ceiling = detail.status === 'too_many_positions';
+              return (
+                <div style={{
+                  margin: '18px auto 0', maxWidth: 520, textAlign: 'left', borderRadius: 8,
+                  padding: '14px 16px',
+                  border: `1px solid ${ceiling ? 'var(--border-color)' : 'var(--negative)'}`,
+                  background: ceiling ? 'var(--bg-secondary)' : 'rgba(248,81,73,0.06)',
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: ceiling ? 'var(--text-primary)' : 'var(--negative)' }}>
+                    {typeof e.title === 'function' ? e.title(detail) : e.title}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.5 }}>
+                    {e.body(detail)}
+                  </div>
+                  {ceiling && e.cta && (
+                    <>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 10, lineHeight: 1.5 }}>
+                        {e.cta}
+                      </div>
+                      <SignUpButton mode="modal" forceRedirectUrl="/dashboard">
+                        <button style={{
+                          marginTop: 10, padding: '9px 16px', borderRadius: 8,
+                          background: 'var(--accent-cta)', border: '1px solid var(--accent-cta)',
+                          color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
+                        }}>
+                          {e.ctaButton}
+                        </button>
+                      </SignUpButton>
+                    </>
+                  )}
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.5 }}>
-                  {errorContent(detail, S).body}
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {trust}
           </>

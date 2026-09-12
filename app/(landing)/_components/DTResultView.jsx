@@ -121,10 +121,14 @@ export default function DTResultView({ perf, result, onReset, lang = 'en' }) {
       </div>
 
       {/* Headline percentages */}
+      {/* The headline percentages must NOT show when the ledger fails its integrity
+          gate — a number computed from a window we've flagged as broken (e.g. days
+          with no holdings) can't be shown as prominently as it is. Gate on
+          integrity.ok, same as the chart below; fmt(null) → '—'. */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <Stat label={S.statTwr} value={perf.ready ? fmt(perf.twrPct) : '…'} valueColor={perf.ready ? clr(perf.twrPct) : undefined} />
-        <Stat label={S.statSpy} value={perf.ready ? fmt(perf.spyPct) : '…'} valueColor={perf.ready ? clr(perf.spyPct) : undefined} />
-        <Stat label={S.statVs} value={perf.ready ? fmt(perf.vsSpyPct) : '…'} valueColor={perf.ready ? clr(perf.vsSpyPct) : undefined} />
+        <Stat label={S.statTwr} value={perf.ready ? (perf.integrity?.ok ? fmt(perf.twrPct) : '—') : '…'} valueColor={perf.ready && perf.integrity?.ok ? clr(perf.twrPct) : undefined} />
+        <Stat label={S.statSpy} value={perf.ready ? (perf.integrity?.ok ? fmt(perf.spyPct) : '—') : '…'} valueColor={perf.ready && perf.integrity?.ok ? clr(perf.spyPct) : undefined} />
+        <Stat label={S.statVs} value={perf.ready ? (perf.integrity?.ok ? fmt(perf.vsSpyPct) : '—') : '…'} valueColor={perf.ready && perf.integrity?.ok ? clr(perf.vsSpyPct) : undefined} />
       </div>
 
       {/* TWR vs SPY chart */}

@@ -23,7 +23,7 @@ const V2_PATHS = [...new Set(Object.values(ROUTES).filter(v => typeof v === 'str
 
 // Non-v2 routes that own their chrome or need no legacy nav (auth + marketing; not in
 // ROUTES, so listed explicitly).
-const STANDALONE_PATHS = ['/sign-in', '/sign-up', '/', '/test-upload', '/degiro', '/nl/degiro'];
+const STANDALONE_PATHS = ['/sign-in', '/sign-up', '/', '/test-upload', '/degiro', '/nl/degiro', '/saxo'];
 
 const NO_CHROME_PATHS = [...STANDALONE_PATHS, ...V2_PATHS];
 

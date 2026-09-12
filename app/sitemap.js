@@ -19,7 +19,7 @@ export default function sitemap() {
   });
 
   // Broker landing pages (config-driven; keep in sync with lib/landing/brokerConfigs.js).
-  const brokerPaths = ['/degiro', '/nl/degiro'];
+  const brokerPaths = ['/degiro', '/nl/degiro', '/saxo'];
   const brokerEntries = brokerPaths.map((p) => ({
     url: `${SITE_URL}${p}`,
     lastModified: new Date(),
