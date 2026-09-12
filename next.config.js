@@ -1,3 +1,22 @@
+// Routes that must stay crawlable (200) but out of the search index: the whole
+// signed-in app surface, the portfolio-scoped /financials tool, the dev upload
+// route, and the auth pages. noindex drops them from the index; nofollow stops
+// crawlers walking the in-app Sidebar links from one route into the rest (that's
+// how Google reached all 15 app routes from a single landing-page link).
+// Public pages (/, /degiro, /nl/degiro, /saxo, /blog, /blog/*, /privacy) are
+// deliberately NOT listed and stay indexable.
+const NOINDEX_PATHS = [
+  // (v2) app surface — all 15
+  '/correlations', '/dashboard', '/earnings', '/financial-filings', '/insider',
+  '/macro', '/news', '/ownership', '/peers', '/performance', '/ratings-and-shorts',
+  '/research', '/themes', '/valuation', '/watchlist',
+  // portfolio-scoped tool (needs your holdings; DemoPrompt to logged-out) — not public
+  '/financials',
+  // dev/test route
+  '/test-upload',
+];
+const NOINDEX_HEADER = [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }];
+
 const nextConfig = {
   generateBuildId: async () => `build-${Date.now()}`,
   // Required: prevents 308 redirect on POST /ingest/e → /ingest/e/ which
@@ -22,6 +41,11 @@ const nextConfig = {
   },
   async headers() {
     return [
+      // Keep the signed-in app surface + auth pages crawlable but out of the index.
+      ...NOINDEX_PATHS.map((source) => ({ source, headers: NOINDEX_HEADER })),
+      // Auth pages are catch-all routes ([[...sign-in]]) — cover base + any subpath.
+      { source: '/sign-in/:path*', headers: NOINDEX_HEADER },
+      { source: '/sign-up/:path*', headers: NOINDEX_HEADER },
       {
         // Prices — live, 60s TTL to match the route's Finnhub quote revalidate
         source: '/api/prices',
