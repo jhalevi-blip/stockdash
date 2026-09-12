@@ -54,11 +54,18 @@ export default function RootLayout({ children }) {
         {process.env.VERCEL_ENV === 'production' && (
           <>
             <Script src="https://www.googletagmanager.com/gtag/js?id=G-NK5GB4WDZL" strategy="afterInteractive" />
-            <Script id="ga4-init" strategy="afterInteractive">{`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-NK5GB4WDZL');`}</Script>
+            {/* navigator.webdriver skips GA4 init for headless automation (our own
+                verification runs hit production aliases). The env gate stays; this is
+                an added condition. The external gtag/js above still loads but stays
+                inert without the config() call below. */}
+            <Script id="ga4-init" strategy="afterInteractive">{`if(!navigator.webdriver){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-NK5GB4WDZL');}`}</Script>
           </>
         )}
         {process.env.VERCEL_ENV === 'production' && (
-          <Script id="microsoft-clarity" strategy="afterInteractive">{`(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","wdrpz8u02q");`}</Script>
+          /* navigator.webdriver skips Clarity for headless automation — same reason as
+             GA4 above. Guarded inside the IIFE (c === window) so the tag never loads
+             under a driver; the VERCEL_ENV gate is unchanged. */
+          <Script id="microsoft-clarity" strategy="afterInteractive">{`(function(c,l,a,r,i,t,y){if(c.navigator&&c.navigator.webdriver)return;c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","wdrpz8u02q");`}</Script>
         )}
         <body>
           <GuestDataGuard />
