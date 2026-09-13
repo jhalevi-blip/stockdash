@@ -8,15 +8,13 @@
 import dynamic from 'next/dynamic';
 import { UI_STRINGS } from '@/lib/landing/brokerConfigs';
 import { money } from '@/lib/landing/money';
+import { resolveResultDisplay } from './resultDisplay';
 
 // recharts in an async chunk, same as the /performance page.
 const PortfolioVsSpyChart = dynamic(
   () => import('@/app/(v2)/performance/_components/PerfCharts').then((m) => m.PortfolioVsSpyChart),
   { ssr: false, loading: () => <div style={{ height: 220 }} /> },
 );
-
-const fmt  = (n, d = 1) => (n == null ? '—' : (n >= 0 ? '+' : '') + n.toFixed(d) + '%');
-const clr  = (n) => (n == null ? 'var(--text-secondary)' : n >= 0 ? 'var(--positive)' : 'var(--negative)');
 
 function Stat({ label, value, valueColor }) {
   return (
@@ -43,9 +41,9 @@ export default function DTResultView({ perf, result, onReset, lang = 'en' }) {
     collisionTickers = [], optionsExcluded = 0, splitTickers = [],
   } = result;
 
-  const xInterval = perf.ready && perf.chartData?.length
-    ? Math.max(1, Math.floor((perf.chartData.length - 1) / 5))
-    : 1;
+  // One decision drives BOTH the headline stat cards and the chart below, so a
+  // number and a suppressed chart cannot co-occur. See resultDisplay.js.
+  const display = resolveResultDisplay(perf);
 
   return (
     <div style={{
@@ -120,15 +118,13 @@ export default function DTResultView({ perf, result, onReset, lang = 'en' }) {
         )}
       </div>
 
-      {/* Headline percentages */}
-      {/* The headline percentages must NOT show when the ledger fails its integrity
-          gate — a number computed from a window we've flagged as broken (e.g. days
-          with no holdings) can't be shown as prominently as it is. Gate on
-          integrity.ok, same as the chart below; fmt(null) → '—'. */}
+      {/* Headline percentages — values come from resolveResultDisplay, which only
+          yields real numbers when the chart below plots (kind === 'surface').
+          When the integrity gate fails these are em dashes, by construction. */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <Stat label={S.statTwr} value={perf.ready ? (perf.integrity?.ok ? fmt(perf.twrPct) : '—') : '…'} valueColor={perf.ready && perf.integrity?.ok ? clr(perf.twrPct) : undefined} />
-        <Stat label={S.statSpy} value={perf.ready ? (perf.integrity?.ok ? fmt(perf.spyPct) : '—') : '…'} valueColor={perf.ready && perf.integrity?.ok ? clr(perf.spyPct) : undefined} />
-        <Stat label={S.statVs} value={perf.ready ? (perf.integrity?.ok ? fmt(perf.vsSpyPct) : '—') : '…'} valueColor={perf.ready && perf.integrity?.ok ? clr(perf.vsSpyPct) : undefined} />
+        <Stat label={S.statTwr} value={display.stats.twr.value} valueColor={display.stats.twr.color} />
+        <Stat label={S.statSpy} value={display.stats.spy.value} valueColor={display.stats.spy.color} />
+        <Stat label={S.statVs}  value={display.stats.vs.value}  valueColor={display.stats.vs.color} />
       </div>
 
       {/* TWR vs SPY chart */}
@@ -139,27 +135,27 @@ export default function DTResultView({ perf, result, onReset, lang = 'en' }) {
             {S.chartCaption}
           </span>
         </div>
-        {perf.loading ? (
+        {display.kind === 'loading' ? (
           <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
             {S.chartBuilding}
           </div>
-        ) : !perf.ready ? (
+        ) : display.kind === 'noprice' ? (
           <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
             {S.chartNoPrice}
           </div>
-        ) : !perf.integrity?.ok ? (
+        ) : display.kind === 'refuse' ? (
           <div style={{ padding: 16, border: '1px solid var(--negative)', borderRadius: 8, color: 'var(--negative)', fontSize: 13, lineHeight: 1.5 }}>
-            {S.chartRangeErr(perf.integrity?.reason)}
+            {S.chartRangeErr(display.chart.reason)}
           </div>
         ) : (
           <>
-            <PortfolioVsSpyChart data={perf.chartData} xInterval={xInterval} />
+            <PortfolioVsSpyChart data={display.chart.chartData} xInterval={display.chart.xInterval} />
             <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 12 }}>
-              <span style={{ color: '#58a6ff', fontWeight: 600 }}>{S.legendPortfolio(fmt(perf.twrPct))}</span>
-              <span style={{ color: '#4ade80', fontWeight: 600 }}>{S.legendSpy(fmt(perf.spyPct))}</span>
+              <span style={{ color: '#58a6ff', fontWeight: 600 }}>{S.legendPortfolio(display.chart.portfolioPct)}</span>
+              <span style={{ color: '#4ade80', fontWeight: 600 }}>{S.legendSpy(display.chart.spyPct)}</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-              {S.chartSince(perf.D0)}
+              {S.chartSince(display.chart.D0)}
             </div>
           </>
         )}
