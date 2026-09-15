@@ -73,21 +73,25 @@ export default function RootLayout({ children }) {
         )}
         {process.env.VERCEL_ENV === 'production' && (
           /* Clarity is gated on CookieHub's analytics consent, so no clarity.ms request
-             fires before the visitor accepts. Mechanism: CookieHub v2's documented DOM
-             events (cookiehub_onInitialise / _onStatusChange / _onAllow, emitted by the
-             auto-initialising widget from v2.8.13+), each re-checking
-             hasConsented('analytics'). We do NOT use the cpm callback object — that must
-             be passed to cookiehub.load(), which we removed, so it isn't reachable on the
-             auto-init widget. We also avoid Clarity's own consent API, which injects the
-             tag immediately (hitting clarity.ms) and only withholds cookies. A fresh
-             accept injects via onStatusChange/onAllow with no reload; the immediate
-             hasConsented check covers returning visitors who already consented.
-             navigator.webdriver still skips Clarity for headless automation; the
-             VERCEL_ENV gate is unchanged. If a cookiehub_* event fires but
-             window.cookiehub.hasConsented isn't a function (wrong event name or API
-             shape), we console.error — silent non-loading is the failure mode here, and
-             a normal "not granted" outcome stays quiet so it isn't noise on every load. */
-          <Script id="microsoft-clarity" strategy="afterInteractive">{`(function(){if(navigator.webdriver)return;var loaded=false;function inject(){if(loaded)return;loaded=true;(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","wdrpz8u02q");}function ready(){return window.cookiehub&&typeof window.cookiehub.hasConsented==='function';}function onEvent(){if(!ready()){console.error('[clarity-consent] CookieHub consent event fired but window.cookiehub.hasConsented is unavailable — Clarity will not load; verify the cookiehub_* event names / API.');return;}if(window.cookiehub.hasConsented('analytics'))inject();}document.addEventListener('cookiehub_onInitialise',onEvent);document.addEventListener('cookiehub_onStatusChange',onEvent);document.addEventListener('cookiehub_onAllow',onEvent);if(ready()&&window.cookiehub.hasConsented('analytics'))inject();})();`}</Script>
+             fires before the visitor accepts. hasConsented is invoked from exactly one
+             place — consented() — and only after a typeof==='function' check, so no path
+             can throw "hasConsented is not a function" (the bug this replaces: window.
+             cookiehub existed but hasConsented wasn't attached yet when our code ran).
+             Two triggers: (1) the documented CookieHub v2 DOM events
+             (cookiehub_onInitialise / _onStatusChange / _onAllow) for a fresh accept —
+             injects with no reload; (2) a bounded, silent poll for a returning visitor
+             whose consent is already stored, because cookiehub_onInitialise is dispatched
+             conditionally by the widget and can be missed (fires before our listener
+             attaches, or not at all on a silent re-init) — the old one-shot immediate
+             check raced that and left Clarity never loading. The poll stays quiet until
+             CookieHub is ready (a cold load with hasConsented not yet attached is normal,
+             not an error) and gives up after ~10s. We do NOT use the cpm callback object
+             (it must be passed to cookiehub.load(), which we removed) or Clarity's own
+             consent API (it injects immediately, hitting clarity.ms pre-consent). The
+             console.error is kept for the genuine failure: an event fires but hasConsented
+             still isn't callable (wrong event name / API shape). navigator.webdriver still
+             skips headless; the VERCEL_ENV gate is unchanged. */
+          <Script id="microsoft-clarity" strategy="afterInteractive">{`(function(){if(navigator.webdriver)return;var loaded=false;function inject(){if(loaded)return;loaded=true;(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","wdrpz8u02q");}function canEval(){return window.cookiehub&&typeof window.cookiehub.hasConsented==='function';}function consented(){return canEval()&&window.cookiehub.hasConsented('analytics');}function onEvent(){if(!canEval()){console.error('[clarity-consent] CookieHub consent event fired but window.cookiehub.hasConsented is unavailable — Clarity will not load; verify the cookiehub_* event names / API.');return;}if(consented())inject();}document.addEventListener('cookiehub_onInitialise',onEvent);document.addEventListener('cookiehub_onStatusChange',onEvent);document.addEventListener('cookiehub_onAllow',onEvent);var tries=0;(function poll(){if(loaded)return;if(consented()){inject();return;}if(++tries>40)return;setTimeout(poll,250);})();})();`}</Script>
         )}
         <body>
           <GuestDataGuard />
