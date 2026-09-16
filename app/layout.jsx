@@ -47,12 +47,13 @@ export default function RootLayout({ children }) {
       },
     }}>
       <html lang="en">
-        <head>
-          {/* theme-init runs synchronously during head parse — before first paint, so
-              no flash — and lives inside <head> rather than being a direct <script>
-              child of <html> (which Next 16 / React 19 warns about). */}
-          <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('stockdash_theme');document.documentElement.setAttribute('data-theme',t==='light'?'light':'dark')}catch(e){document.documentElement.setAttribute('data-theme','dark')}try{if(localStorage.getItem('dev_mode')==='true')document.documentElement.setAttribute('data-va-disable','true')}catch(e){}` }} />
-        </head>
+        {/* theme-init as a beforeInteractive Script (reverted from a raw <head> element).
+            The explicit <head> was added to silence a Next 16 / React 19 warning about
+            Script-children of <html>, but in this app it flipped React's <html>/<body>
+            hoisting so the root layout's document (with AppShell) rendered over the
+            (landing) group's standalone layout — putting the app chrome + a duplicate
+            header on the marketing pages. We accept the console warning instead. */}
+        <Script id="theme-init" strategy="beforeInteractive">{`try{var t=localStorage.getItem('stockdash_theme');document.documentElement.setAttribute('data-theme',t==='light'?'light':'dark')}catch(e){document.documentElement.setAttribute('data-theme','dark')}try{if(localStorage.getItem('dev_mode')==='true')document.documentElement.setAttribute('data-va-disable','true')}catch(e){}`}</Script>
         {/* Consent Mode defaults. afterInteractive (was beforeInteractive, which made it
             an <html> child) and positioned before the gtag scripts below so the denied
             defaults are queued on dataLayer before gtag('config') runs. */}
