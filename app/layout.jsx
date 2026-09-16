@@ -1,6 +1,5 @@
 import './globals.css';
 import Script from 'next/script';
-import AppShell from '@/components/AppShell';
 import DevMode from '@/components/DevMode';
 import PostHogProvider from '@/components/PostHogProvider';
 import PwaSetup from '@/components/PwaSetup';
@@ -47,12 +46,12 @@ export default function RootLayout({ children }) {
       },
     }}>
       <html lang="en">
-        {/* theme-init as a beforeInteractive Script (reverted from a raw <head> element).
-            The explicit <head> was added to silence a Next 16 / React 19 warning about
-            Script-children of <html>, but in this app it flipped React's <html>/<body>
-            hoisting so the root layout's document (with AppShell) rendered over the
-            (landing) group's standalone layout — putting the app chrome + a duplicate
-            header on the marketing pages. We accept the console warning instead. */}
+        {/* theme-init as a beforeInteractive Script. This is the ONLY layout that
+            renders <html>/<body>; route groups nest inside it and never emit their own
+            document (that double-root previously flipped React's html/body hoisting and
+            leaked app chrome onto the marketing pages). Chrome is now decided by folder:
+            (v2)/layout and financials/layout add their own; everything here is shared and
+            renders exactly once. The beforeInteractive Script warning is accepted. */}
         <Script id="theme-init" strategy="beforeInteractive">{`try{var t=localStorage.getItem('stockdash_theme');document.documentElement.setAttribute('data-theme',t==='light'?'light':'dark')}catch(e){document.documentElement.setAttribute('data-theme','dark')}try{if(localStorage.getItem('dev_mode')==='true')document.documentElement.setAttribute('data-va-disable','true')}catch(e){}`}</Script>
         {/* Consent Mode defaults. afterInteractive (was beforeInteractive, which made it
             an <html> child) and positioned before the gtag scripts below so the denied
@@ -96,7 +95,6 @@ export default function RootLayout({ children }) {
         )}
         <body>
           <GuestDataGuard />
-          <AppShell />
           {children}
           <Analytics />
           <DevMode />
