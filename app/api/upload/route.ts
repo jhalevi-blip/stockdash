@@ -11,6 +11,8 @@ import { aggregateFIFO } from '@/lib/brokers/fifo';
 import { calcFIFO } from '@/lib/brokers/realizedFifo';
 import type { FIFOResult } from '@/lib/brokers/realizedFifo';
 import type { BrokerTrade, BrokerFormat, NormalizedPosition, SkipSummary } from '@/lib/brokers/types';
+import { decideGate, fmpCoverage, fmpProfiles, brokerOrigin, key as gateKey } from '@/lib/brokers/identityGate';
+import { trackFMP } from '@/lib/apiUsage';
 
 export const runtime = 'nodejs';
 
@@ -128,6 +130,12 @@ export async function POST(request: Request) {
     const allHoldings:        NormalizedPosition[] = [];
     const allUnresolvedIsins: string[]             = [];
     const fileStats:          FileStat[]           = [];
+    // OpenFIGI company name per DeGiro-resolved ticker — the identity gate below
+    // compares it against FMP's profile name. DeGiro is the only broker that
+    // resolves ISINs WITH names (parseDeGiro.namesByTicker); the route used to
+    // read neither this nor isinResolvedTickers, so the identity signal reached
+    // the server and was discarded. Merged across DeGiro files.
+    const degiroNamesByTicker: Record<string, string> = {};
 
     for (const file of files) {
       const ext = file.name?.split('.').pop()?.toLowerCase();
@@ -174,6 +182,8 @@ export async function POST(request: Request) {
               allFees.push(...r.fees);
               allCashEvents.push(...r.cashEvents);
               if (r.currentCashEur != null) degiroCurrentCashEur = (degiroCurrentCashEur ?? 0) + r.currentCashEur;
+              // Carry the OpenFIGI names through to the identity gate (below).
+              Object.assign(degiroNamesByTicker, r.namesByTicker ?? {});
               if (r._debug) _debugDegiro = r._debug;
               break;
             }
@@ -265,6 +275,75 @@ export async function POST(request: Request) {
       }
     }
 
+    // ── Coverage + identity gate (pre-merge) ───────────────────────────────────
+    // Two gates the logged-out demo (lib/brokers/parseInBrowser.js) has and this
+    // route lacked: coverage excludes tickers FMP can't price; identity excludes
+    // ISIN-resolved tickers whose OpenFIGI company name disagrees with FMP's
+    // profile — an ISIN can map to the wrong company (a Belgian ISIN once resolved
+    // to an ETF, not the issuer), which would otherwise land a wrong-company
+    // position in a real portfolio.
+    //
+    // It MUST run here, pre-merge, on the per-broker trade lists: after the
+    // (ticker, currency) merge below, provenance collapses to 'generic' and a
+    // failing DeGiro lot can't be told from a good Saxo lot for the same ticker.
+    // Excluding (not flagging) is deliberate — a needsReview marker valuation
+    // doesn't honour would still feed portfolio totals; exclusion is honest today.
+    //
+    // Distinct (broker, ticker) pairs are the unit of exclusion: coverage keys on
+    // the ticker (a symbol either has prices or doesn't), identity on the pair
+    // (only DeGiro carries a name to check), so the same symbol can fail at DeGiro
+    // yet pass at a broker that supplied the ticker directly.
+    const brokerTickerPairs: { broker: BrokerFormat; ticker: string }[] = [];
+    const seenPair = new Set<string>();
+    for (const [broker, brokerTrades] of allTradesByBroker) {
+      for (const t of brokerTrades) {
+        const k = gateKey(broker, t.ticker);
+        if (seenPair.has(k)) continue;
+        seenPair.add(k);
+        brokerTickerPairs.push({ broker, ticker: t.ticker });
+      }
+    }
+
+    const fmpKey = process.env.FMP_API_KEY;
+    const allTickers = [...new Set(brokerTickerPairs.map((p) => p.ticker))];
+    // Identity is only checkable where the broker carries an OpenFIGI name
+    // (DeGiro today) AND the ticker is priceable — so the profile fan-out is
+    // scoped to those, after coverage. IBKR/Rabobank are ISIN-resolved but use the
+    // ticker-only resolver and carry no name; decideGate reports them as
+    // unverified rather than passing them silently.
+    let gate: ReturnType<typeof decideGate> = {
+      excludedKeys: new Set(), exclusions: [], identityUnverified: [], coverageUnverified: [],
+    };
+    if (fmpKey && allTickers.length) {
+      const { covered, probeFailed } = await fmpCoverage(allTickers, fmpKey);
+      const identityCandidates = [...new Set(
+        brokerTickerPairs
+          .filter((p) => brokerOrigin(p.broker) === 'isin-named' && covered.has(p.ticker) && degiroNamesByTicker[p.ticker])
+          .map((p) => p.ticker),
+      )];
+      const profiles = identityCandidates.length ? await fmpProfiles(identityCandidates, fmpKey) : {};
+      trackFMP(allTickers.length + identityCandidates.length).catch(() => {});
+
+      gate = decideGate(brokerTickerPairs, {
+        covered,
+        coverageProbeFailed: probeFailed,
+        profiles,
+        // DeGiro is the only source of OpenFIGI names in this pass.
+        figiNameFor: (broker, ticker) => (broker === 'degiro' ? degiroNamesByTicker[ticker] : undefined),
+      });
+    }
+
+    // Drop excluded (broker, ticker) lots from every downstream consumer at once —
+    // per-broker FIFO (holdings), calcFIFO (realized P&L) and tradeLegs all read
+    // this filtered map, so a lot can't be dropped from one and kept in another.
+    const gatedTradesByBroker: Map<BrokerFormat, BrokerTrade[]> = new Map();
+    for (const [broker, brokerTrades] of allTradesByBroker) {
+      gatedTradesByBroker.set(
+        broker,
+        brokerTrades.filter((t) => !gate.excludedKeys.has(gateKey(broker, t.ticker))),
+      );
+    }
+
     // ── Per-broker FIFO ───────────────────────────────────────────────────────
     // Run aggregateFIFO independently per broker so sells at one broker never
     // consume lots from another.  After all brokers are processed, merge
@@ -283,7 +362,7 @@ export async function POST(request: Request) {
       { netZeroTickers: string[]; sellsWithoutBuysTickers: string[] }
     >();
 
-    for (const [broker, brokerTrades] of allTradesByBroker) {
+    for (const [broker, brokerTrades] of gatedTradesByBroker) {
       const { positions: brokerPos, netZeroTickers, sellsWithoutBuysTickers } =
         aggregateFIFO(brokerTrades, broker);
       brokerDiagnostics.set(broker, { netZeroTickers, sellsWithoutBuysTickers });
@@ -416,7 +495,7 @@ export async function POST(request: Request) {
     // date. Sign is derived from action, not the raw shares field, because parsers
     // differ (Saxo stores positive shares; DeGiro stores signed shares). Options
     // and expiries were already excluded at parse time.
-    const tradeLegs = [...allTradesByBroker.values()].flat().map((t) => ({
+    const tradeLegs = [...gatedTradesByBroker.values()].flat().map((t) => ({
       t: t.ticker,
       d: t.date,
       s: t.action === 'sell' ? -Math.abs(t.shares) : Math.abs(t.shares),
@@ -455,6 +534,32 @@ export async function POST(request: Request) {
 
         // ISIN resolution failures across all parsers that use OpenFIGI
         unresolvedIsins: [...new Set(allUnresolvedIsins)],
+
+        // Coverage + identity gate outcome. `excluded` lists every (broker,
+        // ticker) lot DROPPED from holdings / realized P&L / tradeLegs and why —
+        // and only on evidence: coverage = FMP confirmed an empty price series;
+        // identity = OpenFIGI and FMP names both present and disagree.
+        //
+        // The two *Unverified lists are passed through as-is (NOT excluded) —
+        // absence of an answer isn't evidence of a wrong mapping, and dropping a
+        // real holding on a transient fetch failure is the silent loss this gate
+        // exists to prevent:
+        //   • identityUnverified — ISIN-resolved lots we couldn't name-check
+        //     (IBKR/Rabobank carry no OpenFIGI name; or FMP's profile was
+        //     unavailable). Each carries a `reason`.
+        //   • coverageUnverified — the coverage probe failed transiently
+        //     (network/HTTP error), as opposed to a confirmed-empty series.
+        gate: {
+          excluded:           gate.exclusions,
+          identityUnverified: gate.identityUnverified,
+          coverageUnverified: gate.coverageUnverified,
+          identityUnverifiedNote: gate.identityUnverified.length
+            ? "Passed through without an identity check, not excluded. reason 'broker-has-no-name': IBKR/Rabobank resolve ISINs via the ticker-only resolver (follow-up: switch them to resolveBatchIsinsWithNames). reason 'fmp-profile-unavailable'/'no-openfigi-name': a name was missing on one side, likely transient — absence isn't evidence of a wrong mapping."
+            : null,
+          coverageUnverifiedNote: gate.coverageUnverified.length
+            ? 'The FMP price-coverage probe failed transiently (network/HTTP error, not a confirmed-empty series), so these were passed through rather than excluded on a transient failure.'
+            : null,
+        },
 
         // Gap C: deposits/dividends/fees now wired for DeGiro Rekeningoverzicht
         // and Saxo (Geldoverboeking/Corporate action rows). Other parsers do not
