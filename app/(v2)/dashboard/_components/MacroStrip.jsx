@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { MACRO } from '../_lib/mockData';
 import { fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
 import Sparkline from '@/app/(v2)/_components/Sparkline';
+import { fetchMacro } from '@/lib/macroClient';
 
 function transformMacro(json) {
   const { indices, treasury } = json;
@@ -58,8 +59,7 @@ export default function MacroStrip({ onIndexClick }) {
   const [sparks, setSparks] = useState(null);
 
   useEffect(() => {
-    fetch('/api/macro')
-      .then(r => r.json())
+    fetchMacro()
       .then(json => {
         if (json.error) return;
         const items = transformMacro(json);

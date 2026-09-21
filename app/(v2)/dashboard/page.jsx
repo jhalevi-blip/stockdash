@@ -20,6 +20,7 @@ import { fmtCurrency, fmtSigned, fmtPct, colorForChange } from '@/app/(v2)/_lib/
 import { useHoldings } from '@/lib/useHoldings';
 import { holdingsSignature } from '@/lib/holdingsStorage';
 import { getMarketStatus } from '@/lib/marketStatus';
+import { fetchMacro } from '@/lib/macroClient';
 
 const SECTOR_COLORS = {
   'Technology':             '#58a6ff',
@@ -149,11 +150,11 @@ export default function DashboardV2Page() {
       });
   }, []);
 
-  // S&P 500 today % for the "Today vs S&P" card. Own fetch (same precedent as
-  // MacroStrip; /api/macro is CDN-cached). No polling; leave null on any error.
+  // S&P 500 today % for the "Today vs S&P" card. Shares the single /api/macro request
+  // with MacroStrip via fetchMacro() (both mount together) instead of firing its own.
+  // No polling; leave null on any error.
   useEffect(() => {
-    fetch('/api/macro')
-      .then(r => r.json())
+    fetchMacro()
       .then(json => setSpyPct(json?.indices?.SPY?.changesPercentage ?? null))
       .catch(() => {});
   }, []);
