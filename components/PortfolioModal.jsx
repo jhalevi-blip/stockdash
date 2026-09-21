@@ -297,6 +297,9 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
             <UnifiedUpload
               onClose={() => setUploadOpen(false)}
               onPendingChange={setUploadPending}
+              // Current editing rows are the portfolio a Replace would overwrite —
+              // pass them so the upload panel can diff and warn before dropping any.
+              existingHoldings={rows}
               onTransactions={(tx) => {
                 setPendingRealized(tx);
                 // Pre-fill cash from the upload's reconstructed current cash (EUR),
