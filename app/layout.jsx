@@ -45,7 +45,14 @@ export default function RootLayout({ children }) {
         cardBox: { background: '#ffffff' },
       },
     }}>
-      <html lang="en">
+      {/* suppressHydrationWarning: theme-init sets data-theme on <html> before React
+          hydrates (anti-flash), which the server HTML can't know — scope the warning
+          suppression to this element's attributes only. */}
+      <html lang="en" suppressHydrationWarning>
+        <body>
+        {/* Scripts live inside <body>, the placement Next 16 / React 19 supports. As
+            direct children of <html> they threw "script cannot be a child of html" and
+            "sync-or-defer script outside the main document" hydration errors in dev. */}
         {/* theme-init as a beforeInteractive Script. This is the ONLY layout that
             renders <html>/<body>; route groups nest inside it and never emit their own
             document (that double-root previously flipped React's html/body hoisting and
@@ -96,7 +103,6 @@ export default function RootLayout({ children }) {
              skips headless; the VERCEL_ENV gate is unchanged. */
           <Script id="microsoft-clarity" strategy="afterInteractive">{`(function(){if(navigator.webdriver)return;var loaded=false;function inject(){if(loaded)return;loaded=true;(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","wdrpz8u02q");}function canEval(){return window.cookiehub&&typeof window.cookiehub.hasConsented==='function';}function consented(){return canEval()&&window.cookiehub.hasConsented('analytics');}function onEvent(){if(!canEval()){console.error('[clarity-consent] CookieHub consent event fired but window.cookiehub.hasConsented is unavailable — Clarity will not load; verify the cookiehub_* event names / API.');return;}if(consented())inject();}document.addEventListener('cookiehub_onInitialise',onEvent);document.addEventListener('cookiehub_onStatusChange',onEvent);document.addEventListener('cookiehub_onAllow',onEvent);var tries=0;(function poll(){if(loaded)return;if(consented()){inject();return;}if(++tries>40)return;setTimeout(poll,250);})();})();`}</Script>
         )}
-        <body>
           <GuestDataGuard />
           {children}
           <Analytics />
