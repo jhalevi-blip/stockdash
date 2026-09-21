@@ -63,12 +63,15 @@ export default function RootLayout({ children }) {
         <Script id="cookiehub" strategy="afterInteractive" src="https://cdn.cookiehub.eu/c2/9cb2f0a8.js" />
         {process.env.VERCEL_ENV === 'production' && (
           <>
-            <Script src="https://www.googletagmanager.com/gtag/js?id=G-NK5GB4WDZL" strategy="afterInteractive" />
-            {/* navigator.webdriver skips GA4 init for headless automation (our own
-                verification runs hit production aliases). The env gate stays; this is
-                an added condition. The external gtag/js above still loads but stays
-                inert without the config() call below. */}
-            <Script id="ga4-init" strategy="afterInteractive">{`if(!navigator.webdriver){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-NK5GB4WDZL');}`}</Script>
+            {/* GA4/GTM deferred to lazyOnload so its ~172KB script + execution no longer
+                competes for the main thread during initial render (the homepage LCP is
+                main-thread-bound). Consent ordering is preserved: gcm-default above is
+                afterInteractive, which always runs before any lazyOnload script, so the
+                denied consent defaults are queued on dataLayer before gtag('config')
+                below initialises GA4. The VERCEL_ENV production gate and the
+                navigator.webdriver guard are unchanged. */}
+            <Script src="https://www.googletagmanager.com/gtag/js?id=G-NK5GB4WDZL" strategy="lazyOnload" />
+            <Script id="ga4-init" strategy="lazyOnload">{`if(!navigator.webdriver){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-NK5GB4WDZL');}`}</Script>
           </>
         )}
         {process.env.VERCEL_ENV === 'production' && (
