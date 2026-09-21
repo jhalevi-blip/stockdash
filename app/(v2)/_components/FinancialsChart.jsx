@@ -233,15 +233,15 @@ function ValuationChart({ rows, height, capped, priceEligible }) {
         {priceEligible && <YAxis yAxisId="right" orientation="right" tickFormatter={fmtMult} width={44} {...AXIS} />}
         <Tooltip
           contentStyle={TOOLTIP} labelStyle={{ color: 'var(--text-muted)' }}
-          formatter={(v, n) => n === 'pe' ? [fmtMult(v), 'P/E (TTM)'] : [fmtPct(v), 'Rev CAGR · 3y rolling (TTM)']}
+          itemSorter={null}   /* Recharts 3 defaults to 'name' (alphabetical); null keeps render order */
+          formatter={(v, n, item) => item?.dataKey === 'pe' ? [fmtMult(v), n] : [fmtPct(v), n]}
         />
-        <Legend wrapperStyle={{ fontSize: 11 }} payload={[
-          { value: 'Rev CAGR · 3y rolling (TTM)', id: 'revCagr3y', type: 'line', color: 'var(--accent)' },
-          ...(priceEligible ? [{ value: 'P/E (TTM)', id: 'pe', type: 'line', color: 'var(--warn)' }] : []),
-        ]} />
-        <Line yAxisId="left" type="linear" dataKey="revCagr3y" stroke="var(--accent)" strokeWidth={2} dot={false} connectNulls={false} />
+        {/* No `payload` override — Recharts 3 ignores it; the legend derives label/colour
+            from each Line's `name`/`stroke`. itemSorter={null} defeats the default 'value' sort. */}
+        <Legend wrapperStyle={{ fontSize: 11 }} itemSorter={null} />
+        <Line yAxisId="left" type="linear" dataKey="revCagr3y" name="Rev CAGR · 3y rolling (TTM)" stroke="var(--accent)" strokeWidth={2} dot={false} connectNulls={false} />
         {priceEligible && (
-          <Line yAxisId="right" type="linear" dataKey="pe" stroke="var(--warn)" strokeWidth={1.75} dot={false} strokeDasharray="5 3" connectNulls={false} />
+          <Line yAxisId="right" type="linear" dataKey="pe" name="P/E (TTM)" stroke="var(--warn)" strokeWidth={1.75} dot={false} strokeDasharray="5 3" connectNulls={false} />
         )}
       </LineChart>
     </ChartBlock>
