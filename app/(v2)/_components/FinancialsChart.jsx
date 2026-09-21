@@ -164,14 +164,20 @@ function IncomeChart({ rows, height, mode, peerCount }) {
         <YAxis tickFormatter={fmt} width={pct ? 48 : 52} {...AXIS} />
         <Tooltip
           contentStyle={TOOLTIP} labelStyle={{ color: 'var(--text-muted)' }}
+          itemSorter={null}   /* Recharts 3 defaults to 'name' (alphabetical); null keeps P&L render order */
           formatter={(v, n) => n.endsWith('Peer')
             ? [fmt(v), `${labels[n.slice(0, -4)] || n.slice(0, -4)} (peer med.)`]
             : [fmt(v), labels[n] || n]}
         />
-        <Legend wrapperStyle={{ fontSize: 11 }} payload={lines.map(([key, label, stroke]) => ({ value: label, id: key, type: 'line', color: stroke }))} />
-        {/* linear, not monotone: keep discrete points honest and step changes visible. */}
-        {lines.map(([key, , stroke, sw]) => (
-          <Line key={key} type="linear" dataKey={key} stroke={stroke} strokeWidth={sw}
+        {/* No `payload` override — Recharts 3 ignores it; the legend derives label/colour
+            from each Line's `name`/`stroke`. itemSorter={null} defeats the default 'value'
+            sort so it follows the ABS_LINES / PCT_LINES (P&L) order. */}
+        <Legend wrapperStyle={{ fontSize: 11 }} itemSorter={null} />
+        {/* linear, not monotone: keep discrete points honest and step changes visible.
+            `name` carries the readable label so the legend derives it from the series
+            (Recharts 3 no longer honours a <Legend payload> override). */}
+        {lines.map(([key, label, stroke, sw]) => (
+          <Line key={key} type="linear" dataKey={key} name={label} stroke={stroke} strokeWidth={sw}
             dot={isGrossKey(key) ? <AnomalyDot /> : false} connectNulls />
         ))}
         {/* Muted peer-median lines, % mode only. */}
