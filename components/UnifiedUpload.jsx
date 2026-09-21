@@ -44,13 +44,19 @@ function SkipLines({ skipped }) {
   );
 }
 
-export default function UnifiedUpload({ onHoldings, onTransactions, startDate, onClose, onPendingChange }) {
+export default function UnifiedUpload({ onHoldings, onTransactions, startDate, onClose, onPendingChange, existingHoldings = [] }) {
   const [fileList,   setFileList]   = useState([]);
   const [dragOver,   setDragOver]   = useState(false);
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState(null);
   const [results,    setResults]    = useState(null);
-  const [importMode, setImportMode] = useState('replace');
+  // Default to Append: Replace is destructive, and a routine re-import defaulting
+  // to Replace is how a windowed export silently wiped a position held from before
+  // the export window. Replace stays one click away, now behind the diff guard below.
+  const [importMode, setImportMode] = useState('append');
+  // First click on Import in Replace mode only arms this when positions would be
+  // dropped; the destructive import proceeds on the second, explicit click.
+  const [replaceConfirmArmed, setReplaceConfirmArmed] = useState(false);
   const inputRef = useRef(null);
   const nextId   = useRef(1);
 
@@ -112,8 +118,57 @@ export default function UnifiedUpload({ onHoldings, onTransactions, startDate, o
     }
   }
 
+  // Positions in the current portfolio that a Replace with this upload would drop.
+  // A position "leaves" when its ticker is absent from the uploaded file entirely —
+  // the OXY case: held from before a windowed export, so it has no rows in the file
+  // and would vanish on overwrite with no trace to warn from. The diff compares
+  // against what's already in the portfolio, so it catches this even though the
+  // file itself carries no signal that the position ever existed.
+  const uploadedByTicker = new Map();
+  for (const h of results?.holdings ?? []) {
+    const t = String(h?.t ?? '').trim().toUpperCase();
+    if (!t) continue;
+    uploadedByTicker.set(t, (uploadedByTicker.get(t) ?? 0) + (Number(h?.s) || 0));
+  }
+  const existingByTicker = new Map();
+  for (const h of existingHoldings) {
+    const t = String(h?.t ?? '').trim().toUpperCase();
+    if (!t) continue;
+    existingByTicker.set(t, (existingByTicker.get(t) ?? 0) + (Number(h?.s) || 0));
+  }
+  const removedPositions = importMode === 'replace'
+    ? [...existingByTicker.entries()]
+        .filter(([t]) => !uploadedByTicker.has(t))
+        .map(([t, s]) => ({ t, s }))
+    : [];
+  // Mirror of the Replace diff for Append: tickers already in the portfolio that
+  // this upload will add a SECOND row for. Informational only — separate lots of
+  // the same ticker can be legitimate — but silent duplication is how picking the
+  // wrong mode quietly doubled a portfolio, so name them before the import.
+  const duplicatePositions = importMode === 'append'
+    ? [...uploadedByTicker.entries()]
+        .filter(([t]) => existingByTicker.has(t))
+        .map(([t, s]) => ({ t, s, existing: existingByTicker.get(t) }))
+    : [];
+  // Armed + still-destructive → the confirm state. The button names what leaves
+  // so the acknowledgement is explicit, not a generic "are you sure".
+  const confirmingReplace = replaceConfirmArmed && removedPositions.length > 0;
+  const removedLabel = removedPositions.slice(0, 3).map((p) => p.t).join(', ')
+    + (removedPositions.length > 3 ? ` +${removedPositions.length - 3} more` : '');
+
+  // Any change to the mode or the parsed upload invalidates a prior acknowledgement —
+  // the user must re-confirm against the current diff, never a stale one.
+  useEffect(() => { setReplaceConfirmArmed(false); }, [importMode, results]);
+
   function handleImport() {
     if (!results) return;
+    // Destructive Replace guard: when Replace would drop existing positions, the
+    // first click only arms the confirmation (which names what leaves). The import
+    // proceeds on the second, explicit click. Non-destructive imports are unaffected.
+    if (removedPositions.length > 0 && !replaceConfirmArmed) {
+      setReplaceConfirmArmed(true);
+      return;
+    }
     if ((results.holdings?.length ?? 0) > 0) {
       // Wrapped object distinguishes this from UploadPanel.onImport's `skipped` parameter.
       // PortfolioModal (File 8) reads fileStats explicitly from this shape.
@@ -311,6 +366,51 @@ export default function UnifiedUpload({ onHoldings, onTransactions, startDate, o
                   style={{ marginTop: 3, cursor: 'pointer' }} />
                 <span><strong>Append</strong> to existing holdings</span>
               </label>
+
+              {/* Diff-before-destroy: name exactly what a Replace would drop, before it commits. */}
+              {removedPositions.length > 0 && (
+                <div style={{
+                  marginTop: 12, padding: '10px 12px', borderRadius: 6,
+                  background: 'rgba(248,81,73,0.08)', border: '1px solid rgba(248,81,73,0.35)',
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f85149', marginBottom: 6 }}>
+                    ⚠ Replace will remove {removedPositions.length} position{removedPositions.length !== 1 ? 's' : ''} that {removedPositions.length !== 1 ? "aren't" : "isn't"} in this file
+                  </div>
+                  <ul style={{ margin: '0 0 6px 0', paddingLeft: 18, fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.7 }}>
+                    {removedPositions.map((p) => (
+                      <li key={p.t}><strong>{p.t}</strong> — {fmt(p.s, p.s % 1 === 0 ? 0 : 2)} share{p.s === 1 ? '' : 's'}</li>
+                    ))}
+                  </ul>
+                  <div style={{ fontSize: 12, color: '#8b949e' }}>
+                    These are held from before this export&apos;s date range. Replace removes them permanently — choose <strong>Append</strong> above to keep them.
+                  </div>
+                </div>
+              )}
+
+              {/* Mirror of the Replace diff for Append: name tickers this upload will add a
+                  second row for. Informational only — separate lots are legitimate, so
+                  neutral styling and no confirm — but silent duplication is how the wrong
+                  mode quietly doubled a portfolio, so surface it before the import. */}
+              {duplicatePositions.length > 0 && (
+                <div style={{
+                  marginTop: 12, padding: '10px 12px', borderRadius: 6,
+                  background: 'rgba(88,166,255,0.06)', border: '1px solid rgba(88,166,255,0.3)',
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#58a6ff', marginBottom: 6 }}>
+                    ℹ Append will add a second row for {duplicatePositions.length} ticker{duplicatePositions.length !== 1 ? 's' : ''} already in your portfolio
+                  </div>
+                  <ul style={{ margin: '0 0 6px 0', paddingLeft: 18, fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.7 }}>
+                    {duplicatePositions.map((p) => (
+                      <li key={p.t}>
+                        <strong>{p.t}</strong> — adding {fmt(p.s, p.s % 1 === 0 ? 0 : 2)} share{p.s === 1 ? '' : 's'} (you already hold {fmt(p.existing, p.existing % 1 === 0 ? 0 : 2)})
+                      </li>
+                    ))}
+                  </ul>
+                  <div style={{ fontSize: 12, color: '#8b949e' }}>
+                    Append keeps existing rows and adds these as separate lots — fine for genuinely separate purchases. If you meant to overwrite, choose <strong>Replace</strong> above.
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -446,10 +546,12 @@ export default function UnifiedUpload({ onHoldings, onTransactions, startDate, o
                 }}>Cancel</button>
               )}
               <button onClick={handleImport} style={{
-                background: '#58a6ff', color: '#fff', border: 'none',
+                background: confirmingReplace ? '#da3633' : '#58a6ff', color: '#fff', border: 'none',
                 borderRadius: 6, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
               }}>
-                {hasHoldings && hasPnL
+                {confirmingReplace
+                  ? `Confirm — remove ${removedLabel} and replace →`
+                  : hasHoldings && hasPnL
                   ? `Import ${holdings.length} position${holdings.length !== 1 ? 's' : ''} + view P&L →`
                   : hasHoldings
                   ? `Import ${holdings.length} position${holdings.length !== 1 ? 's' : ''} →`
