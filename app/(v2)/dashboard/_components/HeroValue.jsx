@@ -13,7 +13,15 @@ const HeroSparkChart = dynamic(() => import('./HeroSparkChart'), {
 
 const RANGES = ['1D', '1W', '1M', '3M', '1Y', 'ALL'];
 
-export default function HeroValue({ range = '1M', onRange, sparkData, data = PORTFOLIO }) {
+// Matches HeroSparkChart's box (marginTop 8, height 140) so the loading / unavailable
+// states occupy the same footprint and the hero doesn't shift when the chart swaps in.
+const CHART_SLOT = {
+  marginTop: 8, width: '100%', height: 140,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  color: 'var(--text-muted)', fontSize: 13,
+};
+
+export default function HeroValue({ range = '1M', onRange, sparkData, data = PORTFOLIO, chartState = 'ready' }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -100,7 +108,13 @@ export default function HeroValue({ range = '1M', onRange, sparkData, data = POR
         <span>·</span>
         <span>Cash {fmtCurrency(data.cash, 0, data.cashCurrency)}</span>
       </div>
-      <HeroSparkChart sparkData={sparkData} range={range} displayCurrency={data.displayCurrency} />
+      {chartState === 'loading' ? (
+        <div style={CHART_SLOT}>Loading chart…</div>
+      ) : chartState === 'error' ? (
+        <div style={CHART_SLOT}>Chart unavailable</div>
+      ) : (
+        <HeroSparkChart sparkData={sparkData} range={range} displayCurrency={data.displayCurrency} />
+      )}
     </div>
   );
 }

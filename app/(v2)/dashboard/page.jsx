@@ -63,6 +63,10 @@ export default function DashboardV2Page() {
   // lets the stale banner appear/refresh between price polls.
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [history,  setHistory]  = useState(null); // [{ date, value }] — full 1-year daily series
+  // Load state for `history`, so a signed-in user with holdings never sees the mock
+  // demo curve: 'loading' while the fetch is in flight, 'error' on failure / no data,
+  // 'ready' once the real series is in. Anonymous / zero-holdings ignore this (mock).
+  const [historyStatus, setHistoryStatus] = useState('loading');
   // Live EUR/USD (USD per EUR, ≈1.16). null until loaded → aggregates show a brief
   // loading state rather than flashing USD figures as if they were EUR. USD→EUR = ÷ eurUsd.
   const [eurUsd,   setEurUsd]   = useState(null);
@@ -191,10 +195,11 @@ export default function DashboardV2Page() {
     const tickers = [...new Set(holdings.map(h => h.t))];
 
     (async () => {
+      setHistoryStatus('loading');
       try {
         const res  = await fetch(`/api/historical-prices?tickers=${tickers.join(',')}`);
         const json = await res.json();
-        if (!Array.isArray(json.data) || !json.data.length) { setHistory(null); return; }
+        if (!Array.isArray(json.data) || !json.data.length) { setHistory(null); setHistoryStatus('error'); return; }
 
         // Build { [ticker]: { [date]: close } } for O(1) lookup
         const tickerDateClose = {};
@@ -223,8 +228,10 @@ export default function DashboardV2Page() {
         });
 
         setHistory(hist);
+        setHistoryStatus('ready');
       } catch {
         setHistory(null);
+        setHistoryStatus('error');
       }
     })();
   }, [holdings]);
@@ -392,6 +399,12 @@ export default function DashboardV2Page() {
   // resolves to a number on success and error, so this never stalls.
   const heroFxPending = isSignedIn && Array.isArray(holdings) && holdings.length > 0 && (eurUsd == null || realizedEur === null);
 
+  // Hero chart region. A signed-in user with holdings tracks the real history load
+  // ('loading' → 'error' → 'ready') so they never see the mock demo curve; anonymous
+  // and zero-holdings viewers stay on 'ready' and keep the demo curve as before.
+  const signedInWithHoldings = isSignedIn && Array.isArray(holdings) && holdings.length > 0;
+  const chartState = signedInWithHoldings ? historyStatus : 'ready';
+
   // Map enrichedRows to the shape PortfolioAISummary expects (matches /dashboard row keys).
   const aiRows = enrichedRows.map(r => ({
     t:       r.ticker,
@@ -493,6 +506,7 @@ export default function DashboardV2Page() {
             onRange={setRange}
             sparkData={hero.displayCurrency === 'EUR' ? sparkDataEur : sparkData}
             data={hero}
+            chartState={chartState}
           />
         )}
       </Card>
