@@ -180,8 +180,14 @@ export default function DashboardV2Page() {
   // Fetch 1-year daily prices for all held tickers and compute portfolio value per day.
   // Runs after holdings are known. Skips if holdings is empty/null (mock/demo case).
   const prevHistSigRef = useRef(null);
+  // Mirrors whether a real chart is currently on screen. `holdings` gets a fresh
+  // reference on every refresh (portfolio-saved / refresh() re-seed from a JSON-parsed
+  // cache), so this effect re-runs even when tickers/shares are unchanged — we use this
+  // to keep the existing chart up across a refresh instead of flashing loading/error.
+  const historyReadyRef = useRef(false);
   useEffect(() => {
     if (!holdings?.length) return;
+    let cancelled = false;
 
     // D2: when the held tickers/shares change (e.g. optimistic cache → network
     // reconcile), clear the previous portfolio's chart line first so it isn't
@@ -189,17 +195,28 @@ export default function DashboardV2Page() {
     const sig = holdingsSignature(holdings);
     if (prevHistSigRef.current !== null && prevHistSigRef.current !== sig) {
       setHistory(null);
+      historyReadyRef.current = false;
     }
     prevHistSigRef.current = sig;
+
+    // Show the loading state only when there's no valid chart to keep (first load, or
+    // holdings just changed and we cleared it). A same-holdings refresh leaves the
+    // current chart in place until the new series arrives.
+    if (!historyReadyRef.current) setHistoryStatus('loading');
 
     const tickers = [...new Set(holdings.map(h => h.t))];
 
     (async () => {
-      setHistoryStatus('loading');
       try {
         const res  = await fetch(`/api/historical-prices?tickers=${tickers.join(',')}`);
         const json = await res.json();
-        if (!Array.isArray(json.data) || !json.data.length) { setHistory(null); setHistoryStatus('error'); return; }
+        if (cancelled) return; // a newer holdings change superseded this fetch
+        // Failure / no data: surface 'error' only when nothing is already on screen;
+        // otherwise keep the existing chart rather than blanking a good one.
+        if (!Array.isArray(json.data) || !json.data.length) {
+          if (!historyReadyRef.current) { setHistory(null); setHistoryStatus('error'); }
+          return;
+        }
 
         // Build { [ticker]: { [date]: close } } for O(1) lookup
         const tickerDateClose = {};
@@ -227,13 +244,18 @@ export default function DashboardV2Page() {
           return { date, value };
         });
 
+        if (cancelled) return;
         setHistory(hist);
         setHistoryStatus('ready');
+        historyReadyRef.current = true;
       } catch {
-        setHistory(null);
-        setHistoryStatus('error');
+        if (cancelled) return;
+        // Keep an existing chart on a failed refresh; only error when there's none.
+        if (!historyReadyRef.current) { setHistory(null); setHistoryStatus('error'); }
       }
     })();
+
+    return () => { cancelled = true; };
   }, [holdings]);
 
   // Fetch sector classification for each held ticker from /api/sectors.
