@@ -129,6 +129,10 @@ export async function POST(request: Request) {
     // Broker open positions are derived after the loop via per-broker aggregateFIFO.
     const allHoldings:        NormalizedPosition[] = [];
     const allUnresolvedIsins: string[]             = [];
+    // Unresolved-ISIN positions (DeGiro) — kept, appended after the resolved merge
+    // and the coverage/identity gate, so they are never dropped and surface as
+    // "no price" on the dashboard.
+    const allUnresolvedPositions: NormalizedPosition[] = [];
     const fileStats:          FileStat[]           = [];
     // OpenFIGI company name per DeGiro-resolved ticker — the identity gate below
     // compares it against FMP's profile name. DeGiro is the only broker that
@@ -177,6 +181,7 @@ export async function POST(request: Request) {
               const r = await parseDeGiro(wb);
               trades = r.trades; skipped = r.skipSummary;
               allUnresolvedIsins.push(...r.unresolvedIsins);
+              allUnresolvedPositions.push(...(r.unresolvedPositions ?? []));
               allDeposits.push(...r.deposits);
               allDividends.push(...r.dividends);
               allFees.push(...r.fees);
@@ -408,6 +413,17 @@ export async function POST(request: Request) {
         ...(group[0].isin ? { isin: group[0].isin } : {}),
         // Single broker → preserve provenance; multi-broker merge → 'generic'
         broker:   group.length === 1 ? group[0].broker : 'generic',
+      });
+    }
+
+    // ── Unresolved-ISIN positions — KEEP, never drop ─────────────────────────
+    // Appended after the resolved merge and AFTER the coverage/identity gate, so
+    // they bypass exclusion entirely. They have no resolvable ticker, so the
+    // dashboard can't price them → shown as "no price", displayed by product name.
+    for (const p of allUnresolvedPositions) {
+      allHoldings.push({
+        t: p.t, s: p.s, c: p.c, d: p.d, currency: p.currency,
+        isin: p.isin, name: p.name, unresolved: true, broker: p.broker,
       });
     }
 

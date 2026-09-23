@@ -62,7 +62,10 @@ export default function DashboardV2Page() {
   // Ticking clock (ms) for age/staleness — a state value keeps render pure and
   // lets the stale banner appear/refresh between price polls.
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [history,  setHistory]  = useState(null); // [{ date, value }] — full 1-year daily series
+  // Raw daily closes per ticker (in each quote's own currency) + the sorted date
+  // union. The hero series is derived from this in a currency-aware memo below, so
+  // the chart uses the SAME per-position currency rule as the headline.
+  const [histRaw, setHistRaw] = useState(null); // { tickerDateClose: {t:{date:close}}, dates: [] }
   // Load state for `history`, so a signed-in user with holdings never sees the mock
   // demo curve: 'loading' while the fetch is in flight, 'error' on failure / no data,
   // 'ready' once the real series is in. Anonymous / zero-holdings ignore this (mock).
@@ -209,7 +212,7 @@ export default function DashboardV2Page() {
     // shown against the new holdings while the new series is fetched.
     const sig = holdingsSignature(holdings);
     if (prevHistSigRef.current !== null && prevHistSigRef.current !== sig) {
-      setHistory(null);
+      setHistRaw(null);
       historyReadyRef.current = false;
     }
     prevHistSigRef.current = sig;
@@ -229,44 +232,29 @@ export default function DashboardV2Page() {
         // Failure / no data: surface 'error' only when nothing is already on screen;
         // otherwise keep the existing chart rather than blanking a good one.
         if (!Array.isArray(json.data) || !json.data.length) {
-          if (!historyReadyRef.current) { setHistory(null); setHistoryStatus('error'); }
+          if (!historyReadyRef.current) { setHistRaw(null); setHistoryStatus('error'); }
           return;
         }
 
-        // Build { [ticker]: { [date]: close } } for O(1) lookup
+        // Store raw per-ticker daily closes (each in its own quote currency) + the
+        // date union. Valuation (currency conversion, priced-only) happens in the
+        // `history` memo, so the chart obeys the same rule as the headline.
         const tickerDateClose = {};
+        const dateSet = new Set();
         for (const { ticker, prices: p } of json.data) {
           tickerDateClose[ticker] = {};
-          for (const { date, close } of p) tickerDateClose[ticker][date] = close;
-        }
-
-        // Union of all trading dates across all tickers, sorted ascending
-        const dateSet = new Set();
-        for (const { prices: p } of json.data) {
-          for (const { date } of p) dateSet.add(date);
+          for (const { date, close } of p) { tickerDateClose[ticker][date] = close; dateSet.add(date); }
         }
         const dates = [...dateSet].sort();
 
-        // Sum portfolio value per day; carry forward last known close for gaps
-        const lastClose = {};
-        const hist = dates.map(date => {
-          let value = 0;
-          for (const h of holdings) {
-            const close = tickerDateClose[h.t]?.[date];
-            if (close != null) lastClose[h.t] = close;
-            value += h.s * (lastClose[h.t] ?? 0);
-          }
-          return { date, value };
-        });
-
         if (cancelled) return;
-        setHistory(hist);
+        setHistRaw({ tickerDateClose, dates });
         setHistoryStatus('ready');
         historyReadyRef.current = true;
       } catch {
         if (cancelled) return;
         // Keep an existing chart on a failed refresh; only error when there's none.
-        if (!historyReadyRef.current) { setHistory(null); setHistoryStatus('error'); }
+        if (!historyReadyRef.current) { setHistRaw(null); setHistoryStatus('error'); }
       }
     })();
 
@@ -284,30 +272,6 @@ export default function DashboardV2Page() {
       .catch(() => {});
   }, [holdings]);
 
-  // Slice the full history array by the selected range → { date, value }[] for the hero chart.
-  // Falls back to mock PORTFOLIO_SPARK (with synthetic trailing dates) when history hasn't loaded yet.
-  const sparkData = useMemo(() => {
-    if (!history || !history.length) {
-      const now = Date.now();
-      return PORTFOLIO_SPARK.map((value, i) => ({
-        date: new Date(now - (PORTFOLIO_SPARK.length - 1 - i) * 86400000).toISOString().slice(0, 10),
-        value,
-      }));
-    }
-    const sliceCount = { '1W': 7, '1M': 22, '3M': 66, '1Y': Infinity, 'ALL': Infinity };
-    const n = sliceCount[range] ?? 22; // '1D' guard: treat unknown range as 1M
-    return n === Infinity ? history : history.slice(-n);
-  }, [history, range]);
-
-  // EUR view of the hero chart: convert each USD point (÷ eurUsd) and add today's
-  // EUR cash flat to every point, so the latest point lines up with the headline
-  // Total Portfolio Value (positions EUR + cash). The chart already backtests today's
-  // holdings, so adding today's cash flat fits the same hypothetical framing.
-  // Derived (does not mutate sparkData); only used by the hero when displayCurrency is EUR.
-  const sparkDataEur = useMemo(() => {
-    if (!eurUsd) return sparkData;
-    return sparkData.map(p => ({ ...p, value: p.value / eurUsd + cash }));
-  }, [sparkData, eurUsd, cash]);
 
   // ── Per-position currency + FX ─────────────────────────────────────────────
   // Display currency: EUR once EUR/USD loads, else USD (the hero render is gated on
@@ -339,8 +303,9 @@ export default function DashboardV2Page() {
       const quoteCcy    = q.currency ? normCcy(q.currency) : null;
       const priceNative = q.price == null ? null : (isPence(q.currency) ? q.price / 100 : q.price);
 
-      const base = { ticker: h.t, name: '', shares, costBasis, currency: nativeCcy,
-                     quoteCurrency: q.currency ?? null, sector: '' };
+      const base = { ticker: h.t, name: h.name ?? '', shares, costBasis, currency: nativeCcy,
+                     quoteCurrency: q.currency ?? null, isin: h.isin ?? null,
+                     unresolved: !!h.unresolved, sector: '' };
       // Unpriceable: no quote, currency mismatch, or no usable FX rate → "no price".
       if (priceNative == null || quoteCcy == null || quoteCcy !== nativeCcy
           || fxRates[nativeCcy] == null || fxRates[displayCcy] == null) {
@@ -368,6 +333,70 @@ export default function DashboardV2Page() {
   // only; unpricedCount is surfaced so a partial total never looks complete.
   const pricedRows   = enrichedRows.filter(r => r.priced);
   const unpricedCount = enrichedRows.length - pricedRows.length;
+
+  // Live headline positions value (display currency) and display-currency cash —
+  // shared by the totals and the hero chart so the two always agree.
+  const livePositionsValue = pricedRows.reduce((s, r) => s + (r.valueDisplay ?? 0), 0);
+  const cashDisplay = toDisplay(cash, cashCurrency) ?? 0;
+
+  // ── Hero chart series (currency-aware, priced-only) ────────────────────────
+  // Value each position's daily history in its OWN currency and convert, using the
+  // SAME price/currency-match rule as the headline: a position that is "no price"
+  // in the headline is excluded from the chart too, so the chart's last point
+  // equals the headline positions value. Final point is pinned to the live value.
+  const history = useMemo(() => {
+    if (!histRaw?.dates?.length || !holdings?.length) return null;
+    const meta = new Map();
+    for (const h of holdings) {
+      const q = prices[h.t] ?? {};
+      const rawCcy = h.currency || 'USD';
+      const nativeCcy = normCcy(rawCcy);
+      const quoteCcy = q.currency ? normCcy(q.currency) : null;
+      const priceable = q.price != null && quoteCcy != null && quoteCcy === nativeCcy
+        && fxRates[nativeCcy] != null && fxRates[displayCcy] != null;
+      if (priceable) meta.set(h.t, { ccy: nativeCcy, shares: h.s, pence: isPence(q.currency) });
+    }
+    if (meta.size === 0) return null;
+    const lastClose = {};
+    const series = histRaw.dates.map(date => {
+      let value = 0;
+      for (const [t, m] of meta) {
+        const raw = histRaw.tickerDateClose[t]?.[date];
+        if (raw != null) lastClose[t] = raw;
+        const c = lastClose[t];
+        if (c == null) continue;
+        const priceNative = m.pence ? c / 100 : c; // historical close is in the quote ccy
+        value += toDisplay(m.shares * priceNative, m.ccy) ?? 0;
+      }
+      return { date, value };
+    });
+    // Pin the final point to the live headline positions value so chart == headline.
+    if (series.length) series[series.length - 1] = { ...series[series.length - 1], value: livePositionsValue };
+    return series;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [histRaw, holdings, prices, eurUsd, gbpUsd, displayCcy, livePositionsValue]);
+
+  // Slice the full history array by the selected range → { date, value }[]. Falls back
+  // to mock PORTFOLIO_SPARK (synthetic trailing dates) when history hasn't loaded yet.
+  const sparkData = useMemo(() => {
+    if (!history || !history.length) {
+      const now = Date.now();
+      return PORTFOLIO_SPARK.map((value, i) => ({
+        date: new Date(now - (PORTFOLIO_SPARK.length - 1 - i) * 86400000).toISOString().slice(0, 10),
+        value,
+      }));
+    }
+    const sliceCount = { '1W': 7, '1M': 22, '3M': 66, '1Y': Infinity, 'ALL': Infinity };
+    const n = sliceCount[range] ?? 22; // '1D' guard: treat unknown range as 1M
+    return n === Infinity ? history : history.slice(-n);
+  }, [history, range]);
+
+  // Positions + cash view: history is already in the display currency, so just fold
+  // in today's (display-currency) cash flat, matching the headline Total.
+  const sparkDataEur = useMemo(
+    () => (history == null ? sparkData : sparkData.map(p => ({ ...p, value: p.value + cashDisplay }))),
+    [sparkData, cashDisplay, history],
+  );
 
   // "Updated"/staleness are driven by the data's own source timestamp (oldest
   // asOf across holdings), never response time. "Stale" only flags while the US
@@ -423,15 +452,15 @@ export default function DashboardV2Page() {
     // across currencies. Cost is excluded alongside value for the same positions, so
     // Total P&L stays coherent (excluding a position's value but keeping its cost
     // would fabricate a loss).
-    const positionsValue = pricedRows.reduce((s, r) => s + (r.valueDisplay ?? 0), 0);
+    // positionsValue + cashDisplay are the SAME values that pin the hero chart's last
+    // point, so the chart and the headline can never disagree.
+    const positionsValue = livePositionsValue;
     const totalCostEur   = pricedRows.reduce((s, r) => s + (toDisplay(r.shares * r.costBasis, r.currency) ?? 0), 0);
     const dayChange      = pricedRows.reduce((s, r) => s + (r.valueDisplay ?? 0) * (r.change / 100), 0);
     const unrealizedPct  = totalCostEur > 0 ? ((positionsValue - totalCostEur) / totalCostEur) * 100 : 0;
     const prevValue      = positionsValue - dayChange;
     const dayChangePct   = prevValue > 0 ? (dayChange / prevValue) * 100 : 0;
 
-    // Cash is stored in its own currency (EUR for DeGiro/Saxo); convert it too.
-    const cashDisplay = toDisplay(cash, cashCurrency) ?? 0;
     // Realized P&L is already in EUR; only fold it in when the display currency is EUR.
     const realizedDisplay = displayCcy === 'EUR' ? (realizedEur ?? 0) : 0;
     return {

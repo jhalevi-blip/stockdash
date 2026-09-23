@@ -153,12 +153,18 @@ export default function HoldingsTable({
               >
                 <td style={cellLeft(padY)}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {/* Unresolved-ISIN positions have no ticker: show the product name
+                        as the primary label and the ISIN as the secondary line. */}
                     <span style={{
                       color: 'var(--accent)',
-                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                      fontFamily: r.unresolved ? 'inherit' : 'ui-monospace, SFMono-Regular, Menlo, monospace',
                       fontWeight: 600,
                       fontSize: 12,
-                    }}>{r.ticker}</span>
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      maxWidth: 180,
+                    }}>{r.unresolved ? (r.name || r.ticker) : r.ticker}</span>
                     <span style={{
                       color: 'var(--text-muted)',
                       fontSize: 10,
@@ -166,7 +172,7 @@ export default function HoldingsTable({
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       maxWidth: 140,
-                    }}>{r.name}</span>
+                    }}>{r.unresolved ? (r.isin || '') : r.name}</span>
                   </div>
                 </td>
                 <td style={cellRight(padY)}>{r.shares.toLocaleString('en-US')}</td>
