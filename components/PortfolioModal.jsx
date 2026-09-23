@@ -131,6 +131,11 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
       t: r.t.trim().toUpperCase(),
       s: r.s, c: r.c,
       ...(r.d ? { d: r.d } : {}),
+      // Preserve per-position currency + ISIN from an import so the dashboard can
+      // value each position in its own currency. Manually-typed rows have neither;
+      // consumers default a missing currency to USD (legacy behaviour).
+      ...(r.currency ? { currency: r.currency } : {}),
+      ...(r.isin ? { isin: r.isin } : {}),
     }));
     const cashData = cashAmount > 0 ? { amount: cashAmount, currency: cashCurrency } : null;
     const holdingsCountBefore = holdings.length;
@@ -282,7 +287,7 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
           {/* Column headers — desktop only, hidden while upload panel is open */}
           {!uploadOpen && (
             <div className="pm-col-headers" style={{ display: 'grid', gridTemplateColumns: COLS, gap: 12, paddingBottom: 10, borderBottom: '1px solid var(--border-color)' }}>
-              {['Ticker', 'Shares', 'Avg Cost (USD)', 'Date Bought (optional)', ''].map((h, i) => (
+              {['Ticker', 'Shares', 'Avg Cost', 'Date Bought (optional)', ''].map((h, i) => (
                 <div key={i} style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {h}
                 </div>
@@ -316,7 +321,13 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
                   setUploadOpen(false);
                   return;
                 }
-                const project = h => ({ t: h.t ?? '', s: h.s ?? 0, c: h.c ?? 0, d: h.d ?? '' });
+                const project = h => ({
+                  t: h.t ?? '', s: h.s ?? 0, c: h.c ?? 0, d: h.d ?? '',
+                  // Carry currency + ISIN through the editor so they reach the saved
+                  // portfolio (additive — the row inputs ignore these extra fields).
+                  ...(h.currency ? { currency: h.currency } : {}),
+                  ...(h.isin ? { isin: h.isin } : {}),
+                });
                 setRows(prev => {
                   if (mode === 'append') {
                     return [...holdings.map(project), ...prev.filter(r => r.t || r.s || r.c)];

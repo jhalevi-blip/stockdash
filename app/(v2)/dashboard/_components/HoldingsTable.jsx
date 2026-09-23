@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import Sparkline from '@/app/(v2)/_components/Sparkline';
 import { HOLDINGS, TICKER_SPARKS } from '../_lib/mockData';
-import { fmtCurrency, fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
+import { fmtCurrency, fmtPct, fmtSigned, colorForChange } from '@/app/(v2)/_lib/format';
 
 // Inline cell styles override bare `td { ... }` in globals.css.
 const cellRight = (padY) => ({
@@ -43,7 +43,7 @@ const COLUMNS = [
   { key: 'change',    label: 'Chg %',      align: 'right' },
   { key: 'costBasis', label: 'Cost basis', align: 'right' },
   { key: 'mktValue',  label: 'Mkt value',  align: 'right' },
-  { key: 'plDollar',  label: 'P&L $',      align: 'right' },
+  { key: 'plDollar',  label: 'P&L',        align: 'right' },
   { key: 'plPct',     label: 'P&L %',      align: 'right' },
   { key: 'spark',     label: '14D',        align: 'center' },
 ];
@@ -170,15 +170,18 @@ export default function HoldingsTable({
                   </div>
                 </td>
                 <td style={cellRight(padY)}>{r.shares.toLocaleString('en-US')}</td>
-                <td style={cellRight(padY)}>{r.price == null ? '—' : fmtCurrency(r.price)}</td>
+                <td style={cellRight(padY)}>{r.price == null ? '—' : fmtCurrency(r.price, 2, r.currency)}</td>
                 <td style={{ ...cellRight(padY), color: colorForChange(r.change) }}>
                   {r.change == null ? '—' : fmtPct(r.change)}
                 </td>
-                <td style={cellRight(padY)}>{fmtCurrency(r.costBasis)}</td>
-                <td style={cellRight(padY)}>{r.mktValue == null ? '—' : fmtCurrency(r.mktValue, 0)}</td>
+                <td style={cellRight(padY)}>{fmtCurrency(r.costBasis, 2, r.currency)}</td>
+                <td style={cellRight(padY)}>
+                  {r.mktValue == null
+                    ? <span style={{ color: 'var(--text-muted)' }}>no price</span>
+                    : fmtCurrency(r.mktValue, 0, r.currency)}
+                </td>
                 <td style={{ ...cellRight(padY), color: colorForChange(r.plDollar) }}>
-                  {r.plDollar == null ? '—' : (r.plDollar >= 0 ? '+$' : '-$') +
-                    Math.abs(r.plDollar).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                  {r.plDollar == null ? '—' : fmtSigned(r.plDollar, 0, r.currency)}
                 </td>
                 <td style={{
                   ...cellRight(padY),

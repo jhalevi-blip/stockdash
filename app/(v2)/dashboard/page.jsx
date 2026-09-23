@@ -70,6 +70,10 @@ export default function DashboardV2Page() {
   // Live EUR/USD (USD per EUR, ≈1.16). null until loaded → aggregates show a brief
   // loading state rather than flashing USD figures as if they were EUR. USD→EUR = ÷ eurUsd.
   const [eurUsd,   setEurUsd]   = useState(null);
+  // Live GBP/USD (USD per GBP) — needed to convert GBP/GBX (LSE, pence) positions
+  // into the display currency. null until loaded; a GBP position stays "no price"
+  // until it resolves rather than being valued at a wrong rate.
+  const [gbpUsd,   setGbpUsd]   = useState(null);
   // Realized P&L (EUR) from /api/realized-data. null = not yet resolved; resolves to
   // a number on both success and error (so the hero gate never stalls on it).
   const [realizedEur, setRealizedEur] = useState(null);
@@ -151,6 +155,17 @@ export default function DashboardV2Page() {
         const candles = json?.candles ?? [];
         const last = candles[candles.length - 1]?.close;
         if (last != null && last > 0) setEurUsd(last);
+      });
+  }, []);
+
+  // Live GBP/USD (same source) — for GBP/GBX (pence, ÷100) positions.
+  useEffect(() => {
+    fetch('/api/chart?symbol=GBPUSD%3DX')
+      .then(r => r.json())
+      .catch(() => ({}))
+      .then(json => {
+        const last = (json?.candles ?? []).at(-1)?.close;
+        if (last != null && last > 0) setGbpUsd(last);
       });
   }, []);
 
@@ -294,32 +309,58 @@ export default function DashboardV2Page() {
     return sparkData.map(p => ({ ...p, value: p.value / eurUsd + cash }));
   }, [sparkData, eurUsd, cash]);
 
-  // Compute enriched rows in the shape HoldingsTable expects.
-  // Weight requires a two-pass: compute totalMktValue first, then assign weights.
+  // ── Per-position currency + FX ─────────────────────────────────────────────
+  // Display currency: EUR once EUR/USD loads, else USD (the hero render is gated on
+  // eurUsd, so EUR magnitudes are never flashed stale). FX rates are USD-per-unit.
+  const displayCcy = eurUsd ? 'EUR' : 'USD';
+  const fxRates = { USD: 1, ...(eurUsd ? { EUR: eurUsd } : {}), ...(gbpUsd ? { GBP: gbpUsd } : {}) };
+  // GBX / GBp are pence — normalise to GBP (÷100) for BOTH price and cost.
+  const isPence = (raw) => raw === 'GBX' || raw === 'GBp';
+  const normCcy = (raw) => (isPence(raw) ? 'GBP' : String(raw || 'USD').toUpperCase());
+  const toDisplay = (amount, fromCcy) => {
+    if (amount == null) return null;
+    const from = fxRates[fromCcy], to = fxRates[displayCcy];
+    if (from == null || to == null) return null;
+    return amount * from / to;
+  };
+
+  // Compute enriched rows in the shape HoldingsTable expects, each valued in its OWN
+  // currency. A position is priced only when the quote's currency MATCHES the
+  // holding's currency (no ADR substitution) AND an FX rate to the display currency
+  // exists; otherwise it is "no price" and excluded from every total.
   const enrichedRows = (() => {
     if (!holdings?.length) return [];
     const rows = holdings.map(h => {
-      const q         = prices[h.t] ?? {};
-      const shares    = h.s;
-      const costBasis = h.c;
-      // A missing quote is UNKNOWN, never zero: price/change/value/P&L are all null
-      // and the position is excluded from every total (a zero valuation would read
-      // as a -100% loss and silently shrink the portfolio).
-      if (q.price == null) {
-        return { ticker: h.t, name: '', shares, price: null, change: null, costBasis,
-                 mktValue: null, plDollar: null, plPct: null, priced: false, weight: null, sector: '' };
+      const q           = prices[h.t] ?? {};
+      const shares      = h.s;
+      const rawCcy      = h.currency || 'USD';               // legacy rows default to USD
+      const nativeCcy   = normCcy(rawCcy);
+      const costBasis   = isPence(rawCcy) ? h.c / 100 : h.c;  // native-currency cost per share
+      const quoteCcy    = q.currency ? normCcy(q.currency) : null;
+      const priceNative = q.price == null ? null : (isPence(q.currency) ? q.price / 100 : q.price);
+
+      const base = { ticker: h.t, name: '', shares, costBasis, currency: nativeCcy,
+                     quoteCurrency: q.currency ?? null, sector: '' };
+      // Unpriceable: no quote, currency mismatch, or no usable FX rate → "no price".
+      if (priceNative == null || quoteCcy == null || quoteCcy !== nativeCcy
+          || fxRates[nativeCcy] == null || fxRates[displayCcy] == null) {
+        return { ...base, price: null, change: null, mktValue: null, plDollar: null,
+                 plPct: null, valueDisplay: null, plDisplay: null, priced: false, weight: null };
       }
-      const price     = q.price;
-      const change    = q.chgPct ?? 0;
-      const mktValue  = shares * price;
-      const plDollar  = mktValue - shares * costBasis;
-      const plPct     = costBasis > 0 ? (plDollar / (shares * costBasis)) * 100 : 0;
-      return { ticker: h.t, name: '', shares, price, change, costBasis, mktValue, plDollar, plPct, priced: true, weight: 0, sector: '' };
+      const change   = q.chgPct ?? 0;
+      const mktValue = shares * priceNative;                 // native currency
+      const plNative = mktValue - shares * costBasis;        // native currency
+      const plPct    = costBasis > 0 ? (plNative / (shares * costBasis)) * 100 : 0;
+      return { ...base, price: priceNative, change, mktValue, plDollar: plNative, plPct,
+               valueDisplay: toDisplay(mktValue, nativeCcy), plDisplay: toDisplay(plNative, nativeCcy),
+               priced: true, weight: 0 };
     });
-    const totalMktValue = rows.reduce((s, r) => s + (r.mktValue ?? 0), 0);
+    // Weights over converted (display-currency) values, so mixed-currency positions
+    // are comparable.
+    const totalDisp = rows.reduce((s, r) => s + (r.valueDisplay ?? 0), 0);
     return rows.map(r => ({
       ...r,
-      weight: r.priced && totalMktValue > 0 ? (r.mktValue / totalMktValue) * 100 : (r.priced ? 0 : null),
+      weight: r.priced && totalDisp > 0 ? (r.valueDisplay / totalDisp) * 100 : (r.priced ? 0 : null),
     }));
   })();
 
@@ -357,12 +398,12 @@ export default function DashboardV2Page() {
     if (pricedRows.length === 0 || Object.keys(sectors).length === 0) return null;
     // Denominator is the PRICED total so the donut slices sum to 100% of what we
     // can actually value — unpriced positions are excluded, not counted as zero.
-    const totalMktValue = pricedRows.reduce((s, r) => s + r.mktValue, 0);
+    const totalMktValue = pricedRows.reduce((s, r) => s + (r.valueDisplay ?? 0), 0);
     if (totalMktValue <= 0) return null;
     const bySector = {};
     for (const r of pricedRows) {
       const sector = sectors[r.ticker]?.sector ?? 'Other';
-      bySector[sector] = (bySector[sector] ?? 0) + r.mktValue;
+      bySector[sector] = (bySector[sector] ?? 0) + (r.valueDisplay ?? 0);
     }
     const entries = Object.entries(bySector)
       .map(([sector, val]) => ({ sector, pct: (val / totalMktValue) * 100 }))
@@ -377,37 +418,36 @@ export default function DashboardV2Page() {
   // Returns null when no real holdings are loaded (anonymous / demo).
   const realPortfolioStats = (() => {
     if (enrichedRows.length === 0) return null;
-    // Every aggregate is over PRICED rows only. Cost is excluded alongside value
-    // for the same positions, so Total P&L stays coherent (excluding a position's
-    // value but keeping its cost would fabricate a loss).
-    const totalValueUsd = pricedRows.reduce((s, r) => s + r.mktValue, 0);
-    const totalCostUsd  = pricedRows.reduce((s, r) => s + r.shares * r.costBasis, 0);
-    const dayChangeUsd  = pricedRows.reduce((s, r) => s + r.mktValue * (r.change / 100), 0);
-    const unrealizedPct = totalCostUsd > 0 ? ((totalValueUsd - totalCostUsd) / totalCostUsd) * 100 : 0;
-    const prevValueUsd  = totalValueUsd - dayChangeUsd;
-    const dayChangePct  = prevValueUsd > 0 ? (dayChangeUsd / prevValueUsd) * 100 : 0;
+    // Every aggregate is over PRICED rows only, and each position is converted from
+    // its OWN currency into the display currency BEFORE summing — never summed raw
+    // across currencies. Cost is excluded alongside value for the same positions, so
+    // Total P&L stays coherent (excluding a position's value but keeping its cost
+    // would fabricate a loss).
+    const positionsValue = pricedRows.reduce((s, r) => s + (r.valueDisplay ?? 0), 0);
+    const totalCostEur   = pricedRows.reduce((s, r) => s + (toDisplay(r.shares * r.costBasis, r.currency) ?? 0), 0);
+    const dayChange      = pricedRows.reduce((s, r) => s + (r.valueDisplay ?? 0) * (r.change / 100), 0);
+    const unrealizedPct  = totalCostEur > 0 ? ((positionsValue - totalCostEur) / totalCostEur) * 100 : 0;
+    const prevValue      = positionsValue - dayChange;
+    const dayChangePct   = prevValue > 0 ? (dayChange / prevValue) * 100 : 0;
 
-    // Display-layer FX: convert USD aggregates to EUR (USD ÷ eurUsd, where eurUsd is
-    // USD-per-EUR ≈1.16) and fold the already-EUR cash into the total. Percentages are
-    // FX-invariant. Until eurUsd loads, keep USD values + displayCurrency 'USD' (the
-    // hero render is gated on eurUsd, so EUR magnitudes are never flashed stale).
-    const positionsValue = eurUsd ? totalValueUsd / eurUsd : totalValueUsd;
-    const totalCostEur   = eurUsd ? totalCostUsd  / eurUsd : totalCostUsd;
+    // Cash is stored in its own currency (EUR for DeGiro/Saxo); convert it too.
+    const cashDisplay = toDisplay(cash, cashCurrency) ?? 0;
+    // Realized P&L is already in EUR; only fold it in when the display currency is EUR.
+    const realizedDisplay = displayCcy === 'EUR' ? (realizedEur ?? 0) : 0;
     return {
-      totalValue:     positionsValue + (eurUsd ? cash : 0), // fold EUR cash into the total
+      totalValue:     positionsValue + cashDisplay,
       totalCost:      totalCostEur,
       unrealized:     positionsValue - totalCostEur,
       unrealizedPct,
-      // Total P&L = unrealized (EUR) + realized (EUR, already converted). Realized is 0
-      // until the fetch resolves; the hero gate holds the render until then.
-      totalPnl:       (positionsValue - totalCostEur) + (realizedEur ?? 0),
-      dayChange:      eurUsd ? dayChangeUsd / eurUsd : dayChangeUsd,
+      // Total P&L = unrealized (display ccy) + realized (EUR, folded in only for EUR).
+      totalPnl:       (positionsValue - totalCostEur) + realizedDisplay,
+      dayChange,
       dayChangePct,
       cash, cashCurrency,
       positions: enrichedRows.length,       // total holdings
       pricedPositions: pricedRows.length,   // how many are actually valued
       unpricedPositions: unpricedCount,     // excluded from the totals above
-      displayCurrency: eurUsd ? 'EUR' : 'USD',
+      displayCurrency: displayCcy,
       asOf: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }),
     };
   })();

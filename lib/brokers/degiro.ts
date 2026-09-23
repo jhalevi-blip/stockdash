@@ -292,6 +292,7 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
       date,
       action: action!,
       amountEur,
+      isin: isin || undefined,
     });
   }
 
@@ -464,7 +465,7 @@ async function parseTransacties(wb: XLSX.WorkBook): Promise<DeGiroParseResult> {
     const date   = datumCol >= 0 ? parseDate(row[datumCol]) : '';
     const action: 'buy' | 'sell' = aantal < 0 ? 'sell' : 'buy';
 
-    trades.push({ ticker, shares: aantal, price: koers, currency, date, action });
+    trades.push({ ticker, shares: aantal, price: koers, currency, date, action, isin: isin || undefined });
   }
 
   // Transacties format carries no cash-flow data — return empty arrays

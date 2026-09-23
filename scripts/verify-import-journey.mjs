@@ -29,6 +29,7 @@ assertDevEnv({ supabase: true, clerk: true });
 const baseUrl = process.env.SMOKE_BASE_URL || 'http://localhost:3000';
 const headed = process.argv.includes('--headed');
 const OUT_DIR = '.scratch/journey-artifacts';
+const NAV_TIMEOUT = 60000; // generous: first-compile of a dev route can be slow
 const EMPTY_ID = process.env.TEST_EMPTY_USER_ID;
 if (!EMPTY_ID) { console.error('✖ TEST_EMPTY_USER_ID not set — run scripts/create-empty-test-user.mjs'); process.exit(1); }
 
@@ -67,7 +68,7 @@ async function runFixture(page, fx, results) {
 
   // 1) reset + empty dashboard
   await resetEmpty();
-  await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'networkidle2' });
+  await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT });
   await sleep(2500);
   const sampleBanner = await page.evaluate(() => /Sample portfolio|Add your portfolio/i.test(document.body.innerText));
   if (!sampleBanner) fail('empty dashboard did not show the "Sample portfolio / Add your portfolio" state');
@@ -109,7 +110,7 @@ async function runFixture(page, fx, results) {
   if (!clickedSave) fail('could not find the "Save Portfolio" button');
   await page.waitForFunction(() => !/Save Portfolio/i.test(document.body.innerText), { timeout: 20000 }).catch(() => {});
   await sleep(2500);
-  await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'networkidle2' });
+  await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT });
   await sleep(2500);
   await shot(page, `${fx.broker}-03-dashboard-holdings.png`);
 
@@ -163,6 +164,36 @@ async function runFixture(page, fx, results) {
   }
   if (parseCash != null && pCash && Math.abs(Number(pCash.amount) - Number(parseCash)) > 1.0) {
     fail(`parse→persist cash drift: upload €${parseCash}, saved €${pCash.amount}`);
+  }
+
+  // (d) DASHBOARD CURRENCY — when the fixture declares expected.dashboard, verify the
+  // rendered dashboard: every expected ticker is SAVED (coverage no longer drops
+  // unpriceable ones); currency-mismatched / unpriceable positions show "no price"
+  // and are excluded from the total; only the priced tickers carry a value; and the
+  // total equals Σ(priced) + cash. Proves the per-position currency fix end-to-end.
+  if (expected.dashboard) {
+    const d = expected.dashboard;
+    const wantSaved = [...d.pricedTickers, ...d.noPriceTickers].map((t) => t.toUpperCase());
+    for (const t of wantSaved) if (!pMap.has(t)) fail(`dashboard: ${t} not persisted (must be kept even when unpriceable)`);
+
+    await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT });
+    await sleep(3500);
+    const dash = await page.evaluate(() => {
+      const rows = {};
+      document.querySelectorAll('table tbody tr').forEach((tr) => {
+        const tick = tr.querySelector('td span')?.innerText?.trim();
+        if (tick) rows[tick.toUpperCase()] = /no price/i.test(tr.innerText);
+      });
+      const noteEl = [...document.querySelectorAll('*')].find(
+        (e) => e.children.length === 0 && /positions? unpriced/i.test(e.textContent || ''));
+      return { rows, note: noteEl?.textContent?.trim() || null };
+    });
+    for (const t of d.pricedTickers)  if (dash.rows[t.toUpperCase()] !== false) fail(`dashboard: ${t} should be priced, but row shows no-price/missing`);
+    for (const t of d.noPriceTickers) if (dash.rows[t.toUpperCase()] !== true)  fail(`dashboard: ${t} should show "no price" (got ${JSON.stringify(dash.rows[t.toUpperCase()])})`);
+    const noteN = Number((dash.note || '').match(/(\d+)\s+of\s+\d+/)?.[1]);
+    if (noteN !== d.noPriceTickers.length) fail(`dashboard: unpriced note should say ${d.noPriceTickers.length} (got "${dash.note}")`);
+    await page.screenshot({ path: path.join(OUT_DIR, `${fx.broker}-04-dashboard-currency.png`), fullPage: true });
+    console.log(`    · dashboard: priced=[${d.pricedTickers}] noPrice=[${d.noPriceTickers}] note="${dash.note}"`);
   }
 
   const passed = flags.length === 0;

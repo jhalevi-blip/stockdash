@@ -43,6 +43,8 @@ export async function GET(request) {
       price:     q.price,       // current price only — never previousClose
       chgPct:    q.changePct,
       prevClose: q.prevClose,
+      currency:  q.currency,    // quote currency (from exchange); null if unknown
+      exchange:  q.exchange,
       asOf:      q.asOf,        // FMP's own timestamp (ms), or null — never Date.now()
     };
   });
