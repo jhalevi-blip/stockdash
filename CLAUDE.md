@@ -33,3 +33,18 @@ const { browser, page } = await signInTestUser();   // headless by default; { he
 ```
 
 These scripts are **dev-only and guarded**: `scripts/lib/devGuard.mjs` aborts unless the env is the dev Supabase project + `pk_test`/`sk_test` Clerk, so they can never touch production. Credentials live in `.env.local` (gitignored) only. The helper signs in via a backend-minted Clerk sign-in token (`strategy:'ticket'`), because Clerk gates the email+password form behind a new-device email code on every fresh browser profile.
+
+## Signed-in smoke test — required before every merge
+
+`scripts/smoke-signed-in.mjs` signs in as the dev test user and visits every signed-in page (imported from the app's own `NAV_ITEMS`), recording console errors, non-2xx requests to our `/api` routes, visible error copy, and a screenshot per page (→ gitignored `.smoke-artifacts/`). It exits non-zero on any failure.
+
+```
+npm run dev &                                              # must be running
+node --env-file=.env.local scripts/smoke-signed-in.mjs    # exits non-zero on any failure
+```
+
+**This smoke test must pass (exit 0) before any PR is merged.** If a change introduces a *new* page failure, that failure must be called out and justified in the PR description — do not merge past a new red without an explanation. (Pre-existing failures are tracked separately; the current known one is `/research` firing `/api/peers` without a ticker on initial mount → two 400s before it re-fetches with the resolved ticker.) The test deliberately does **not** fail on `net::ERR_ABORTED` (intentional stale-fetch cancellation) or on the shared 60 req/min-per-IP limiter in `middleware.js` (it paces under the budget and retries once after a window reset).
+
+# Scratch / temporary files
+
+Temporary files — PR payload JSON, one-off debug scripts, ad-hoc screenshots — go in the gitignored `.scratch/` folder, **never** the project root (root-level scratch keeps leaking into `git status`). `.scratch/`, `.smoke-artifacts/`, and the dev-test-user artifacts are already in `.gitignore`. Clean up after yourself regardless.
