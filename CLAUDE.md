@@ -29,7 +29,7 @@ For your own verification script, import the sign-in helper — it returns an au
 
 ```js
 import { signInTestUser } from './scripts/lib/signInTestUser.mjs';
-const { browser, page } = await signInTestUser();   // headless by default; { headed: true } to watch
+const { browser, page } = await signInTestUser();   // headless by default; { headless: false } to watch
 ```
 
 These scripts are **dev-only and guarded**: `scripts/lib/devGuard.mjs` aborts unless the env is the dev Supabase project + `pk_test`/`sk_test` Clerk, so they can never touch production. Credentials live in `.env.local` (gitignored) only. The helper signs in via a backend-minted Clerk sign-in token (`strategy:'ticket'`), because Clerk gates the email+password form behind a new-device email code on every fresh browser profile.
