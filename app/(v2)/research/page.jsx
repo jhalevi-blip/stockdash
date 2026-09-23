@@ -1319,7 +1319,7 @@ function ValuationMetricsCard({ ticker, metrics, valHistory }) {
   useEffect(() => {
     if (!ticker) return;
     setPeerMetrics(null);
-    fetch(`/api/peers?tickers=${ticker}`)
+    fetch(`/api/peers?ticker=${ticker}`)
       .then(r => r.json())
       .then(data => setPeerMetrics(Array.isArray(data) ? data.filter(p => p.ticker !== ticker) : []))
       .catch(() => setPeerMetrics([]));
