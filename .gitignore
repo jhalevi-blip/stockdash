@@ -37,6 +37,12 @@ yarn-error.log*
 dev-test-user-dashboard.png
 .dev-verify.log
 
+# signed-in smoke test screenshots (see scripts/smoke-signed-in.mjs)
+.smoke-artifacts/
+
+# scratch: temporary files (PR payloads, debug scripts, ad-hoc screenshots)
+.scratch/
+
 # vercel
 .vercel
 
