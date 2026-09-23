@@ -33,7 +33,14 @@ const { NAV_ITEMS } = await import(pathToFileURL(path.join(__dirname, '..', 'app
 const baseUrl = process.env.SMOKE_BASE_URL || 'http://localhost:3000';
 const origin = new URL(baseUrl).origin;
 const headed = process.argv.includes('--headed');
-const OUT_DIR = '.smoke-artifacts';
+// --user seeded (default) → TEST_USER_ID; --user empty → TEST_EMPTY_USER_ID (the
+// brand-new-user portfolio, incl. an unresolved-ISIN "no price" position).
+const userArg = (process.argv.find((a) => a.startsWith('--user='))?.split('=')[1])
+  || (process.argv.includes('--user') ? process.argv[process.argv.indexOf('--user') + 1] : null)
+  || 'seeded';
+const userId = userArg === 'empty' ? process.env.TEST_EMPTY_USER_ID : process.env.TEST_USER_ID;
+if (!userId) { console.error(`✖ no user id for --user ${userArg} (set ${userArg === 'empty' ? 'TEST_EMPTY_USER_ID' : 'TEST_USER_ID'})`); process.exit(1); }
+const OUT_DIR = userArg === 'empty' ? '.smoke-artifacts-empty' : '.smoke-artifacts';
 const NAV_TIMEOUT = 45000;
 const SETTLE_MS = 2500;         // let client-side /api fetches resolve after networkidle
 const RATE_WINDOW_MS = 60_000;  // must match middleware.js WINDOW_MS
@@ -74,7 +81,8 @@ async function paceForBudget() {
 let bucket = { console: [], api: [], rateLimited: 0 };
 const isOwnApi = (url) => url.startsWith(origin) && url.includes('/api/');
 
-const { browser, page } = await signInTestUser({ headless: !headed, baseUrl });
+console.log(`Signed-in smoke as --user ${userArg} (${userId})`);
+const { browser, page } = await signInTestUser({ headless: !headed, baseUrl, userId });
 
 page.on('console', (msg) => {
   if (msg.type() !== 'error') return;
