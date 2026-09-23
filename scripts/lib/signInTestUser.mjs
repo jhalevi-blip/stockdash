@@ -39,13 +39,15 @@ const CHROME = [
  * @param {boolean} [opts.headless=true]
  * @param {string}  [opts.baseUrl='http://localhost:3000']
  * @param {number}  [opts.timeout=30000]
+ * @param {string}  [opts.userId] Clerk user id to sign in as. Defaults to TEST_USER_ID
+ *                  (the seeded user). Pass TEST_EMPTY_USER_ID to drive the fresh-user flow.
  * @returns {Promise<{ browser: import('puppeteer-core').Browser, page: import('puppeteer-core').Page }>}
  */
-export async function signInTestUser({ headless = true, baseUrl = 'http://localhost:3000', timeout = 30000 } = {}) {
+export async function signInTestUser({ headless = true, baseUrl = 'http://localhost:3000', timeout = 30000, userId } = {}) {
   assertDevEnv({ supabase: false, clerk: true });
 
-  const userId = process.env.TEST_USER_ID;
-  if (!userId) throw new Error('TEST_USER_ID missing — run scripts/create-test-user.mjs (writes .env.local).');
+  userId = userId || process.env.TEST_USER_ID;
+  if (!userId) throw new Error('No user id — pass { userId } or set TEST_USER_ID (run scripts/create-test-user.mjs).');
   if (!CHROME) throw new Error('Could not find Chrome. Set PUPPETEER_EXECUTABLE_PATH to your chrome.exe.');
 
   // 1) Mint a short-lived sign-in token for the test user (DEV secret key).
