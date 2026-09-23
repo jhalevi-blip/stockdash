@@ -152,16 +152,13 @@ export function decideGate(
   for (const { broker, ticker } of brokerTickers) {
     const k = key(broker, ticker);
 
-    // Coverage — every ticker, every broker.
+    // Coverage — every ticker, every broker. A ticker FMP can't price is NO LONGER
+    // dropped: it is kept and reported as coverageUnverified, so the position is
+    // saved and shown as "no price" on the dashboard rather than silently vanishing
+    // from a stored portfolio (the EU-ETF loss). Only the identity check below can
+    // exclude — a confirmed wrong-company ISIN mapping is a different, safety concern.
     if (!ctx.covered.has(ticker)) {
-      if (ctx.coverageProbeFailed.has(ticker)) {
-        coverageUnverified.push({ broker, ticker });       // transient → pass, report
-        continue;
-      }
-      // Confirmed-empty series (or a symbol FMP can't accept): real evidence of
-      // no priceable listing — usually a same-symbol collision.
-      excludedKeys.add(k);
-      exclusions.push({ broker, ticker, reason: 'coverage', figiName: null, fmpName: null });
+      coverageUnverified.push({ broker, ticker });          // uncovered → pass, report, price as "no price"
       continue;
     }
 

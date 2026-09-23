@@ -12,6 +12,8 @@ export interface BrokerTrade {
    *  and DeGiro (native value ÷ FX). Undefined for brokers that don't provide it —
    *  calcFIFO then falls back to native price × shares. */
   amountEur?: number;
+  /** Instrument ISIN when the source carries one (DeGiro). Optional. */
+  isin?: string;
 }
 
 export interface NormalizedPosition {
@@ -21,6 +23,8 @@ export interface NormalizedPosition {
   d?: string;
   currency: string;
   broker: BrokerFormat;
+  /** Instrument ISIN when the import has it (DeGiro). Optional. */
+  isin?: string;
 }
 
 export interface SkipSummary {

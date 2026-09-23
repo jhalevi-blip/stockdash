@@ -5,6 +5,7 @@ interface Lot {
   price: number;
   date: string;
   currency: string;
+  isin?: string;
 }
 
 export function aggregateFIFO(
@@ -52,6 +53,7 @@ export function aggregateFIFO(
           price: trade.price,
           date: trade.date,
           currency: trade.currency,
+          isin: trade.isin,
         });
       } else {
         // Sell: consume from oldest lots first (FIFO)
@@ -115,6 +117,7 @@ export function aggregateFIFO(
       d: oldestDate || undefined,
       currency,
       broker,
+      isin: lots[0]?.isin,
     });
   }
 

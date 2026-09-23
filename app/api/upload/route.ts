@@ -353,7 +353,7 @@ export async function POST(request: Request) {
 
     type PerBrokerPos = {
       broker: BrokerFormat; ticker: string; shares: number;
-      avgCost: number; currency: string; date: string;
+      avgCost: number; currency: string; date: string; isin?: string;
     };
     const perBrokerPositions: PerBrokerPos[]  = [];
     const allBrokerFifoResults: FIFOResult[]   = [];
@@ -368,7 +368,7 @@ export async function POST(request: Request) {
       brokerDiagnostics.set(broker, { netZeroTickers, sellsWithoutBuysTickers });
       for (const p of brokerPos) {
         perBrokerPositions.push({
-          broker, ticker: p.t, shares: p.s, avgCost: p.c, currency: p.currency, date: p.d ?? '',
+          broker, ticker: p.t, shares: p.s, avgCost: p.c, currency: p.currency, date: p.d ?? '', isin: p.isin,
         });
       }
       allBrokerFifoResults.push(...calcFIFO(brokerTrades));
@@ -404,6 +404,8 @@ export async function POST(request: Request) {
         c:        Math.round(avgCost     * 1e6) / 1e6,
         d:        earliest || undefined,
         currency: group[0].currency,
+        // ISIN where the import carried one (DeGiro); undefined otherwise.
+        ...(group[0].isin ? { isin: group[0].isin } : {}),
         // Single broker → preserve provenance; multi-broker merge → 'generic'
         broker:   group.length === 1 ? group[0].broker : 'generic',
       });
