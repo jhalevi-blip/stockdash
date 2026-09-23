@@ -21,6 +21,7 @@ import { useHoldings } from '@/lib/useHoldings';
 import { holdingsSignature } from '@/lib/holdingsStorage';
 import { getMarketStatus } from '@/lib/marketStatus';
 import { fetchMacro } from '@/lib/macroClient';
+import { buildFxRates, toDisplay as toDisplayCcy, valuePosition, isPence, normCcy } from '../_lib/positionValue';
 
 const SECTOR_COLORS = {
   'Technology':             '#58a6ff',
@@ -277,48 +278,29 @@ export default function DashboardV2Page() {
   // Display currency: EUR once EUR/USD loads, else USD (the hero render is gated on
   // eurUsd, so EUR magnitudes are never flashed stale). FX rates are USD-per-unit.
   const displayCcy = eurUsd ? 'EUR' : 'USD';
-  const fxRates = { USD: 1, ...(eurUsd ? { EUR: eurUsd } : {}), ...(gbpUsd ? { GBP: gbpUsd } : {}) };
-  // GBX / GBp are pence — normalise to GBP (÷100) for BOTH price and cost.
-  const isPence = (raw) => raw === 'GBX' || raw === 'GBp';
-  const normCcy = (raw) => (isPence(raw) ? 'GBP' : String(raw || 'USD').toUpperCase());
-  const toDisplay = (amount, fromCcy) => {
-    if (amount == null) return null;
-    const from = fxRates[fromCcy], to = fxRates[displayCcy];
-    if (from == null || to == null) return null;
-    return amount * from / to;
-  };
+  const fxRates = buildFxRates(eurUsd, gbpUsd);
+  // Local wrapper over the shared converter (binds the current rates + display ccy).
+  const toDisplay = (amount, fromCcy) => toDisplayCcy(amount, fromCcy, fxRates, displayCcy);
 
   // Compute enriched rows in the shape HoldingsTable expects, each valued in its OWN
-  // currency. A position is priced only when the quote's currency MATCHES the
-  // holding's currency (no ADR substitution) AND an FX rate to the display currency
-  // exists; otherwise it is "no price" and excluded from every total.
+  // currency via the shared valuePosition helper (same rule /performance uses): a
+  // position is priced only when the quote's currency MATCHES the holding's currency
+  // (no ADR substitution); otherwise it is "no price" and excluded from every total.
   const enrichedRows = (() => {
     if (!holdings?.length) return [];
     const rows = holdings.map(h => {
-      const q           = prices[h.t] ?? {};
-      const shares      = h.s;
-      const rawCcy      = h.currency || 'USD';               // legacy rows default to USD
-      const nativeCcy   = normCcy(rawCcy);
-      const costBasis   = isPence(rawCcy) ? h.c / 100 : h.c;  // native-currency cost per share
-      const quoteCcy    = q.currency ? normCcy(q.currency) : null;
-      const priceNative = q.price == null ? null : (isPence(q.currency) ? q.price / 100 : q.price);
-
-      const base = { ticker: h.t, name: h.name ?? '', shares, costBasis, currency: nativeCcy,
-                     quoteCurrency: q.currency ?? null, isin: h.isin ?? null,
+      const q = prices[h.t] ?? {};
+      const v = valuePosition(h, q, fxRates, displayCcy);
+      const base = { ticker: h.t, name: h.name ?? '', shares: h.s, costBasis: v.costNative,
+                     currency: v.nativeCcy, quoteCurrency: q.currency ?? null, isin: h.isin ?? null,
                      unresolved: !!h.unresolved, sector: '' };
-      // Unpriceable: no quote, currency mismatch, or no usable FX rate → "no price".
-      if (priceNative == null || quoteCcy == null || quoteCcy !== nativeCcy
-          || fxRates[nativeCcy] == null || fxRates[displayCcy] == null) {
+      if (!v.priced) {
         return { ...base, price: null, change: null, mktValue: null, plDollar: null,
                  plPct: null, valueDisplay: null, plDisplay: null, priced: false, weight: null };
       }
-      const change   = q.chgPct ?? 0;
-      const mktValue = shares * priceNative;                 // native currency
-      const plNative = mktValue - shares * costBasis;        // native currency
-      const plPct    = costBasis > 0 ? (plNative / (shares * costBasis)) * 100 : 0;
-      return { ...base, price: priceNative, change, mktValue, plDollar: plNative, plPct,
-               valueDisplay: toDisplay(mktValue, nativeCcy), plDisplay: toDisplay(plNative, nativeCcy),
-               priced: true, weight: 0 };
+      return { ...base, price: v.price, change: q.chgPct ?? 0, mktValue: v.mktNative,
+               plDollar: v.plNative, plPct: v.plPct,
+               valueDisplay: v.valueDisplay, plDisplay: v.plDisplay, priced: true, weight: 0 };
     });
     // Weights over converted (display-currency) values, so mixed-currency positions
     // are comparable.
