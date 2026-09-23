@@ -136,6 +136,8 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
       // consumers default a missing currency to USD (legacy behaviour).
       ...(r.currency ? { currency: r.currency } : {}),
       ...(r.isin ? { isin: r.isin } : {}),
+      ...(r.name ? { name: r.name } : {}),
+      ...(r.unresolved ? { unresolved: true } : {}),
     }));
     const cashData = cashAmount > 0 ? { amount: cashAmount, currency: cashCurrency } : null;
     const holdingsCountBefore = holdings.length;
@@ -323,10 +325,12 @@ export default function PortfolioModal({ holdings, cash, onSave, onClose }) {
                 }
                 const project = h => ({
                   t: h.t ?? '', s: h.s ?? 0, c: h.c ?? 0, d: h.d ?? '',
-                  // Carry currency + ISIN through the editor so they reach the saved
-                  // portfolio (additive — the row inputs ignore these extra fields).
+                  // Carry currency + ISIN + name/unresolved through the editor so they
+                  // reach the saved portfolio (additive — row inputs ignore these).
                   ...(h.currency ? { currency: h.currency } : {}),
                   ...(h.isin ? { isin: h.isin } : {}),
+                  ...(h.name ? { name: h.name } : {}),
+                  ...(h.unresolved ? { unresolved: true } : {}),
                 });
                 setRows(prev => {
                   if (mode === 'append') {

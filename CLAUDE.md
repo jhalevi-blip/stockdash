@@ -39,11 +39,15 @@ These scripts are **dev-only and guarded**: `scripts/lib/devGuard.mjs` aborts un
 `scripts/smoke-signed-in.mjs` signs in as the dev test user and visits every signed-in page (imported from the app's own `NAV_ITEMS`), recording console errors, non-2xx requests to our `/api` routes, visible error copy, and a screenshot per page (→ gitignored `.smoke-artifacts/`). It exits non-zero on any failure.
 
 ```
-npm run dev &                                              # must be running
-node --env-file=.env.local scripts/smoke-signed-in.mjs    # exits non-zero on any failure
+npm run dev &                                                        # must be running
+node --env-file=.env.local scripts/smoke-signed-in.mjs               # seeded USD user
+# Then the EU/DeGiro user: import the synthetic DeGiro fixture into the empty user
+# (leaves it holding ASML/SHEL/ADYEN/NVDA + the unresolved IWDA ISIN), then smoke it:
+node --env-file=.env.local scripts/verify-import-journey.mjs         # last fixture (degiro) → empty user
+node --env-file=.env.local scripts/smoke-signed-in.mjs --user empty  # EU/DeGiro user (mixed currencies + unresolved ISIN)
 ```
 
-**This smoke test must pass (exit 0) before any PR is merged.** If a change introduces a page failure, that failure must be called out and justified in the PR description — do not merge past a red without an explanation. The test deliberately does **not** fail on `net::ERR_ABORTED` (intentional stale-fetch cancellation) or on the shared 60 req/min-per-IP limiter in `middleware.js` (it paces under the budget and retries once after a window reset).
+**Both smoke runs must pass (exit 0) before any PR is merged** — the seeded USD user AND `--user empty` (the EU/DeGiro portfolio: EUR/GBX/no-price positions and an unresolved-ISIN "no price" position). A position keyed by an ISIN instead of a ticker must be skipped / shown as unavailable by any page or API that expects a ticker — never error. If a change introduces a page failure, call it out and justify it in the PR — do not merge past a red without an explanation. The test deliberately does **not** fail on `net::ERR_ABORTED` (intentional stale-fetch cancellation) or on the shared 60 req/min-per-IP limiter in `middleware.js` (it paces under the budget and retries once after a window reset).
 
 # Scratch / temporary files
 

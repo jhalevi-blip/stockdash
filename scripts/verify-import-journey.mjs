@@ -179,19 +179,38 @@ async function runFixture(page, fx, results) {
     await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT });
     await sleep(3500);
     const dash = await page.evaluate(() => {
-      const rows = {};
-      document.querySelectorAll('table tbody tr').forEach((tr) => {
-        const tick = tr.querySelector('td span')?.innerText?.trim();
-        if (tick) rows[tick.toUpperCase()] = /no price/i.test(tr.innerText);
-      });
+      const rows = [...document.querySelectorAll('table tbody tr')].map((tr) => ({
+        text: (tr.innerText || '').toUpperCase(),
+        noPrice: /no price/i.test(tr.innerText),
+      }));
       const noteEl = [...document.querySelectorAll('*')].find(
         (e) => e.children.length === 0 && /positions? unpriced/i.test(e.textContent || ''));
       return { rows, note: noteEl?.textContent?.trim() || null };
     });
-    for (const t of d.pricedTickers)  if (dash.rows[t.toUpperCase()] !== false) fail(`dashboard: ${t} should be priced, but row shows no-price/missing`);
-    for (const t of d.noPriceTickers) if (dash.rows[t.toUpperCase()] !== true)  fail(`dashboard: ${t} should show "no price" (got ${JSON.stringify(dash.rows[t.toUpperCase()])})`);
+    // Match each identifier as a substring of its row (ticker for resolved, ISIN for
+    // unresolved — displayed by product name + ISIN).
+    const findRow = (id) => dash.rows.find((r) => r.text.includes(String(id).toUpperCase()));
+    for (const t of d.pricedTickers) { const r = findRow(t); if (!r || r.noPrice) fail(`dashboard: ${t} should be priced, but row is missing/no-price`); }
+    for (const t of d.noPriceTickers) { const r = findRow(t); if (!r) fail(`dashboard: ${t} row missing (was it dropped?)`); else if (!r.noPrice) fail(`dashboard: ${t} should show "no price"`); }
     const noteN = Number((dash.note || '').match(/(\d+)\s+of\s+\d+/)?.[1]);
     if (noteN !== d.noPriceTickers.length) fail(`dashboard: unpriced note should say ${d.noPriceTickers.length} (got "${dash.note}")`);
+
+    // Headline total = Σ(priced, converted) + cash. The hero chart's last point is
+    // pinned to the same live positions value, so chart and headline agree. Verify
+    // the headline numerically: it must equal NVDA (converted) + cash.
+    const q = await page.evaluate(async () => {
+      const p = await (await fetch('/api/prices?tickers=NVDA')).json().catch(() => null);
+      const c = await (await fetch('/api/chart?symbol=EURUSD%3DX')).json().catch(() => null);
+      const heroTotal = Math.max(0, ...[...document.body.innerText.matchAll(/€\s?([\d,]+\.\d{2})/g)]
+        .map((m) => parseFloat(m[1].replace(/,/g, ''))));
+      return { nvda: Array.isArray(p) ? p[0]?.price : null, eurUsd: (c?.candles || []).at(-1)?.close ?? null, heroTotal };
+    });
+    if (q.nvda && q.eurUsd && q.heroTotal) {
+      const expectTotal = (q.nvda * (pMap.get('NVDA') ?? 0)) / q.eurUsd + d.cashEur;
+      const drift = Math.abs(q.heroTotal - expectTotal) / expectTotal;
+      if (drift > 0.02) fail(`dashboard total: hero €${q.heroTotal.toFixed(0)} vs expected €${expectTotal.toFixed(0)} (NVDA+cash), ${(drift * 100).toFixed(1)}% off`);
+      else console.log(`    · hero total €${q.heroTotal.toFixed(0)} ≈ NVDA+cash €${expectTotal.toFixed(0)} ✓`);
+    }
     await page.screenshot({ path: path.join(OUT_DIR, `${fx.broker}-04-dashboard-currency.png`), fullPage: true });
     console.log(`    · dashboard: priced=[${d.pricedTickers}] noPrice=[${d.noPriceTickers}] note="${dash.note}"`);
   }

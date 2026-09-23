@@ -25,6 +25,12 @@ export interface NormalizedPosition {
   broker: BrokerFormat;
   /** Instrument ISIN when the import has it (DeGiro). Optional. */
   isin?: string;
+  /** Product/instrument name — set for unresolved-ISIN positions so the dashboard
+   *  can display them by name instead of a ticker. Optional. */
+  name?: string;
+  /** True when the ISIN could not be resolved to a ticker: the position is kept and
+   *  shown as "no price" (never dropped), keyed/displayed by ISIN + name. */
+  unresolved?: boolean;
 }
 
 export interface SkipSummary {

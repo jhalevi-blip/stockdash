@@ -1,7 +1,26 @@
 import * as XLSX from 'xlsx';
-import type { BrokerTrade, SkipSummary } from './types';
+import type { BrokerTrade, SkipSummary, NormalizedPosition } from './types';
 import { resolveBatchIsinsWithNames } from './isinResolver';
+import { aggregateFIFO } from './fifo';
 import { UnrecognizedColumnsError } from './errors';
+
+/**
+ * FIFO-aggregate unresolved-ISIN lots into positions that are KEPT (never dropped),
+ * keyed by ISIN and carrying the product name so the dashboard can show them by name
+ * as "no price". Trades are keyed with ticker = ISIN.
+ */
+function buildUnresolvedPositions(
+  trades: BrokerTrade[],
+  names: Record<string, string>,
+): NormalizedPosition[] {
+  if (!trades.length) return [];
+  return aggregateFIFO(trades, 'degiro').positions.map((p) => ({
+    ...p,
+    isin: p.isin ?? p.t,
+    name: names[p.t] || p.t,
+    unresolved: true,
+  }));
+}
 
 // ── Shared types ─────────────────────────────────────────────────────────────
 
@@ -14,6 +33,9 @@ export interface DeGiroParseResult {
   trades:          BrokerTrade[];
   skipSummary:     SkipSummary;
   unresolvedIsins: string[];
+  /** Positions whose ISIN did not resolve to a ticker — KEPT (never dropped) and
+   *  surfaced as "no price", displayed by product name + ISIN. */
+  unresolvedPositions?: NormalizedPosition[];
   deposits:        CashEntry[];
   dividends:       CashEntry[];
   fees:            CashEntry[];
@@ -110,6 +132,7 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
 
   const datumCol   = findCol(headers, ['datum']);
   const isinCol    = findCol(headers, ['isin']);
+  const productCol = findCol(headers, ['product']);
   const omschrCol  = findCol(headers, ['omschrijving']);
   const mutatieCol = findCol(headers, ['mutatie']);
   // Amount column is the unnamed column immediately right of Mutatie
@@ -196,6 +219,8 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
   const fees:            CashEntry[]   = [];
   const unresolvedIsins: string[]      = [];
   const seenUnresolved   = new Set<string>();
+  const unresolvedTrades: BrokerTrade[] = [];  // kept, keyed by ISIN
+  const unresolvedNames:  Record<string, string> = {};
   const skip: SkipSummary = { parseErrors: 0 };
   let droppedForUnresolved = 0;
 
@@ -206,6 +231,7 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
     let currency     = '';
     let date         = '';
     let isin         = '';
+    let product      = '';
     let hasTrade     = false;
     let orderFx: number | null = null; // first non-null FX in the order's rows (native→EUR)
 
@@ -234,6 +260,7 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
         if (!date)     date     = datumCol >= 0 ? parseDate(row[datumCol]) : '';
         if (!action)   action   = m[1].toLowerCase() === 'koop' ? 'buy' : 'sell';
         if (!isin)     isin     = isinCol  >= 0 ? String(row[isinCol] ?? '').trim() : '';
+        if (!product)  product  = productCol >= 0 ? String(row[productCol] ?? '').trim() : '';
         if (!currency) currency = m[4].toUpperCase();
 
         const shares = parseNum(m[2]);
@@ -259,10 +286,20 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
     }
 
     if (!isin || !isinMap.has(isin)) {
-      droppedForUnresolved++;
-      if (isin && !seenUnresolved.has(isin)) {
-        unresolvedIsins.push(isin);
-        seenUnresolved.add(isin);
+      // KEEP it: an unresolved ISIN is recorded as a lot keyed by the ISIN, so it
+      // survives as a "no price" position instead of being dropped. A missing number
+      // beats a wrong one — never silently lose a real holding.
+      if (isin) {
+        droppedForUnresolved++;
+        if (!seenUnresolved.has(isin)) { unresolvedIsins.push(isin); seenUnresolved.add(isin); }
+        const avgPrice = totalValue / totalShares;
+        unresolvedTrades.push({
+          ticker: isin,
+          shares: Math.round((action === 'sell' ? -totalShares : totalShares) * 1e8) / 1e8,
+          price:  Math.round(avgPrice * 1e6) / 1e6,
+          currency, date, action: action!, isin,
+        });
+        if (product) unresolvedNames[isin] = product;
       }
       continue;
     }
@@ -348,6 +385,7 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
     trades,
     skipSummary:     skip,
     unresolvedIsins,
+    unresolvedPositions: buildUnresolvedPositions(unresolvedTrades, unresolvedNames),
     deposits,
     dividends,
     fees,
@@ -397,6 +435,7 @@ async function parseTransacties(wb: XLSX.WorkBook): Promise<DeGiroParseResult> {
 
   const datumCol    = col('datum');
   const isinCol     = col('isin');
+  const productCol  = col('product');
   const aantalCol   = col('aantal');
   const koersCol    = col('koers');
   // Currency is positional: the cell immediately right of Koers
@@ -421,6 +460,8 @@ async function parseTransacties(wb: XLSX.WorkBook): Promise<DeGiroParseResult> {
   const namesByTicker:   Record<string, string> = {};
   const unresolvedIsins: string[]      = [];
   const seenUnresolved   = new Set<string>();
+  const unresolvedTrades: BrokerTrade[] = [];
+  const unresolvedNames:  Record<string, string> = {};
 
   for (let ri = headerIdx + 1; ri < rows.length; ri++) {
     const row = rows[ri];
@@ -429,9 +470,22 @@ async function parseTransacties(wb: XLSX.WorkBook): Promise<DeGiroParseResult> {
     const isin = String(row[isinCol] ?? '').trim();
 
     if (!isin || !isinMap.has(isin)) {
-      if (isin && !seenUnresolved.has(isin)) {
-        unresolvedIsins.push(isin);
-        seenUnresolved.add(isin);
+      // KEEP unresolved ISINs as "no price" positions rather than dropping them.
+      if (isin) {
+        if (!seenUnresolved.has(isin)) { unresolvedIsins.push(isin); seenUnresolved.add(isin); }
+        const aantal = parseNum(row[aantalCol]) ?? NaN;
+        const koersRaw = row[koersCol];
+        const koers = typeof koersRaw === 'number' ? koersRaw : parseFloat(String(koersRaw ?? '').replace(',', '.'));
+        if (!isNaN(aantal) && !isNaN(koers)) {
+          const ccy = (currencyCol >= 0 ? String(row[currencyCol] ?? '').trim() : '') || 'USD';
+          unresolvedTrades.push({
+            ticker: isin, shares: aantal, price: koers, currency: ccy,
+            date: datumCol >= 0 ? parseDate(row[datumCol]) : '',
+            action: aantal < 0 ? 'sell' : 'buy', isin,
+          });
+          const product = productCol >= 0 ? String(row[productCol] ?? '').trim() : '';
+          if (product) unresolvedNames[isin] = product;
+        }
       }
       continue;
     }
@@ -473,6 +527,7 @@ async function parseTransacties(wb: XLSX.WorkBook): Promise<DeGiroParseResult> {
     trades,
     skipSummary:     skip,
     unresolvedIsins,
+    unresolvedPositions: buildUnresolvedPositions(unresolvedTrades, unresolvedNames),
     deposits:        [],
     dividends:       [],
     fees:            [],

@@ -39,6 +39,7 @@ dev-test-user-dashboard.png
 
 # signed-in smoke test screenshots (see scripts/smoke-signed-in.mjs)
 .smoke-artifacts/
+.smoke-artifacts-empty/
 
 # scratch: temporary files (PR payloads, debug scripts, ad-hoc screenshots)
 .scratch/
