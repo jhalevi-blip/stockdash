@@ -43,7 +43,7 @@ npm run dev &                                              # must be running
 node --env-file=.env.local scripts/smoke-signed-in.mjs    # exits non-zero on any failure
 ```
 
-**This smoke test must pass (exit 0) before any PR is merged.** If a change introduces a *new* page failure, that failure must be called out and justified in the PR description — do not merge past a new red without an explanation. (Pre-existing failures are tracked separately; the current known one is `/research` firing `/api/peers` without a ticker on initial mount → two 400s before it re-fetches with the resolved ticker.) The test deliberately does **not** fail on `net::ERR_ABORTED` (intentional stale-fetch cancellation) or on the shared 60 req/min-per-IP limiter in `middleware.js` (it paces under the budget and retries once after a window reset).
+**This smoke test must pass (exit 0) before any PR is merged.** If a change introduces a page failure, that failure must be called out and justified in the PR description — do not merge past a red without an explanation. The test deliberately does **not** fail on `net::ERR_ABORTED` (intentional stale-fetch cancellation) or on the shared 60 req/min-per-IP limiter in `middleware.js` (it paces under the budget and retries once after a window reset).
 
 # Scratch / temporary files
 
