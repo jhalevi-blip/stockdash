@@ -8,6 +8,7 @@ import UnifiedUpload from '@/components/UnifiedUpload';
 import { useHoldings } from '@/lib/useHoldings';
 import InfoTooltip from '@/components/InfoTooltip';
 import { usePerformanceLedger } from '@/lib/performance/usePerformanceLedger';
+import { buildFxRates, toDisplay as toDisplayCcy, valuePosition } from '../_lib/positionValue';
 
 // recharts loads in an async chunk (after paint), off the route's critical path.
 // PortTooltip / EurTooltip moved into this module (used only by these charts).
@@ -214,9 +215,10 @@ export default function PerformanceV2Page() {
     async function fetchAll() {
       try {
         const tickers = holdings.map(h => h.t);
-        const [spyRes, eurRes, valRes, pricesRes, ...tickerChartRes] = await Promise.all([
+        const [spyRes, eurRes, gbpRes, valRes, pricesRes, ...tickerChartRes] = await Promise.all([
           fetch('/api/chart?symbol=SPY').then(r => r.json()),
           fetch('/api/chart?symbol=EURUSD%3DX').then(r => r.json()),
+          fetch('/api/chart?symbol=GBPUSD%3DX').then(r => r.json()),
           fetch(`/api/valuation?${tickers.map(t => `tickers=${t}`).join('&')}`).then(r => r.json()),
           fetch(`/api/prices?tickers=SPY,${tickers.join(',')}`).then(r => r.json()),
           ...tickers.map(t => fetch(`/api/chart?symbol=${t}`).then(r => r.json())),
@@ -225,13 +227,16 @@ export default function PerformanceV2Page() {
 
         const spyCandles    = spyRes.candles ?? [];
         const eurCandles    = eurRes.candles ?? [];
+        const gbpUsd        = (gbpRes.candles ?? []).at(-1)?.close ?? null;
         const valArr        = Array.isArray(valRes) ? valRes : [];
         const tickerCandles = {};
         tickers.forEach((t, i) => { tickerCandles[t] = tickerChartRes[i]?.candles ?? []; });
 
+        // Keep the full quote (price + currency/exchange) so positions can be valued
+        // in their own currency — never priced off a different listing.
         const livePrices = {};
         if (Array.isArray(pricesRes)) {
-          pricesRes.forEach(p => { if (p.ticker && p.price != null) livePrices[p.ticker] = p.price; });
+          pricesRes.forEach(p => { if (p.ticker && p.price != null) livePrices[p.ticker] = { price: p.price, currency: p.currency, exchange: p.exchange }; });
         }
 
         // Estimate start index from cost basis / explicit purchase dates
@@ -251,7 +256,7 @@ export default function PerformanceV2Page() {
         const optionBDate = earliestExplicit ?? candleIdxToDate(spyCandles, optionBIdx);
 
         if (!cancelled) {
-          setRawData({ spyCandles, eurCandles, valArr, tickerCandles, livePrices });
+          setRawData({ spyCandles, eurCandles, gbpUsd, valArr, tickerCandles, livePrices });
           setEstimatedDate(optionBDate);
           setDateInput(d => d || optionBDate);
           setDataLoading(false);
@@ -369,7 +374,7 @@ export default function PerformanceV2Page() {
   const { eurData, stats } = useMemo(() => {
     if (!rawData || !holdings?.length) return { eurData: [], stats: null };
 
-    const { spyCandles, eurCandles, valArr, tickerCandles, livePrices = {} } = rawData;
+    const { spyCandles, eurCandles, gbpUsd, valArr, tickerCandles, livePrices = {} } = rawData;
     const spyLen = spyCandles.length;
     if (!spyLen) return { eurData: [], stats: null };
 
@@ -481,16 +486,28 @@ export default function PerformanceV2Page() {
     });
     const portfolioBeta = totalMktCap > 0 ? weightedBeta / totalMktCap : null;
 
-    // ── Display-layer EUR figures (USD→EUR = ÷ eurUsd; cashData is the live cash
-    // balance). These feed the cards only — no return computation depends on them.
-    const holdingsValueEur    = portNow / eurUsd;
-    const currentCashEur      = cashData?.currency === 'EUR'
-      ? (cashData.amount ?? 0)
-      : (cashData?.amount ?? 0) / eurUsd;
-    const portfolioValueEur   = holdingsValueEur + currentCashEur;   // holdings + cash
-    const unrealizedEur       = (portNow - totalCostBasis) / eurUsd; // matches the dashboard
-    const realizedEur         = realizedData?.totalPnl ?? 0;         // already EUR
-    const totalPnlEur         = realizedEur + unrealizedEur;
+    // ── Per-position currency valuation — the SAME shared helper the dashboard uses,
+    // so Portfolio Value here equals the dashboard headline for the same user. Each
+    // position is valued in its own currency (GBX ÷100 → GBP) and converted to EUR;
+    // a position whose quote currency doesn't match (no pricing off another listing)
+    // or has no quote is "no price": excluded from value/P&L, never dropped.
+    const rates = buildFxRates(eurUsd, gbpUsd);
+    let holdingsValueEur = 0, unrealizedEur = 0;
+    const unpricedNames = [];
+    for (const h of holdings) {
+      if (h.t === '__CASH__') continue;
+      const v = valuePosition(h, livePrices[h.t], rates, 'EUR');
+      if (v.priced) {
+        holdingsValueEur += v.valueDisplay ?? 0;
+        unrealizedEur    += v.plDisplay ?? 0;
+      } else {
+        unpricedNames.push(h.unresolved ? (h.name || h.isin || h.t) : h.t);
+      }
+    }
+    const currentCashEur   = toDisplayCcy(cashData?.amount ?? 0, cashData?.currency ?? 'EUR', rates, 'EUR') ?? 0;
+    const portfolioValueEur = holdingsValueEur + currentCashEur;     // holdings + cash — equals dashboard headline
+    const realizedEur       = realizedData?.totalPnl ?? 0;           // already EUR
+    const totalPnlEur       = realizedEur + unrealizedEur;
 
     return {
       eurData,
@@ -504,6 +521,9 @@ export default function PerformanceV2Page() {
         reconHoldingsValueUSD: holdingsValueUSD, reconBreakdown, reconMissing,
         // Display-layer EUR figures for the cards (holdings + cash, P&L block).
         holdingsValueEur, currentCashEur, portfolioValueEur, unrealizedEur, totalPnlEur,
+        // Positions excluded from value/P&L because they can't be priced in their own
+        // currency (currency mismatch / no quote / unresolved ISIN) — never dropped.
+        unpricedCount: unpricedNames.length, unpricedNames,
       },
     };
   }, [rawData, holdings, cashData, startDate, realizedData, startingCash, cashCurrency, startHeld, startCashEur, startReconPrices]);
@@ -849,8 +869,10 @@ export default function PerformanceV2Page() {
               <StatCard
                 label="Portfolio Value"
                 value={s ? `€${fmt(s.portfolioValueEur)}` : '…'}
-                sub={s == null ? null : `Holdings €${fmt(s.holdingsValueEur, 0)} + Cash €${fmt(s.currentCashEur, 0)}`}
-                valueColor={s && s.portNow >= s.adjustedCostBasis ? 'var(--positive)' : s ? 'var(--negative)' : undefined}
+                sub={s == null ? null
+                  : `Holdings €${fmt(s.holdingsValueEur, 0)} + Cash €${fmt(s.currentCashEur, 0)}`
+                    + (s.unpricedCount > 0 ? ` · ${s.unpricedCount} position${s.unpricedCount === 1 ? '' : 's'} unpriced (excluded)` : '')}
+                valueColor={s && s.unrealizedEur >= 0 ? 'var(--positive)' : s ? 'var(--negative)' : undefined}
               />
               <StatCard
                 label="If invested in SPY"
