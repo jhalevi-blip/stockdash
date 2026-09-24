@@ -63,10 +63,18 @@ export async function GET(request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Record that the scheduler fired (before the market-closed early return, so every
-  // 15-min tick counts as "ran" for the watchdog). Best-effort; never breaks the job.
+  // Run the job body, then stamp the heartbeat ONLY on a normal return — success or a
+  // benign skip (market closed / no owner / no targets). A run that throws never reaches
+  // this line, so the watchdog can distinguish "fired but crashed" from "ran fine".
+  // Best-effort; a heartbeat failure never breaks the job.
+  const response = await runWatchlistAlerts();
   await recordHeartbeat('watchlist-alerts');
+  return response;
+}
 
+// The actual job. Returns a Response for success and for every benign skip; a thrown
+// error propagates uncaught (and is exactly what makes the watchdog's heartbeat go stale).
+async function runWatchlistAlerts() {
   // ── Only during the US regular session (spec §8) ────────────────────────────
   const { isOpen } = getMarketStatus();
   if (!isOpen) return Response.json({ skipped: 'market_closed' });
