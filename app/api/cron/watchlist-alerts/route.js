@@ -4,6 +4,7 @@ import { decideAlert } from '@/lib/watchlist/alerts';
 import { getMarketStatus } from '@/lib/marketStatus';
 import { trackFMP } from '@/lib/apiUsage';
 import { sendEmail } from '@/lib/email';
+import { recordHeartbeat } from '@/lib/jobHeartbeat';
 
 // Target-cross price alerts (spec §8). Every 15 min during the US session, compare
 // live FMP quotes against watchlist_items.target_price for role='candidate' rows,
@@ -61,6 +62,10 @@ export async function GET(request) {
   if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // Record that the scheduler fired (before the market-closed early return, so every
+  // 15-min tick counts as "ran" for the watchdog). Best-effort; never breaks the job.
+  await recordHeartbeat('watchlist-alerts');
 
   // ── Only during the US regular session (spec §8) ────────────────────────────
   const { isOpen } = getMarketStatus();

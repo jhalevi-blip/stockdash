@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { sendToSubscriptions } from '@/lib/push';
+import { recordHeartbeat } from '@/lib/jobHeartbeat';
 import { fmtCurrency, fmtPct } from '@/app/(v2)/_lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -103,6 +104,10 @@ export async function GET(request) {
   if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // Record that the scheduler fired (before any early return, so a weekend run still
+  // counts as "ran on time" for the watchdog). Best-effort; never breaks the job.
+  await recordHeartbeat('portfolio-summary');
 
   // ── Skip weekends (no market close) ─────────────────────────────────────────
   const utcDay = new Date().getUTCDay(); // 0 = Sun, 6 = Sat
