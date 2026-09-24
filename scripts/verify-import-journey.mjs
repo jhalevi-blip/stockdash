@@ -60,7 +60,7 @@ async function clickByText(page, predSrc) {
 }
 const shot = (page, name) => page.screenshot({ path: path.join(OUT_DIR, name), fullPage: true });
 
-async function runFixture(page, fx, results) {
+async function evaluateFixture(page, fx) {
   const abs = path.resolve(fx.file);
   const expected = JSON.parse(fs.readFileSync(fx.expected, 'utf8'));
   const flags = [];
@@ -215,29 +215,72 @@ async function runFixture(page, fx, results) {
     console.log(`    · dashboard: priced=[${d.pricedTickers}] noPrice=[${d.noPriceTickers}] note="${dash.note}"`);
   }
 
-  const passed = flags.length === 0;
-  results.push({ ...fx, passed, flags, detected, persistedCount: pHoldings.length,
-    parsedCount: parseHoldings.length, curChecked, cash: pCash, expectedCash: expected.cashEur });
-
-  console.log(`${passed ? '✓' : '✗'} ${fx.label}: broker=${detected} · persisted ${pHoldings.length}/${parseHoldings.length} parsed · currency ${curChecked - curIssues.length}/${curChecked} · cash €${pCash?.amount ?? '—'} vs file €${expected.cashEur}`);
-  flags.forEach((f) => console.log(`    ↳ ${f}`));
+  // Return metrics + flags; the runner decides how to report (and whether a 429 during
+  // the run means these flags should be suppressed as a rate-limit artifact).
+  return {
+    flags, detected,
+    persistedCount: pHoldings.length, parsedCount: parseHoldings.length,
+    curChecked, curOk: curChecked - curIssues.length,
+    cash: pCash, expectedCash: expected.cashEur,
+  };
 }
 
 // ── run ──────────────────────────────────────────────────────────────────────
+// Each fixture gets its OWN fresh browser (new signInTestUser session), so nothing —
+// cookies, localStorage, an in-flight editor — carries over from the previous fixture
+// (a Saxo→DeGiro localStorage carryover once produced a phantom "persisted 16/5"). We
+// also wait out the middleware's 60 req/min-per-IP window between fixtures, and treat
+// any HTTP 429 from our own /api as a TEST ARTIFACT (retry once, never a product bug).
+const RATE_WINDOW_MS = 65_000;   // > middleware.js WINDOW_MS (60s), with margin
+const origin = new URL(baseUrl).origin;
+
+async function runFixtureFresh(fx) {
+  const { browser, page } = await signInTestUser({ headless: !headed, baseUrl, userId: EMPTY_ID });
+  let rateLimited = false;
+  page.on('response', (res) => {
+    try {
+      if (res.status() === 429 && res.url().startsWith(origin) && res.url().includes('/api/')) rateLimited = true;
+    } catch { /* ignore */ }
+  });
+  let out;
+  try {
+    out = await evaluateFixture(page, fx);
+  } catch (e) {
+    out = { flags: [`threw: ${e.message}`], detected: null, persistedCount: 0, parsedCount: 0, curChecked: 0, curOk: 0, cash: null, expectedCash: 0 };
+  } finally {
+    await browser.close();
+  }
+  return { ...out, rateLimited };
+}
+
 const present = FIXTURES.filter((f) => fs.existsSync(f.file) && fs.existsSync(f.expected));
 const missing = FIXTURES.filter((f) => !(fs.existsSync(f.file) && fs.existsSync(f.expected)));
 for (const m of missing) console.log(`· SKIP ${m.label}: fixture not found at ${m.file} (drop a real export and re-run its anonymizer)`);
 if (!present.length) { console.log('\nNo fixtures present — nothing to verify.\n'); process.exit(0); }
 
-const { browser, page } = await signInTestUser({ headless: !headed, baseUrl, userId: EMPTY_ID });
 const results = [];
-try {
-  for (const fx of present) {
-    try { await runFixture(page, fx, results); }
-    catch (e) { results.push({ ...fx, passed: false, flags: [`threw: ${e.message}`] }); console.log(`✗ ${fx.label}: threw ${e.message}`); }
+for (let i = 0; i < present.length; i++) {
+  const fx = present[i];
+  // Fresh rate-limit window before every fixture after the first.
+  if (i > 0) { console.log(`   … waiting ${RATE_WINDOW_MS / 1000}s for a fresh rate-limit window before ${fx.label}`); await sleep(RATE_WINDOW_MS); }
+
+  let r = await runFixtureFresh(fx);
+  if (r.rateLimited) {
+    console.log(`⚠ ${fx.label}: HTTP 429 from /api during the fixture — rate-limited (test artifact, not a product failure). Retrying once after a fresh window…`);
+    await sleep(RATE_WINDOW_MS);
+    r = await runFixtureFresh(fx);
   }
-} finally {
-  await browser.close();
+
+  // If a run was rate-limited we do NOT trust its holdings/cash flags — report the
+  // artifact instead, so a limiter blip can never masquerade as a product mismatch.
+  const passed = !r.rateLimited && r.flags.length === 0;
+  const flags = r.rateLimited
+    ? ['rate-limited after retry — test artifact, re-run (not a product failure)']
+    : r.flags;
+
+  console.log(`${passed ? '✓' : '✗'} ${fx.label}: broker=${r.detected} · persisted ${r.persistedCount}/${r.parsedCount} parsed · currency ${r.curOk}/${r.curChecked} · cash €${r.cash?.amount ?? '—'} vs file €${r.expectedCash}`);
+  flags.forEach((f) => console.log(`    ↳ ${f}`));
+  results.push({ ...fx, passed, flags, rateLimited: r.rateLimited });
 }
 
 const failed = results.filter((r) => !r.passed);
