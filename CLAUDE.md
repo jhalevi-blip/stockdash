@@ -41,9 +41,13 @@ These scripts are **dev-only and guarded**: `scripts/lib/devGuard.mjs` aborts un
 ```
 npm run dev &                                                        # must be running
 node --env-file=.env.local scripts/smoke-signed-in.mjs               # seeded USD user
-# Then the EU/DeGiro user: import the synthetic DeGiro fixture into the empty user
-# (leaves it holding ASML/SHEL/ADYEN/NVDA + the unresolved IWDA ISIN), then smoke it:
-node --env-file=.env.local scripts/verify-import-journey.mjs         # last fixture (degiro) → empty user
+# Then the EU/DeGiro user: verify-import-journey runs every fixture present in
+# .scratch/fixtures/ end-to-end and leaves the empty user holding the LAST one (DeGiro:
+# ASML/SHEL/ADYEN/NVDA + the unresolved IWDA ISIN). Run it as-is — it self-paces: a fresh
+# browser per fixture (no localStorage carryover) and a ~65s wait for the 60/min limiter
+# window between fixtures, with any /api 429 auto-retried once as a test artifact. No
+# moving fixtures aside or manual waits; two fixtures just take ~1 min longer.
+node --env-file=.env.local scripts/verify-import-journey.mjs         # all fixtures → empty user ends on DeGiro
 node --env-file=.env.local scripts/smoke-signed-in.mjs --user empty  # EU/DeGiro user (mixed currencies + unresolved ISIN)
 ```
 
