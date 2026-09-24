@@ -2,13 +2,15 @@
 
 // The quality-compounder-at-drawdown screen, embedded in the left column of the
 // watchlist page. One fetch to /api/screen on mount returns the funnel counts, the
-// surviving rows (through the operating-ROIC ≥ 13% gate, the ≥ 35% drawdown gate read
-// from the daily screen_quotes table, and the per-user rejected filter), and the
-// flagged review group.
+// surviving rows (through the 10-yr median operating-ROIC ≥ 15% gate, the ≥ 40% drawdown
+// gate read from the daily screen_quotes table, and the per-user rejected filter), the
+// short-history group (< 6 yrs of ROIC history: shown when latest-year ROIC ≥ 15% and
+// drawdown ≥ 40%, never highlighted), and the flagged review group.
 //
 // Drawdown is deterministic: it reads price + 52-week high from screen_quotes (refreshed
 // once per trading day after the close), so there is no live-fetch on the request path
-// and no client threshold control. Per name we show operating ROIC, roic_reported, the
+// and no client threshold control. Per name we show the 10-yr median + latest operating
+// ROIC, roic_reported, the
 // drawdown + price-as-of DATE, both within-industry percentiles, their composite, and
 // the highlight state. A ROIC-passer with no stored quote is shown as "no quote"
 // (counted, never dropped); data older than 2 trading days shows a stale warning.
@@ -57,8 +59,9 @@ const COLUMNS = [
   { key: 'industry',      label: 'Industry',  num: false },
   { key: 'price',         label: 'Price',     num: true,  tip: 'Price + 52-week high from the daily screen_quotes refresh. The as-of date is shown beneath it.' },
   { key: 'drawdownPct',   label: 'Drawdown',  num: true,  tip: 'Price vs the stored 52-week high (FMP yearHigh). "no quote" = the daily refresh has no row for this name.' },
-  { key: 'roic',          label: 'ROIC',      num: true,  tip: 'Operating ROIC: NOPAT ÷ operating invested capital (current assets − cash − (current liabilities − short-term debt) + net PP&E).' },
-  { key: 'roicReported',  label: 'ROIC rep.', num: true,  tip: 'ROIC on the goodwill-inclusive invested-capital base, kept alongside the operating figure.' },
+  { key: 'roic10yMedian', label: 'ROIC 10y',    num: true,  tip: 'THE GATE: 10-year median of per-fiscal-year operating ROIC (NOPAT ÷ operating invested capital). Must be ≥ 15%.' },
+  { key: 'roicLatest',    label: 'ROIC latest', num: true,  tip: 'Most-recent fiscal year operating ROIC, same definition — kept alongside the through-cycle median.' },
+  { key: 'roicReported',  label: 'ROIC rep.',   num: true,  tip: 'ROIC on the goodwill-inclusive invested-capital base, kept alongside the operating figure.' },
   { key: 'gmPercentile',  label: 'GM %ile',   num: true,  tip: 'Gross-margin-stability percentile within the industry (lower stdev = better).' },
   { key: 'levPercentile', label: 'Lev %ile',  num: true,  tip: 'Net-debt/EBITDA percentile within the industry (net cash best; EBITDA ≤ 0 worst).' },
   { key: 'composite',     label: 'Composite', num: true,  tip: 'Mean of the two industry percentiles. The best 20% (rankable industry, confirmed drawdown) is highlighted.' },
@@ -98,7 +101,8 @@ function renderCell(row, key) {
       return row.noQuote
         ? <span title="No row in the daily screen_quotes refresh" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>no quote</span>
         : fmtPct1(row.drawdownPct);
-    case 'roic':          return fmtPct1(row.roic);
+    case 'roic10yMedian': return fmtPct1(row.roic10yMedian);
+    case 'roicLatest':    return fmtPct1(row.roicLatest);
     case 'roicReported':  return fmtPct1(row.roicReported);
     case 'gmPercentile':  return <PctileCell value={row.gmPercentile} rankable={row.rankable} />;
     case 'levPercentile': return <PctileCell value={row.levPercentile} rankable={row.rankable} />;
@@ -214,8 +218,9 @@ function Funnel({ funnel }) {
         ))}
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-        {fmtInt(funnel.roicNotComputable)} ROIC not computable · {fmtInt(funnel.noQuote)} no quote ·{' '}
-        {fmtInt(funnel.flaggedGroup)} flagged for review
+        {fmtInt(funnel.roicNotComputable)} ROIC not computable ·{' '}
+        {fmtInt(funnel.shortHistory)} short history ({fmtInt(funnel.shortHistoryShown)} shown) ·{' '}
+        {fmtInt(funnel.noQuote)} no quote · {fmtInt(funnel.flaggedGroup)} flagged for review
         {(finite(fr.nmRoic) || finite(fr.divergence)) && ` (${fmtInt(fr.nmRoic)} n/m ROIC, ${fmtInt(fr.divergence)} market-cap divergence)`}
       </div>
     </div>
@@ -276,6 +281,64 @@ function FlaggedGroup({ flagged }) {
   );
 }
 
+// ── short-history group (< 6 yrs of computable ROIC history) ─────────────────────────
+// Latest-year ROIC ≥ 15% AND ≥ 40% drawdown; never highlighted, never in main results.
+function ShortHistoryGroup({ rows, onSelect, selectedSymbol }) {
+  const [open, setOpen] = useState(false);
+  if (!rows || rows.length === 0) return null;
+  return (
+    <div style={{ border: '1px solid var(--border-color)', borderRadius: 6 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '8px 12px', background: 'transparent', border: 'none', cursor: 'pointer',
+          color: 'var(--text-secondary)', fontSize: 13, fontFamily: FONT,
+        }}
+      >
+        <span><strong style={{ color: 'var(--text-primary)' }}>{rows.length}</strong> short history (&lt; 6 yrs) — latest ROIC ≥ 15% &amp; ≥ 40% drawdown; never highlighted</span>
+        <span style={{ color: 'var(--text-muted)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ maxHeight: 260, overflowY: 'auto', borderTop: '1px solid var(--border-color)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT }}>
+            <thead>
+              <tr>
+                <th style={{ ...th, textAlign: 'left' }}>Symbol</th>
+                <th style={{ ...th, textAlign: 'left' }}>Industry</th>
+                <th style={{ ...th, textAlign: 'right' }} title="Years of computable operating-ROIC history">Years</th>
+                <th style={{ ...th, textAlign: 'right' }}>ROIC latest</th>
+                <th style={{ ...th, textAlign: 'right' }}>Drawdown</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => {
+                const selected = selectedSymbol === r.symbol;
+                return (
+                  <tr
+                    key={r.symbol}
+                    onClick={() => onSelect?.(r.symbol)}
+                    title={`Load ${r.symbol} into the detail panel`}
+                    style={{ cursor: 'pointer', background: selected ? 'var(--bg-hover)' : undefined }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = selected ? 'var(--bg-hover)' : ''; }}
+                  >
+                    <td style={{ ...td, fontWeight: 600, color: 'var(--text-primary)' }}>{r.symbol}</td>
+                    <td style={td}><Trunc value={r.industry} max={150} /></td>
+                    <td style={{ ...td, textAlign: 'right', color: 'var(--text-secondary)' }}>{fmtInt(r.historyYears)}y</td>
+                    <td style={{ ...td, textAlign: 'right' }}>{fmtPct1(r.roicLatest)}</td>
+                    <td style={{ ...td, textAlign: 'right' }}>{fmtPct1(r.drawdownPct)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ScreenSection({ onSelect, selectedSymbol }) {
   const [state, setState] = useState({ status: 'loading' });   // loading | ready | error
 
@@ -315,9 +378,10 @@ export default function ScreenSection({ onSelect, selectedSymbol }) {
         <StaleBanner stale={data.stale} dataAsOf={data.dataAsOf} />
         <Card title="Results" eyebrow="quality compounders at drawdown" padding="0">
           {data.rows.length === 0
-            ? <div style={{ padding: 14 }}><p style={emptyMsg}>No names cleared every gate (operating ROIC ≥ 13%, ≥ 35% drawdown, not rejected).</p></div>
+            ? <div style={{ padding: 14 }}><p style={emptyMsg}>No names cleared every gate (10-yr median operating ROIC ≥ 15%, ≥ 40% drawdown, not rejected).</p></div>
             : <ScreenTable rows={data.rows} onSelect={onSelect} selectedSymbol={selectedSymbol} />}
         </Card>
+        <ShortHistoryGroup rows={data.shortHistoryRows} onSelect={onSelect} selectedSymbol={selectedSymbol} />
         <FlaggedGroup flagged={data.flaggedGroup} />
       </div>
     );
@@ -328,7 +392,7 @@ export default function ScreenSection({ onSelect, selectedSymbol }) {
       <header style={{ marginBottom: 14 }}>
         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>Screen</h2>
         <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
-          Durable-margin compounders (operating ROIC ≥ 13%) trading ≥ 35% below their 52-week high; the best of each industry on margin stability + leverage are highlighted.
+          Durable-margin compounders (10-yr median operating ROIC ≥ 15%) trading ≥ 40% below their 52-week high; the best of each industry on margin stability + leverage are highlighted.
         </p>
       </header>
       {body}
