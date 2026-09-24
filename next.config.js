@@ -95,11 +95,6 @@ const nextConfig = {
         ],
       },
       {
-        // Health — never cache
-        source: '/api/health',
-        headers: [{ key: 'Cache-Control', value: 'no-store' }],
-      },
-      {
         // Service worker — never cache so SW updates propagate immediately
         source: '/sw.js',
         headers: [{ key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' }],
