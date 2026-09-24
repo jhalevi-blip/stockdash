@@ -21,7 +21,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import {
-  SNAP_COLS, classifyRow, passesRoic, fin,
+  SNAP_COLS, classifyRow, passesRoic, throughCycleRoic, MIN_HISTORY_YEARS, fin,
 } from '../lib/screen/metrics.js';
 
 const FMP_BASE = 'https://financialmodelingprep.com/stable';
@@ -82,18 +82,32 @@ async function fetchQuote(symbol) {
   const project = url.match(/https:\/\/([a-z]+)/)?.[1] ?? url;
   console.log(`\nrefresh-screen-quotes → ${project}  (pace ≤ ${RATE_PER_MIN}/min)\n`);
 
-  // 1. Recompute the ROIC-passer set.
+  // 1. Recompute the set of names the screen might quote: through-cycle passers
+  //    (10-yr median ≥ floor) PLUS short-history names (< MIN_HISTORY_YEARS computable
+  //    years) whose LATEST-year ROIC clears the floor — so the short-history group's
+  //    drawdown can be checked. Uses the SAME lib/screen/metrics logic as the route so
+  //    the two never drift.
   const universe = await fetchAll('symbol_universe', 'symbol', q => q.is('exclusion_reason', null));
   const evalSet = new Set(universe.map(r => r.symbol));
   const snap = await fetchAll('fundamentals_snapshot', SNAP_COLS);
+  const annual = await fetchAll('fundamentals_annual',
+    'symbol, fiscal_year, ebit, income_tax_expense, income_before_tax, total_current_assets, cash_and_equivalents, total_current_liabilities, short_term_debt, net_ppe');
+  const annualBySym = new Map();
+  for (const r of annual) { const a = annualBySym.get(r.symbol); if (a) a.push(r); else annualBySym.set(r.symbol, [r]); }
   const passers = [];
   for (const r of snap) {
     if (!evalSet.has(r.symbol)) continue;
-    const { flagged, roic } = classifyRow(r);
-    if (!flagged && passesRoic(roic)) passers.push(r.symbol);
+    const { flagged } = classifyRow(r);
+    if (flagged) continue;
+    const tc = throughCycleRoic(annualBySym.get(r.symbol));
+    const gateable = tc.years >= MIN_HISTORY_YEARS;
+    if ((gateable && passesRoic(tc.median)) ||
+        (!gateable && tc.years > 0 && passesRoic(tc.latest))) {
+      passers.push(r.symbol);
+    }
   }
   passers.sort();
-  console.log(`ROIC-passers to quote: ${passers.length}`);
+  console.log(`names to quote (through-cycle + short-history latest-passers): ${passers.length}`);
 
   // 2. Fetch quotes, paced.
   const rows = [];
