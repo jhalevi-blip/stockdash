@@ -1,55 +1,45 @@
 'use client';
 
 // The quality-compounder-at-drawdown screen, embedded in the left column of the
-// watchlist page below the sections. One fetch to /api/screen on mount returns the
-// funnel counts and top-quintile-stability survivors; the drawdown threshold is a
-// client-side control (default 35%) that filters those rows live without a refetch (the
-// quintile is drawdown-independent). Table sort mirrors the watchlist: client-side,
-// nulls pinned to the bottom, asc/desc toggle, stable order.
+// watchlist page. One fetch to /api/screen on mount returns the funnel counts, the
+// surviving rows (through the operating-ROIC ≥ 13% gate, the ≥ 35% drawdown gate read
+// from the daily screen_quotes table, and the per-user rejected filter), and the
+// flagged review group.
 //
-// Row click calls onSelect(symbol) to load that symbol into the watchlist detail panel
-// (the parent builds a synthetic item for screen-only names). This works for symbols
-// outside the watchlist because /api/watchlist/{financials,peers,fundamentals} are
-// auth-only (not watchlist-gated) — they read shared reference data.
+// Drawdown is deterministic: it reads price + 52-week high from screen_quotes (refreshed
+// once per trading day after the close), so there is no live-fetch on the request path
+// and no client threshold control. Per name we show operating ROIC, roic_reported, the
+// drawdown + price-as-of DATE, both within-industry percentiles, their composite, and
+// the highlight state. A ROIC-passer with no stored quote is shown as "no quote"
+// (counted, never dropped); data older than 2 trading days shows a stale warning.
+//
+// Row click calls onSelect(symbol) to load that symbol into the watchlist detail panel.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Card from '@/app/(v2)/_components/Card';
 
 const FONT = "'Segoe UI', system-ui, -apple-system, sans-serif";
-const DEFAULT_DRAWDOWN = 35;   // percent, matches the spec's 35% floor
 
-// ── formatters (roic / margins / goodwill / drawdown are FRACTIONS in the payload) ──
+// ── formatters (roic / margins / drawdown / percentiles are FRACTIONS in the payload) ──
 const finite = v => typeof v === 'number' && Number.isFinite(v);
 const fmtPct1 = n => (finite(n) ? `${(n * 100).toFixed(1)}%` : '—');
-const fmtPct0 = n => (finite(n) ? `${(n * 100).toFixed(0)}%` : '—');
 const fmtPrice = n => (finite(n) ? `$${n.toFixed(2)}` : '—');
 const fmtInt = n => (finite(n) ? n.toLocaleString('en-US') : '—');
+// A within-industry percentile (0 = best) rendered as "top N%".
+const fmtPctile = n => (finite(n) ? `top ${Math.max(1, Math.round(n * 100))}%` : '—');
+const fmtDate = iso => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+};
 
-// ── columns ─────────────────────────────────────────────────────────────────────
-// A trimmed seven-column set for the narrow left-column placement. The dropped fields
-// (ROIC rep., gross margin, GM stdev, stability rank) are still returned by the route
-// and still drive filtering — they're just not shown. num=true → right-aligned, numeric
-// sort; else left-aligned, string sort. `tip` is the header tooltip (title).
-const COLUMNS = [
-  { key: 'symbol',        label: 'Symbol',   num: false },
-  { key: 'sector',        label: 'Sector',   num: false },
-  { key: 'industry',      label: 'Industry', num: false },
-  { key: 'price',         label: 'Price',    num: true },
-  { key: 'drawdownPct',   label: 'Drawdown', num: true, tip: 'Percent below the 52-week high.' },
-  { key: 'roic',          label: 'ROIC',     num: true, tip: 'NOPAT over invested capital with goodwill excluded — what the operating business earns on capital employed.' },
-  { key: 'goodwillShare', label: 'Goodwill', num: true, tip: 'Goodwill as a share of reported invested capital.' },
-];
-
-// FMP prefixes many industry labels with their sector ("Medical - Healthcare Information
-// Services", "Software - Infrastructure"). Strip up to and including the first " - " so
-// the narrow column shows the distinguishing tail; the full original stays on hover.
+// FMP prefixes many industry labels with their sector ("Software - Infrastructure").
 const shortenLabel = s => {
   if (!s) return s;
   const i = s.indexOf(' - ');
   return i >= 0 ? s.slice(i + 3) : s;
 };
 
-// Ellipsis-truncated cell with the full, unmodified value on hover (title).
 function Trunc({ value, max }) {
   return (
     <span
@@ -61,15 +51,58 @@ function Trunc({ value, max }) {
   );
 }
 
+// ── columns ───────────────────────────────────────────────────────────────────────
+const COLUMNS = [
+  { key: 'symbol',        label: 'Symbol',    num: false },
+  { key: 'industry',      label: 'Industry',  num: false },
+  { key: 'price',         label: 'Price',     num: true,  tip: 'Price + 52-week high from the daily screen_quotes refresh. The as-of date is shown beneath it.' },
+  { key: 'drawdownPct',   label: 'Drawdown',  num: true,  tip: 'Price vs the stored 52-week high (FMP yearHigh). "no quote" = the daily refresh has no row for this name.' },
+  { key: 'roic',          label: 'ROIC',      num: true,  tip: 'Operating ROIC: NOPAT ÷ operating invested capital (current assets − cash − (current liabilities − short-term debt) + net PP&E).' },
+  { key: 'roicReported',  label: 'ROIC rep.', num: true,  tip: 'ROIC on the goodwill-inclusive invested-capital base, kept alongside the operating figure.' },
+  { key: 'gmPercentile',  label: 'GM %ile',   num: true,  tip: 'Gross-margin-stability percentile within the industry (lower stdev = better).' },
+  { key: 'levPercentile', label: 'Lev %ile',  num: true,  tip: 'Net-debt/EBITDA percentile within the industry (net cash best; EBITDA ≤ 0 worst).' },
+  { key: 'composite',     label: 'Composite', num: true,  tip: 'Mean of the two industry percentiles. The best 20% (rankable industry, confirmed drawdown) is highlighted.' },
+];
+
+function PriceCell({ row }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.2 }}>
+      <span>{fmtPrice(row.price)}</span>
+      <span
+        style={{ fontSize: 10, color: row.stale ? 'var(--negative)' : 'var(--text-muted)' }}
+        title={row.asOf ? `Price as of ${new Date(row.asOf).toLocaleString()}${row.stale ? ' — stale (> 2 trading days old)' : ''}` : 'no quote'}
+      >
+        {row.noQuote ? '—' : `${row.stale ? '⚠ ' : ''}${fmtDate(row.asOf)}`}
+      </span>
+    </div>
+  );
+}
+
+function PctileCell({ value, rankable }) {
+  if (!rankable) return <span title="Industry too small to rank (fewer than 5 evaluable names)" style={{ color: 'var(--text-muted)' }}>—</span>;
+  return <span>{fmtPctile(value)}</span>;
+}
+
 function renderCell(row, key) {
   switch (key) {
-    case 'symbol':        return <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{row.symbol}</span>;
-    case 'sector':        return <Trunc value={row.sector} max={92} />;
-    case 'industry':      return <Trunc value={row.industry} max={132} />;
-    case 'price':         return fmtPrice(row.price);
-    case 'drawdownPct':   return fmtPct1(row.drawdownPct);
+    case 'symbol':
+      return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span title={row.highlighted ? 'Highlighted: best 20% of the industry composite' : undefined} style={{ width: 10, color: 'var(--accent)' }}>{row.highlighted ? '★' : ''}</span>
+          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{row.symbol}</span>
+        </span>
+      );
+    case 'industry':      return <Trunc value={row.industry} max={150} />;
+    case 'price':         return <PriceCell row={row} />;
+    case 'drawdownPct':
+      return row.noQuote
+        ? <span title="No row in the daily screen_quotes refresh" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>no quote</span>
+        : fmtPct1(row.drawdownPct);
     case 'roic':          return fmtPct1(row.roic);
-    case 'goodwillShare': return fmtPct0(row.goodwillShare);
+    case 'roicReported':  return fmtPct1(row.roicReported);
+    case 'gmPercentile':  return <PctileCell value={row.gmPercentile} rankable={row.rankable} />;
+    case 'levPercentile': return <PctileCell value={row.levPercentile} rankable={row.rankable} />;
+    case 'composite':     return <PctileCell value={row.composite} rankable={row.rankable} />;
     default: return '—';
   }
 }
@@ -80,7 +113,7 @@ function makeComparator(key, dir) {
   return (a, b) => {
     const va = a[key], vb = b[key];
     const ba = isBlank(va), bb = isBlank(vb);
-    if (ba || bb) return ba && bb ? 0 : ba ? 1 : -1;   // nulls last regardless of dir
+    if (ba || bb) return ba && bb ? 0 : ba ? 1 : -1;
     const cmp = typeof va === 'string' || typeof vb === 'string'
       ? String(va).localeCompare(String(vb), undefined, { sensitivity: 'base' })
       : va - vb;
@@ -113,7 +146,6 @@ function ScreenTable({ rows, onSelect, selectedSymbol }) {
           <tr>
             {COLUMNS.map(c => {
               const active = sort.key === c.key;
-              // Header tooltip explains the metric; fall back to the sort hint.
               const title = c.tip || `Sort by ${c.label}`;
               return (
                 <th
@@ -121,12 +153,7 @@ function ScreenTable({ rows, onSelect, selectedSymbol }) {
                   onClick={() => toggle(c.key)}
                   title={title}
                   aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
-                  style={{
-                    ...th,
-                    textAlign: c.num ? 'right' : 'left',
-                    cursor: 'pointer',
-                    color: active ? 'var(--text-secondary)' : th.color,
-                  }}
+                  style={{ ...th, textAlign: c.num ? 'right' : 'left', cursor: 'pointer', color: active ? 'var(--text-secondary)' : th.color }}
                 >
                   {c.label}{active ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
                 </th>
@@ -137,6 +164,8 @@ function ScreenTable({ rows, onSelect, selectedSymbol }) {
         <tbody>
           {sorted.map(row => {
             const selected = selectedSymbol === row.symbol;
+            const hl = row.highlighted;
+            const bg = selected ? 'var(--bg-hover)' : (hl ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : '');
             return (
               <tr
                 key={row.symbol}
@@ -145,11 +174,12 @@ function ScreenTable({ rows, onSelect, selectedSymbol }) {
                 title={`Load ${row.symbol} into the detail panel`}
                 style={{
                   cursor: 'pointer',
-                  background: selected ? 'var(--bg-hover)' : undefined,
-                  boxShadow: selected ? 'inset 3px 0 0 0 var(--accent)' : undefined,
+                  background: bg || undefined,
+                  boxShadow: (selected || hl) ? 'inset 3px 0 0 0 var(--accent)' : undefined,
+                  opacity: row.noQuote ? 0.72 : 1,
                 }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = selected ? 'var(--bg-hover)' : ''; }}
+                onMouseLeave={e => { e.currentTarget.style.background = bg; }}
               >
                 {COLUMNS.map(c => (
                   <td key={c.key} style={{ ...td, textAlign: c.num ? 'right' : 'left' }}>{renderCell(row, c.key)}</td>
@@ -164,78 +194,90 @@ function ScreenTable({ rows, onSelect, selectedSymbol }) {
 }
 
 // ── funnel ────────────────────────────────────────────────────────────────────────
-function Funnel({ funnel, threshold, passCount }) {
+function Funnel({ funnel }) {
   const steps = [
     `${fmtInt(funnel.evaluable)} evaluable`,
-    `${fmtInt(funnel.afterExclusions)} after thin-base & divergence exclusions`,
     `${fmtInt(funnel.passRoic)} pass ROIC`,
-    `${fmtInt(funnel.topQuintile)} top-quintile`,
-    `${fmtInt(passCount)} at ${threshold}% drawdown`,
+    `${fmtInt(funnel.passDrawdown)} pass drawdown`,
+    `${fmtInt(funnel.afterRejected)} after rejected`,
+    `${fmtInt(funnel.highlighted)} highlighted`,
   ];
+  const fr = funnel.flaggedReasons || {};
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
-      {steps.map((s, i) => (
-        <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: i === steps.length - 1 ? 'var(--text-primary)' : undefined, fontWeight: i === steps.length - 1 ? 600 : 400 }}>{s}</span>
-          {i < steps.length - 1 && <span style={{ color: 'var(--text-muted)' }}>→</span>}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-// ── drawdown control ───────────────────────────────────────────────────────────────
-function DrawdownControl({ threshold, setThreshold, passCount }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-muted)' }}>Min drawdown</span>
-      <input
-        type="range" min={0} max={90} step={1} value={threshold}
-        onChange={e => setThreshold(Number(e.target.value))}
-        aria-label="Minimum drawdown percent"
-        style={{ width: 200, accentColor: 'var(--accent)' }}
-      />
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-        <input
-          type="number" min={0} max={100} step={1} value={threshold}
-          onChange={e => { const n = Number(e.target.value); if (Number.isFinite(n)) setThreshold(Math.max(0, Math.min(100, n))); }}
-          aria-label="Minimum drawdown percent"
-          style={{
-            width: 56, fontSize: 13, padding: '3px 6px', borderRadius: 4, textAlign: 'right',
-            border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)',
-          }}
-        />
-        <span style={{ color: 'var(--text-muted)' }}>%</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
+        {steps.map((s, i) => (
+          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: i === steps.length - 1 ? 'var(--text-primary)' : undefined, fontWeight: i === steps.length - 1 ? 600 : 400 }}>{s}</span>
+            {i < steps.length - 1 && <span style={{ color: 'var(--text-muted)' }}>→</span>}
+          </span>
+        ))}
       </div>
-      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-        {passCount} name{passCount === 1 ? '' : 's'} qualify
-      </span>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+        {fmtInt(funnel.roicNotComputable)} ROIC not computable · {fmtInt(funnel.noQuote)} no quote ·{' '}
+        {fmtInt(funnel.flaggedGroup)} flagged for review
+        {(finite(fr.nmRoic) || finite(fr.divergence)) && ` (${fmtInt(fr.nmRoic)} n/m ROIC, ${fmtInt(fr.divergence)} market-cap divergence)`}
+      </div>
     </div>
   );
 }
 
-// Explicit empty state: distinguish "nothing this deep in drawdown" (with the nearest
-// threshold that would surface a name) from "no names cleared the quality gates at all".
-function EmptyState({ rows, threshold }) {
-  const drawdowns = rows.map(r => r.drawdownPct).filter(finite);
-  if (drawdowns.length === 0) {
-    return <p style={emptyMsg}>No names cleared the quality gates, so there’s nothing to rank by drawdown.</p>;
-  }
-  const maxPct = Math.max(...drawdowns) * 100;
-  const nearest = Math.floor(maxPct);
+// Stale / missing quote-data banner.
+function StaleBanner({ stale, dataAsOf }) {
+  if (!stale) return null;
+  const msg = dataAsOf
+    ? `Quote data is stale (as of ${fmtDate(dataAsOf)}) — drawdowns may be out of date. The daily post-close refresh may not have run.`
+    : 'No quote data yet — the daily screen_quotes refresh has not populated. Drawdowns are unavailable until it runs.';
   return (
-    <div style={{ ...emptyMsg, display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <span>Nothing is {threshold}% down right now — the {rows.length} quality name{rows.length === 1 ? '' : 's'} are all shallower than that.</span>
-      <span style={{ color: 'var(--text-secondary)' }}>
-        The most drawn-down qualifying name is at <strong>{maxPct.toFixed(1)}%</strong>. Lower the threshold to <strong>{nearest}%</strong> to see it.
-      </span>
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 6,
+      fontSize: 12, color: 'var(--negative)',
+      background: 'color-mix(in srgb, var(--negative) 10%, transparent)',
+      border: '1px solid color-mix(in srgb, var(--negative) 40%, transparent)',
+    }}>
+      <span>⚠</span><span>{msg}</span>
+    </div>
+  );
+}
+
+// ── flagged review group ────────────────────────────────────────────────────────────
+function FlaggedGroup({ flagged }) {
+  const [open, setOpen] = useState(false);
+  if (!flagged || flagged.length === 0) return null;
+  return (
+    <div style={{ border: '1px solid var(--border-color)', borderRadius: 6 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '8px 12px', background: 'transparent', border: 'none', cursor: 'pointer',
+          color: 'var(--text-secondary)', fontSize: 13, fontFamily: FONT,
+        }}
+      >
+        <span><strong style={{ color: 'var(--text-primary)' }}>{flagged.length}</strong> flagged for review (never highlighted, never dropped)</span>
+        <span style={{ color: 'var(--text-muted)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ maxHeight: 260, overflowY: 'auto', borderTop: '1px solid var(--border-color)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT }}>
+            <tbody>
+              {flagged.map(f => (
+                <tr key={f.symbol}>
+                  <td style={{ ...td, fontWeight: 600, color: 'var(--text-primary)' }}>{f.symbol}</td>
+                  <td style={{ ...td, textAlign: 'right', color: 'var(--text-secondary)' }}>{f.roicNm ? 'n/m' : fmtPct1(f.roic)}</td>
+                  <td style={{ ...td, color: 'var(--text-muted)', fontSize: 12, whiteSpace: 'normal' }}>{f.reasons.join('; ')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
 
 export default function ScreenSection({ onSelect, selectedSymbol }) {
   const [state, setState] = useState({ status: 'loading' });   // loading | ready | error
-  const [threshold, setThreshold] = useState(DEFAULT_DRAWDOWN);
 
   const load = useCallback(async () => {
     setState({ status: 'loading' });
@@ -256,11 +298,6 @@ export default function ScreenSection({ onSelect, selectedSymbol }) {
   useEffect(() => { load(); }, [load]);
 
   const data = state.status === 'ready' ? state.data : null;
-  // Client-side drawdown filter (drawdown_pct is a fraction; threshold is percent).
-  const passing = useMemo(
-    () => (data?.rows ?? []).filter(r => finite(r.drawdownPct) && r.drawdownPct * 100 >= threshold),
-    [data, threshold],
-  );
 
   let body;
   if (state.status === 'loading') body = <p style={emptyMsg}>Running screen…</p>;
@@ -274,13 +311,14 @@ export default function ScreenSection({ onSelect, selectedSymbol }) {
   } else if (data) {
     body = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <Funnel funnel={data.funnel} threshold={threshold} passCount={passing.length} />
-        <DrawdownControl threshold={threshold} setThreshold={setThreshold} passCount={passing.length} />
+        <Funnel funnel={data.funnel} />
+        <StaleBanner stale={data.stale} dataAsOf={data.dataAsOf} />
         <Card title="Results" eyebrow="quality compounders at drawdown" padding="0">
-          {passing.length === 0
-            ? <div style={{ padding: 14 }}><EmptyState rows={data.rows} threshold={threshold} /></div>
-            : <ScreenTable rows={passing} onSelect={onSelect} selectedSymbol={selectedSymbol} />}
+          {data.rows.length === 0
+            ? <div style={{ padding: 14 }}><p style={emptyMsg}>No names cleared every gate (operating ROIC ≥ 13%, ≥ 35% drawdown, not rejected).</p></div>
+            : <ScreenTable rows={data.rows} onSelect={onSelect} selectedSymbol={selectedSymbol} />}
         </Card>
+        <FlaggedGroup flagged={data.flaggedGroup} />
       </div>
     );
   }
@@ -290,7 +328,7 @@ export default function ScreenSection({ onSelect, selectedSymbol }) {
       <header style={{ marginBottom: 14 }}>
         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>Screen</h2>
         <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
-          Durable-margin compounders (ROIC ≥ 13%, top-quintile gross-margin stability) trading in a drawdown.
+          Durable-margin compounders (operating ROIC ≥ 13%) trading ≥ 35% below their 52-week high; the best of each industry on margin stability + leverage are highlighted.
         </p>
       </header>
       {body}
