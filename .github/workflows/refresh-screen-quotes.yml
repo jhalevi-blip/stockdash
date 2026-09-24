@@ -1,0 +1,51 @@
+name: Refresh screen quotes
+
+# Daily post-close refresh of screen_quotes (price + 52-week high for every ROIC-passer),
+# which the quality-compounder screen reads for its drawdown gate.
+#
+# WHY A RUNNER SCRIPT, NOT A VERCEL CRON:
+#   The job single-symbol-quotes ~720 names paced at ≤ ~150/min (FMP Starter caps at
+#   ~300/min and its batch endpoints are subscription-restricted), so it runs for
+#   several minutes. Vercel's Hobby tier caps a serverless function at 60s, so this
+#   cannot be a cron route — it runs the Node script directly on the Actions runner,
+#   which writes straight to Supabase. (Same reason watchlist-alerts lives here.)
+#
+# SCHEDULE:
+#   22:00 UTC, Mon-Fri — safely AFTER the US close in both DST regimes (16:00 ET =
+#   20:00 UTC in summer, 21:00 UTC in winter). Runs on non-trading holidays too, which
+#   is harmless: FMP returns the last close, so as_of stays the true last-close time and
+#   the screen's staleness logic (keyed on as_of, not the calendar) shows it correctly.
+#
+# NOTE: GitHub Actions scheduled runs are best-effort (can be delayed/skipped under load)
+# and only run on the default branch. Fine for a daily post-close refresh.
+
+on:
+  schedule:
+    - cron: '0 22 * * 1-5'
+  workflow_dispatch: {}   # allow manual runs from the Actions tab
+
+concurrency:
+  group: refresh-screen-quotes
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Refresh screen_quotes
+        env:
+          # PROD Supabase + FMP — the production screen reads production screen_quotes.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        run: node scripts/refresh-screen-quotes.mjs
