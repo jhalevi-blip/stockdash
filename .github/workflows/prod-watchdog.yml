@@ -1,0 +1,72 @@
+name: Production watchdog
+
+# Daily read-only health probe of production. Calls the protected watchdog endpoint
+# (app/api/cron/watchdog) with the CRON_SECRET GitHub secret — the SAME secret and
+# GitHub-Actions-calls-a-protected-route pattern as watchlist-alerts.yml — and fails
+# the run (→ GitHub emails you) if any check fails.
+#
+# SCHEDULE:
+#   05:00 UTC daily. GitHub cron is UTC-only and does NOT observe DST, so in Amsterdam
+#   this lands at 07:00 (CEST, summer) / 06:00 (CET, winter). An early-morning daily
+#   check; the exact minute doesn't matter. The endpoint judges price/quote freshness
+#   against the NYSE calendar itself, so a weekend or holiday run does not false-alarm.
+#
+# NOTE: GitHub scheduled runs are best-effort (can be delayed/skipped under load) and
+# only run on the default branch. Fine for a daily watchdog.
+#
+# LOGS: only "<check>: PASS/FAIL (reason)" lines are printed. The bearer token and the
+# raw response body are NEVER echoed.
+
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch: {}   # allow manual runs from the Actions tab
+
+concurrency:
+  group: prod-watchdog
+  cancel-in-progress: false
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe production health
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # Optional repo variable; defaults to the production domain below.
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::CRON_SECRET repo secret is not set"; exit 1
+          fi
+
+          BASE="${APP_BASE_URL:-https://stockdashes.com}"
+          URL="$BASE/api/cron/watchdog"
+          echo "Probing $BASE (endpoint path hidden from logs)"
+
+          # Capture body + status. The token goes only in the header, never the logs.
+          resp="$(curl -sS -m 60 -w $'\n%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$URL")"
+          code="$(printf '%s' "$resp" | tail -n1)"
+          body="$(printf '%s' "$resp" | sed '$d')"
+
+          echo "HTTP $code"
+
+          # Print ONLY per-check name + PASS/FAIL + the short non-sensitive reason.
+          # Never echo the raw body. If the body isn't the expected JSON (e.g. a 404
+          # from a bad token), say so generically without dumping it.
+          if printf '%s' "$body" | jq -e '.checks' >/dev/null 2>&1; then
+            printf '%s' "$body" | jq -r '.checks[] |
+              "\(.name): \(if .pass then "PASS" else "FAIL (" + (.reason // "failed") + ")" end)"'
+          else
+            echo "::warning::watchdog returned a non-JSON body (HTTP $code)"
+          fi
+
+          # Fail the run on any non-200 (503 = a check failed; 404 = auth/token problem).
+          if [ "$code" != "200" ]; then
+            echo "::error::Watchdog reported failures (HTTP $code)"; exit 1
+          fi
+          echo "All checks passed"

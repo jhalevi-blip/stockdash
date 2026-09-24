@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { sendToSubscriptions } from '@/lib/push';
+import { recordHeartbeat } from '@/lib/jobHeartbeat';
 import { fmtCurrency, fmtPct } from '@/app/(v2)/_lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -104,6 +105,18 @@ export async function GET(request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Run the job body, then stamp the heartbeat ONLY on a normal return — success or a
+  // benign skip (weekend / no subscribers / fx unavailable). A run that throws never
+  // reaches this line, so the watchdog can distinguish "fired but crashed" from "ran
+  // fine". Best-effort; a heartbeat failure never breaks the job.
+  const response = await runPortfolioSummary();
+  await recordHeartbeat('portfolio-summary');
+  return response;
+}
+
+// The actual job. Returns a Response for success and for every benign skip; a thrown
+// error propagates uncaught (and is exactly what makes the watchdog's heartbeat go stale).
+async function runPortfolioSummary() {
   // ── Skip weekends (no market close) ─────────────────────────────────────────
   const utcDay = new Date().getUTCDay(); // 0 = Sun, 6 = Sat
   if (utcDay === 0 || utcDay === 6) {

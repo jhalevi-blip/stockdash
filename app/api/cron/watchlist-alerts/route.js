@@ -4,6 +4,7 @@ import { decideAlert } from '@/lib/watchlist/alerts';
 import { getMarketStatus } from '@/lib/marketStatus';
 import { trackFMP } from '@/lib/apiUsage';
 import { sendEmail } from '@/lib/email';
+import { recordHeartbeat } from '@/lib/jobHeartbeat';
 
 // Target-cross price alerts (spec §8). Every 15 min during the US session, compare
 // live FMP quotes against watchlist_items.target_price for role='candidate' rows,
@@ -62,6 +63,18 @@ export async function GET(request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Run the job body, then stamp the heartbeat ONLY on a normal return — success or a
+  // benign skip (market closed / no owner / no targets). A run that throws never reaches
+  // this line, so the watchdog can distinguish "fired but crashed" from "ran fine".
+  // Best-effort; a heartbeat failure never breaks the job.
+  const response = await runWatchlistAlerts();
+  await recordHeartbeat('watchlist-alerts');
+  return response;
+}
+
+// The actual job. Returns a Response for success and for every benign skip; a thrown
+// error propagates uncaught (and is exactly what makes the watchdog's heartbeat go stale).
+async function runWatchlistAlerts() {
   // ── Only during the US regular session (spec §8) ────────────────────────────
   const { isOpen } = getMarketStatus();
   if (!isOpen) return Response.json({ skipped: 'market_closed' });
