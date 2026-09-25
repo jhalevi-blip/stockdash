@@ -187,6 +187,29 @@ export async function GET() {
       if (fin(t) && (dataAsOfMs === null || t > dataAsOfMs)) dataAsOfMs = t;
     }
 
+    // 5b. Founder-led badge. Merge the monthly-refreshed founder_flags with the
+    // hand-curated founder_overrides — the OVERRIDE ALWAYS WINS (it can flip a name on
+    // that the auto job's CEO-only Wikidata check can't see, e.g. an executive-chair
+    // founder). Only founder_led rows become a badge, carrying { name, role } for the
+    // tooltip. Best-effort: a missing table / failed read leaves founderBy empty, so the
+    // screen simply shows no badges — it never 500s or blocks. (Same posture as
+    // screen_quotes above.)
+    const founderBy = new Map();
+    try {
+      const flags = await fetchAll(sb, 'founder_flags', 'symbol, founder_led, founder_name, role');
+      for (const f of flags) {
+        if (f.founder_led) founderBy.set(f.symbol, { name: f.founder_name ?? null, role: f.role ?? null });
+      }
+      const ovrs = await fetchAll(sb, 'founder_overrides', 'symbol, founder_led, founder_name, role');
+      for (const o of ovrs) {
+        // Override wins unconditionally: set the badge when led, clear it when not.
+        if (o.founder_led) founderBy.set(o.symbol, { name: o.founder_name ?? null, role: o.role ?? null });
+        else founderBy.delete(o.symbol);
+      }
+    } catch (e) {
+      console.error('[screen] founder_flags/overrides unavailable — no badges:', e.message);
+    }
+
     const enrichQuote = (r) => {
       const q = quoteBy.get(r.symbol);
       const price = q && fin(q.price) ? q.price : null;
@@ -263,6 +286,7 @@ export async function GET() {
       if (highlighted) highlightedCount++;
       return {
         symbol: r.symbol, industry: r.industry, sector: r.sector,
+        founder: founderBy.get(r.symbol) ?? null,   // { name, role } when founder-led, else null
         price: r.price, asOf: r.asOf ? new Date(r.asOf).toISOString() : null, stale: r.stale,
         noQuote: r.noQuote,
         drawdownPct: r.drawdown,          // fraction; null when no quote
@@ -289,6 +313,7 @@ export async function GET() {
     // or highlighted, labelled with their years of history.
     const shortHistoryRows = shortHistoryAfterRejected.map(r => ({
       symbol: r.symbol, industry: r.industry, sector: r.sector,
+      founder: founderBy.get(r.symbol) ?? null,
       historyYears: r.historyYears,
       roicLatest: r.roicLatest,
       drawdownPct: r.drawdown,
