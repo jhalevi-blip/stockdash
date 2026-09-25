@@ -1,0 +1,57 @@
+name: Refresh founder flags
+
+# Monthly refresh of founder_flags: for every name the quality screen might show, decide
+# whether it is founder-led (role CEO) and write one row. The screen renders a small "F"
+# badge from founder_flags merged with the hand-curated founder_overrides (overrides win).
+#
+# WHY A RUNNER SCRIPT, NOT A VERCEL CRON:
+#   The job reads FMP stable/profile for each screen-relevant name and, per name, at most
+#   one Wikidata query, paced at ~1.4s/name to respect Wikidata's public endpoint. That
+#   runs for several minutes — past Vercel Hobby's 60s function cap — so it runs the Node
+#   script directly on the Actions runner, writing straight to Supabase (same pattern as
+#   refresh-screen-quotes / watchlist-alerts).
+#
+# SCHEDULE:
+#   03:00 UTC on the 1st of each month. Founder/CEO transitions are rare, so monthly is
+#   ample; the hand-curated overrides catch anything time-sensitive between runs. The
+#   watchdog (app/api/cron/watchdog) allows founder_flags to be up to ~35 days old, which
+#   clears a monthly cadence plus GitHub's best-effort scheduling slack.
+#
+# NOTE: GitHub Actions scheduled runs are best-effort (can be delayed/skipped under load)
+# and only run on the default branch. Fine for a monthly refresh.
+#
+# LOGS: counts only (checked / auto-flagged / overridden / …). The script prints a roster
+# of names only under --list, which CI never passes.
+
+on:
+  schedule:
+    - cron: '0 3 1 * *'
+  workflow_dispatch: {}   # allow manual runs from the Actions tab
+
+concurrency:
+  group: refresh-founder-flags
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    # The ~650-name screen set takes ~35 min in practice (Wikidata latency dominates the
+    # 1.4s/name floor), so 60 gives comfortable headroom over the observed runtime.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Refresh founder_flags
+        env:
+          # PROD Supabase + FMP — the production screen reads production founder_flags.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        run: node scripts/refresh-founder-flags.mjs

@@ -53,6 +53,27 @@ function Trunc({ value, max }) {
   );
 }
 
+// Small "F" badge for a founder-led name (distinct from the ★ highlight, which means
+// "best 20% of the industry composite"). Tooltip carries the founder's name + role.
+function FounderBadge({ founder }) {
+  if (!founder) return null;
+  const title = `Founder-led — ${founder.name || 'founder'}${founder.role ? ` (${founder.role})` : ''}`;
+  return (
+    <span
+      title={title}
+      aria-label={title}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 14, height: 14, borderRadius: 3, fontSize: 9, fontWeight: 700, lineHeight: 1,
+        color: 'var(--text-secondary)', border: '1px solid var(--border-color)',
+        background: 'var(--bg-hover)', flex: '0 0 auto',
+      }}
+    >
+      F
+    </span>
+  );
+}
+
 // ── columns ───────────────────────────────────────────────────────────────────────
 const COLUMNS = [
   { key: 'symbol',        label: 'Symbol',    num: false },
@@ -93,6 +114,7 @@ function renderCell(row, key) {
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <span title={row.highlighted ? 'Highlighted: best 20% of the industry composite' : undefined} style={{ width: 10, color: 'var(--accent)' }}>{row.highlighted ? '★' : ''}</span>
           <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{row.symbol}</span>
+          <FounderBadge founder={row.founder} />
         </span>
       );
     case 'industry':      return <Trunc value={row.industry} max={150} />;
@@ -323,7 +345,9 @@ function ShortHistoryGroup({ rows, onSelect, selectedSymbol }) {
                     onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
                     onMouseLeave={e => { e.currentTarget.style.background = selected ? 'var(--bg-hover)' : ''; }}
                   >
-                    <td style={{ ...td, fontWeight: 600, color: 'var(--text-primary)' }}>{r.symbol}</td>
+                    <td style={{ ...td, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{r.symbol}<FounderBadge founder={r.founder} /></span>
+                    </td>
                     <td style={td}><Trunc value={r.industry} max={150} /></td>
                     <td style={{ ...td, textAlign: 'right', color: 'var(--text-secondary)' }}>{fmtInt(r.historyYears)}y</td>
                     <td style={{ ...td, textAlign: 'right' }}>{fmtPct1(r.roicLatest)}</td>
@@ -393,6 +417,10 @@ export default function ScreenSection({ onSelect, selectedSymbol }) {
         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>Screen</h2>
         <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
           Durable-margin compounders (10-yr median operating ROIC ≥ 15%) trading ≥ 40% below their 52-week high; the best of each industry on margin stability + leverage are highlighted.
+        </p>
+        <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <FounderBadge founder={{ name: 'founder', role: '' }} />
+          <span>= founder currently CEO or executive chair (where known)</span>
         </p>
       </header>
       {body}

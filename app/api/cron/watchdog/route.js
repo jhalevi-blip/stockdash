@@ -28,6 +28,11 @@ const KNOWN_ISIN = 'NL0010273215';                    // ASML — verified in is
 const KNOWN_ISIN_EXPECT = 'ASML';
 const SCREEN_STALE_TRADING_DAYS = 2;                  // matches app/api/screen (STALE_TRADING_DAYS)
 const FUNDAMENTALS_MAX_DAYS = Number(process.env.WATCHDOG_FUNDAMENTALS_MAX_DAYS) || 90;
+// founder_flags is refreshed monthly (GitHub Actions, 1st of the month). 35 days clears a
+// monthly cadence plus GitHub's best-effort scheduling slack while still catching a job
+// that has silently stopped running. Its own checked_at is the natural trace (same idea as
+// screen_quotes.as_of), so it needs no job_heartbeats row.
+const FOUNDER_FLAGS_MAX_DAYS = 35;
 // Heartbeat freshness budgets. portfolio-summary fires ~06:00 UTC daily; 26h tolerates
 // the watchdog running just before it. watchlist-alerts fires only 13:00–21:00 UTC on
 // weekdays, so its last beat on a Monday morning is the previous Friday evening (~56h) —
@@ -154,6 +159,21 @@ async function checkScreenQuotes(sb) {
     : pass('screen_quotes');
 }
 
+async function checkFounderFlags(sb) {
+  const { data, error } = await sb
+    .from('founder_flags')
+    .select('checked_at')
+    .order('checked_at', { ascending: false, nullsFirst: false })
+    .limit(1);
+  if (error) return fail('founder_flags', 'query failed');
+  const newest = data?.[0]?.checked_at ? Date.parse(data[0].checked_at) : null;
+  if (!newest) return fail('founder_flags', 'no rows');
+  const days = Math.floor((Date.now() - newest) / 86_400_000);
+  return days > FOUNDER_FLAGS_MAX_DAYS
+    ? fail('founder_flags', `${days} days old (max ${FOUNDER_FLAGS_MAX_DAYS})`)
+    : pass('founder_flags');
+}
+
 async function checkHeartbeats(sb) {
   const { data, error } = await sb.from('job_heartbeats').select('job, last_run_at');
   if (error) return [fail('job_portfolio_summary', 'query failed'), fail('job_watchlist_alerts', 'query failed')];
@@ -193,6 +213,7 @@ export async function GET(request) {
     ? [
         runCheck('fundamentals', () => checkFundamentals(sb)),
         runCheck('screen_quotes', () => checkScreenQuotes(sb)),
+        runCheck('founder_flags', () => checkFounderFlags(sb)),
         runCheck('heartbeats', () => checkHeartbeats(sb)),
       ]
     : [Promise.resolve(fail('database', 'unavailable'))];
