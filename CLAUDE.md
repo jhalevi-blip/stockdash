@@ -44,14 +44,17 @@ node --env-file=.env.local scripts/smoke-signed-in.mjs               # seeded US
 # Then the EU/DeGiro user: verify-import-journey runs every fixture present in
 # .scratch/fixtures/ end-to-end and leaves the empty user holding the LAST one (DeGiro:
 # ASML/SHEL/ADYEN/NVDA + the unresolved IWDA ISIN). Run it as-is — it self-paces: a fresh
-# browser per fixture (no localStorage carryover) and a ~65s wait for the 60/min limiter
-# window between fixtures, with any /api 429 auto-retried once as a test artifact. No
-# moving fixtures aside or manual waits; two fixtures just take ~1 min longer.
+# browser per fixture (no localStorage carryover) and a ~65s conservative wait between
+# fixtures (retained as a safety net even though the dev rate limiter is bypassed), with
+# any /api 429 auto-retried once as a test artifact. No moving fixtures aside or manual
+# waits; two fixtures just take ~1 min longer.
 node --env-file=.env.local scripts/verify-import-journey.mjs         # all fixtures → empty user ends on DeGiro
 node --env-file=.env.local scripts/smoke-signed-in.mjs --user empty  # EU/DeGiro user (mixed currencies + unresolved ISIN)
 ```
 
-**Both smoke runs must pass (exit 0) before any PR is merged** — the seeded USD user AND `--user empty` (the EU/DeGiro portfolio: EUR/GBX/no-price positions and an unresolved-ISIN "no price" position). A position keyed by an ISIN instead of a ticker must be skipped / shown as unavailable by any page or API that expects a ticker — never error. If a change introduces a page failure, call it out and justify it in the PR — do not merge past a red without an explanation. The test deliberately does **not** fail on `net::ERR_ABORTED` (intentional stale-fetch cancellation) or on the shared 60 req/min-per-IP limiter in `middleware.js` (it paces under the budget and retries once after a window reset).
+**Both smoke runs must pass (exit 0) before any PR is merged** — the seeded USD user AND `--user empty` (the EU/DeGiro portfolio: EUR/GBX/no-price positions and an unresolved-ISIN "no price" position). A position keyed by an ISIN instead of a ticker must be skipped / shown as unavailable by any page or API that expects a ticker — never error. If a change introduces a page failure, call it out and justify it in the PR — do not merge past a red without an explanation. The test deliberately does **not** fail on `net::ERR_ABORTED` (intentional stale-fetch cancellation).
+
+**Rate limiter in dev:** `middleware.js` bypasses the 60 req/min-per-IP limiter when `NODE_ENV=development` (i.e. `npm run dev`), so smoke runs never actually hit it. The scripts' own budget-pacing and single-retry-after-429 logic are **kept in place** as a safety net — they are just never triggered in practice. The import journey retains its ~65s between-fixture wait for the same reason. In production (`npm start` / Vercel), the limiter is fully active and unchanged.
 
 # Scratch / temporary files
 

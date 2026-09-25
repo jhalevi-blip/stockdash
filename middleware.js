@@ -11,6 +11,12 @@ const MAX_REQUESTS = 60;
 const UTM_PARAMS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
 
 function isRateLimited(ip) {
+  // Bypass in local development so smoke tests never need to pace against this
+  // limiter. The ONLY bypass path is NODE_ENV, which Next.js sets at startup
+  // from the environment — it cannot be spoofed via a request header, query
+  // param, or any other user-controlled input in production.
+  if (process.env.NODE_ENV === 'development') return false;
+
   const now = Date.now();
   const entry = rateLimitStore.get(ip);
   if (!entry || now - entry.windowStart > WINDOW_MS) {
