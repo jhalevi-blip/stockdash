@@ -228,9 +228,10 @@ async function evaluateFixture(page, fx) {
 // ── run ──────────────────────────────────────────────────────────────────────
 // Each fixture gets its OWN fresh browser (new signInTestUser session), so nothing —
 // cookies, localStorage, an in-flight editor — carries over from the previous fixture
-// (a Saxo→DeGiro localStorage carryover once produced a phantom "persisted 16/5"). We
-// also wait out the middleware's 60 req/min-per-IP window between fixtures, and treat
-// any HTTP 429 from our own /api as a TEST ARTIFACT (retry once, never a product bug).
+// (a Saxo→DeGiro localStorage carryover once produced a phantom "persisted 16/5").
+// Any HTTP 429 from our own /api is treated as a TEST ARTIFACT (retry once after a
+// window reset, never a product bug). The limiter is bypassed in dev so 429s should
+// not occur, but the reactive retry remains in place as a safety net.
 const RATE_WINDOW_MS = 65_000;   // > middleware.js WINDOW_MS (60s), with margin
 const origin = new URL(baseUrl).origin;
 
@@ -261,9 +262,6 @@ if (!present.length) { console.log('\nNo fixtures present — nothing to verify.
 const results = [];
 for (let i = 0; i < present.length; i++) {
   const fx = present[i];
-  // Fresh rate-limit window before every fixture after the first.
-  if (i > 0) { console.log(`   … waiting ${RATE_WINDOW_MS / 1000}s for a fresh rate-limit window before ${fx.label}`); await sleep(RATE_WINDOW_MS); }
-
   let r = await runFixtureFresh(fx);
   if (r.rateLimited) {
     console.log(`⚠ ${fx.label}: HTTP 429 from /api during the fixture — rate-limited (test artifact, not a product failure). Retrying once after a fresh window…`);
