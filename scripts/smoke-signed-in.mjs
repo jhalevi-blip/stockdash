@@ -17,10 +17,10 @@
 // TWO deliberate non-failures, so the signal is real bugs not test artifacts:
 //   • net::ERR_ABORTED — the app intentionally cancels in-flight fetches on
 //     navigation / stale-fetch supersession. Not a server failure.
-//   • HTTP 429 from middleware.js — a shared in-memory 60 req/min-per-IP limiter.
-//     A fast full-site crawl trips it, so we PACE requests under the budget and,
-//     if a page still rate-limits, wait one window and retry it once. A page that
-//     429s even after a fresh window genuinely over-fetches → then it fails.
+//   • HTTP 429 from middleware.js — bypassed in dev (NODE_ENV=development), so this
+//     should never fire locally. The script still retries once after a window reset
+//     if a 429 does occur (e.g. against a prod-like server). A page that 429s even
+//     after a fresh window genuinely over-fetches → then it fails.
 
 import fs from 'fs';
 import path from 'path';
@@ -43,9 +43,7 @@ if (!userId) { console.error(`✖ no user id for --user ${userArg} (set ${userAr
 const OUT_DIR = userArg === 'empty' ? '.smoke-artifacts-empty' : '.smoke-artifacts';
 const NAV_TIMEOUT = 45000;
 const SETTLE_MS = 2500;         // let client-side /api fetches resolve after networkidle
-const RATE_WINDOW_MS = 60_000;  // must match middleware.js WINDOW_MS
-const RATE_MAX = 60;            // must match middleware.js MAX_REQUESTS
-const RATE_BUDGET = 45;         // stay comfortably under the limit while pacing
+const RATE_WINDOW_MS = 60_000;  // must match middleware.js WINDOW_MS (used for reactive 429 retry)
 
 const ERROR_PATTERNS = [
   /something went wrong/i,
@@ -63,26 +61,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 fs.mkdirSync(OUT_DIR, { recursive: true });
 const routes = NAV_ITEMS.map((n) => ({ id: n.id, label: n.label, href: n.href }));
 
-// Rolling timestamps of our own /api responses, for proactive pacing.
-const apiHits = [];
-function recordApiHit() { apiHits.push(Date.now()); }
-async function paceForBudget() {
-  const now = Date.now();
-  while (apiHits.length && now - apiHits[0] > RATE_WINDOW_MS) apiHits.shift();
-  if (apiHits.length >= RATE_BUDGET) {
-    const waitMs = RATE_WINDOW_MS - (now - apiHits[0]) + 500;
-    console.log(`   … pacing ${Math.ceil(waitMs / 1000)}s to stay under the ${RATE_MAX}/min API limit`);
-    await sleep(waitMs);
-    const t = Date.now();
-    while (apiHits.length && t - apiHits[0] > RATE_WINDOW_MS) apiHits.shift();
-  }
-}
-
 let bucket = { console: [], api: [], rateLimited: 0 };
 const isOwnApi = (url) => url.startsWith(origin) && url.includes('/api/');
 
 console.log(`Signed-in smoke as --user ${userArg} (${userId})`);
 const { browser, page } = await signInTestUser({ headless: !headed, baseUrl, userId });
+// Brief settle so the dev compiler finishes the first route before the loop starts.
+// signInTestUser only pre-loads '/' — /dashboard and others compile on first hit.
+await sleep(1000);
 
 page.on('console', (msg) => {
   if (msg.type() !== 'error') return;
@@ -94,7 +80,6 @@ page.on('pageerror', (err) => bucket.console.push(`pageerror: ${err.message}`.sl
 page.on('response', (res) => {
   const url = res.url();
   if (!isOwnApi(url)) return;
-  recordApiHit();
   const s = res.status();
   if (s === 429) bucket.rateLimited += 1;
   else if (s >= 400) bucket.api.push(`${s} ${res.request().method()} ${new URL(url).pathname}`);
@@ -131,14 +116,14 @@ async function visitOnce(route) {
 const results = [];
 try {
   for (const route of routes) {
-    await paceForBudget();
     let r = await visitOnce(route);
 
-    // If the shared limiter tripped, let the window reset and retry the page once.
+    // Reactive only: if a 429 actually occurred, wait one window and retry once.
+    // In dev (NODE_ENV=development) the limiter is bypassed so this path is dormant;
+    // it remains as a safety net when running against a prod-like server.
     if (r.rateLimited > 0 && !r.api.length) {
       console.log(`   … ${route.href} hit the rate limiter; waiting one window then retrying`);
       await sleep(RATE_WINDOW_MS + 500);
-      apiHits.length = 0;
       r = await visitOnce(route);
     }
 
