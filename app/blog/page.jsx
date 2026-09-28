@@ -44,7 +44,7 @@ export default function BlogIndex() {
             <p style={{ color: '#8b949e', fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>
               {post.description}
             </p>
-            <Link href={`/blog/${post.slug}`} style={{ color: '#58a6ff', fontSize: 13, textDecoration: 'none', fontWeight: 500 }}>
+            <Link href={`/blog/${post.slug}`} className="tap44" style={{ color: '#58a6ff', fontSize: 13, textDecoration: 'none', fontWeight: 500 }}>
               Read more →
             </Link>
           </li>

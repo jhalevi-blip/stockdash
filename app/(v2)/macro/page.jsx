@@ -7,10 +7,10 @@ const fmt = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d,
 /* ─── Fear & Greed score → color ────────────────────────────────────────── */
 function fgColor(score) {
   if (score == null) return 'var(--text-muted)';
-  if (score <= 24)   return '#dc2626';
+  if (score <= 24)   return 'var(--negative)';
   if (score <= 44)   return '#f85149';
   if (score <= 55)   return '#d97706';
-  if (score <= 74)   return '#16a34a';
+  if (score <= 74)   return 'var(--positive)';
   return '#3fb950';
 }
 
@@ -128,12 +128,12 @@ export default function MacroV2Page() {
   const fearGreed = data?.fearGreed;
 
   // VIX color (border + text): red above 25, amber above 18, default otherwise
-  const vixColor = vix?.price > 25 ? '#dc2626' : vix?.price > 18 ? '#d97706' : undefined;
+  const vixColor = vix?.price > 25 ? 'var(--negative)' : vix?.price > 18 ? '#d97706' : undefined;
 
   // Yield curve spread — only when both tenors are available
   const hasSpread  = t?.year2 != null && t?.year10 != null;
   const spread     = hasSpread ? t.year10 - t.year2 : null;
-  const spreadColor = spread != null && spread < 0 ? '#dc2626' : '#16a34a';
+  const spreadColor = spread != null && spread < 0 ? 'var(--negative)' : 'var(--positive)';
 
   return (
     <div style={{

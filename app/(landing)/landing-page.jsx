@@ -28,10 +28,10 @@ export default function LandingPage({ market }) {
       }}>
         <Logo />
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <a href="/blog" style={{ color: "#8b949e", fontSize: 13, fontWeight: 500, textDecoration: "none", marginRight: 8 }}>Blog</a>
+          <a href="/blog" className="tap44" style={{ color: "#8b949e", fontSize: 13, fontWeight: 500, textDecoration: "none", marginRight: 8 }}>Blog</a>
           <div style={{ display: "flex", gap: 8, alignItems: "center", visibility: isLoaded ? "visible" : "hidden" }}>
             {isSignedIn ? (
-              <a href="/dashboard" style={{
+              <a href="/dashboard" className="tap44" style={{
                 background: "none", border: "1px solid #30363d", borderRadius: 6,
                 color: "#e6edf3", fontSize: 13, fontWeight: 600, padding: "5px 14px",
                 textDecoration: "none", display: "inline-block",
@@ -39,13 +39,13 @@ export default function LandingPage({ market }) {
             ) : (
               <>
                 <SignInButton mode="modal" forceRedirectUrl="/dashboard" appearance={{ baseTheme: dark }}>
-                  <button style={{
+                  <button className="tap44" style={{
                     background: "none", border: "1px solid #30363d", borderRadius: 6,
                     color: "#e6edf3", fontSize: 13, fontWeight: 600, padding: "5px 14px",
                     cursor: "pointer", fontFamily: "inherit",
                   }}>Sign In</button>
                 </SignInButton>
-                <a href="/sign-up" style={{
+                <a href="/sign-up" className="tap44" style={{
                   background: "#3b82f6", border: "1px solid #3b82f6", borderRadius: 6,
                   color: "#fff", fontSize: 13, fontWeight: 600, padding: "5px 14px",
                   textDecoration: "none", display: "inline-block",
@@ -124,8 +124,8 @@ export default function LandingPage({ market }) {
         <Logo />
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           <span>Free &amp; open · No ads · stockdashes.com</span>
-          <a href="/blog" style={{ color: 'rgba(230,237,243,0.22)', textDecoration: 'none' }}>Blog</a>
-          <a href="/privacy" style={{ color: 'rgba(230,237,243,0.22)', textDecoration: 'none' }}>Privacy Policy</a>
+          <a href="/blog" className="tap44" style={{ color: 'rgba(230,237,243,0.22)', textDecoration: 'none' }}>Blog</a>
+          <a href="/privacy" className="tap44" style={{ color: 'rgba(230,237,243,0.22)', textDecoration: 'none' }}>Privacy Policy</a>
         </div>
       </footer>
     </div>

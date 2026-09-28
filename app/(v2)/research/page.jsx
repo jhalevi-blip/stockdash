@@ -1093,22 +1093,22 @@ function AnalystRatingsCard({ ticker, data, currentPrice }) {
           </div>
           <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden' }}>
             {[
-              { v: consensus.strongBuy,  bg: '#16a34a' },
+              { v: consensus.strongBuy,  bg: 'var(--positive)' },
               { v: consensus.buy,        bg: '#4ade80' },
               { v: consensus.hold,       bg: '#fbbf24' },
               { v: consensus.sell,       bg: '#f87171' },
-              { v: consensus.strongSell, bg: '#dc2626' },
+              { v: consensus.strongSell, bg: 'var(--negative)' },
             ].map((seg, i) => seg.v > 0 && (
               <div key={i} style={{ flex: pct(seg.v), background: seg.bg, minWidth: 2 }} />
             ))}
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 5, flexWrap: 'wrap', fontSize: 10 }}>
             {[
-              { label: 'S.Buy', v: consensus.strongBuy,  color: '#16a34a' },
+              { label: 'S.Buy', v: consensus.strongBuy,  color: 'var(--positive)' },
               { label: 'Buy',   v: consensus.buy,        color: '#4ade80' },
               { label: 'Hold',  v: consensus.hold,       color: '#fbbf24' },
               { label: 'Sell',  v: consensus.sell,       color: '#f87171' },
-              { label: 'S.Sell',v: consensus.strongSell, color: '#dc2626' },
+              { label: 'S.Sell',v: consensus.strongSell, color: 'var(--negative)' },
             ].map(s => (
               <span key={s.label} style={{ color: s.color, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                 {s.v} {s.label}

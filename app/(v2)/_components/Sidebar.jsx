@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Logo from './Logo';
 import Dot from './Dot';
+import NavIcon from './NavIcon';
 import { NAV_ITEMS } from '../_lib/routes';
 import { getMarketStatus } from '@/lib/marketStatus';
 import { FLAGSHIP_LABEL } from '@/lib/aiModels';
@@ -105,7 +106,7 @@ export default function Sidebar() {
                 whiteSpace: 'nowrap',
                 transition: 'background .2s, color .2s',
               }}>
-              <span style={{ fontSize: 14, width: 18, textAlign: 'center', flexShrink: 0 }}>{item.emoji}</span>
+              <NavIcon id={item.id} size={18} />
               {!collapsed && <span>{item.label}</span>}
             </Link>
           );

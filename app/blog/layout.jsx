@@ -10,7 +10,7 @@ export default function BlogLayout({ children }) {
         borderBottom: '1px solid #21262d',
       }}>
         <Logo />
-        <Link href="/blog" style={{ color: '#8b949e', fontSize: 13, textDecoration: 'none' }}>Blog</Link>
+        <Link href="/blog" className="tap44" style={{ color: '#8b949e', fontSize: 13, textDecoration: 'none' }}>Blog</Link>
       </nav>
       <main style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px 80px', width: '100%' }}>
         {children}

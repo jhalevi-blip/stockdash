@@ -28,7 +28,7 @@ export default function DTStickyCTA() {
       {/* Right — CTA button */}
       <div style={{ visibility: isLoaded ? 'visible' : 'hidden', flexShrink: 0 }}>
         {isSignedIn ? (
-          <a href="/dashboard" style={{
+          <a href="/dashboard" className="tap44" style={{
             display: 'inline-block',
             fontSize: 13, fontWeight: 700,
             padding: '8px 18px',
@@ -46,7 +46,7 @@ export default function DTStickyCTA() {
           </a>
         ) : (
           <SignUpButton mode="modal" forceRedirectUrl="/dashboard">
-            <button style={{
+            <button className="tap44" style={{
               fontSize: 13, fontWeight: 700,
               padding: '8px 18px',
               borderRadius: 'var(--radius)',

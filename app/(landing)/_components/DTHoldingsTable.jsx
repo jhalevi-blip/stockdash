@@ -56,11 +56,11 @@ export default function DTHoldingsTable({ holdings, selectedTicker, onSelect }) 
                 <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)', fontVariantNumeric: 'tabular-nums' }}>{h.weight}</td>
                 <td style={{ padding: '8px 10px', borderBottom: '1px solid var(--border-color)' }}>
                   <SignUpButton mode="modal">
-                    <button style={{
+                    <button className="tap44" style={{
                       fontSize: 11, fontWeight: 600, padding: '3px 10px',
                       borderRadius: 'var(--radius)', border: '1px solid var(--border-color)',
                       background: 'var(--bg-secondary)', color: 'var(--text-secondary)',
-                      cursor: 'pointer', fontFamily: 'inherit',
+                      cursor: 'pointer', fontFamily: 'inherit', justifyContent: 'center',
                     }}>
                       Trade
                     </button>

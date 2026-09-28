@@ -515,6 +515,22 @@ body:has(.app-sidebar) { padding-left: 200px; }
   }
 }
 
+/* Dashboard market-index strip: reflow the 6 cards to a 2-col grid under 480px
+   so each has room for value + sparkline (no cramped single scrolling row). */
+@media (max-width: 480px) {
+  .dv2-macro-scroll { overflow-x: visible; }
+  .dv2-macro-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+  }
+}
+
+/* Marketing tap targets: guarantee ≥44px-tall touch targets on mobile without
+   changing desktop layout (nav links, logo, Trade, Open Dashboard, Read more). */
+@media (max-width: 768px) {
+  .tap44 { min-height: 44px; display: inline-flex; align-items: center; }
+}
+
 /* Valuation table: horizontal scroll + sticky ticker column on mobile */
 .dv2-valuation-scroll {
   overflow-x: auto;
@@ -531,4 +547,35 @@ body:has(.app-sidebar) { padding-left: 200px; }
   .dv2-valuation-scroll th:first-child { background: var(--bg-secondary); }
   .dv2-valuation-scroll td:first-child { background: var(--bg-card); }
   .dv2-valuation-scroll tr:hover td:first-child { background: var(--bg-hover); }
+}
+
+/* Watchlist master/detail: the detail panel forces a 360px min column that
+   overflowed the page at 390px — stack it under a single column on mobile. */
+.wl-master-detail {
+  display: grid;
+  grid-template-columns: minmax(360px, 480px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 768px) {
+  .wl-master-detail { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Watchlist quote tables: own horizontal scroller with the ticker (first)
+   column frozen, so a wide table never scrolls the whole page sideways. */
+.wl-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+@media (max-width: 768px) {
+  .wl-table-scroll th:first-child,
+  .wl-table-scroll td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+  }
+  .wl-table-scroll th:first-child { background: var(--bg-secondary); }
+  .wl-table-scroll td:first-child { background: var(--bg-card); }
+  .wl-table-scroll tr:hover td:first-child { background: var(--bg-hover); }
 }

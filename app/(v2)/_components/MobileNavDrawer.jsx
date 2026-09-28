@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { NAV_ITEMS } from '../_lib/routes';
 import Logo from './Logo';
+import NavIcon from './NavIcon';
 
 export default function MobileNavDrawer() {
   const [open, setOpen] = useState(false);
@@ -55,19 +56,20 @@ export default function MobileNavDrawer() {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 10,
-                  padding: '8px 10px',
+                  gap: 12,
+                  minHeight: 44,
+                  padding: '8px 12px',
                   borderRadius: 6,
                   textDecoration: 'none',
                   color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
                   background: isActive ? 'var(--bg-hover)' : 'transparent',
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: isActive ? 600 : 500,
                   borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
                   transition: 'background .2s, color .2s',
                 }}
               >
-                <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.emoji}</span>
+                <NavIcon id={item.id} size={18} />
                 <span>{item.label}</span>
               </Link>
             );

@@ -467,7 +467,7 @@ function SectionTable({ section, markets, now, onPatch, onRemove, onAdd, selecte
       {section.items.length === 0 ? (
         <p style={{ padding: 14, color: 'var(--text-muted)', fontSize: 13 }}>No symbols in this section.</p>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div className="wl-table-scroll">
           <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontFamily: FONT }}>
             <colgroup>
               {COL_WIDTHS[role].map((w, i) => <col key={i} style={{ width: w }} />)}
@@ -552,7 +552,7 @@ function Stat({ label, value }) {
 function QuartersTable({ quarters }) {
   const qLabel = q => (q.period && q.fiscalYear ? `${q.period} FY${String(q.fiscalYear).slice(-2)}` : (q.date || '—'));
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div className="wl-table-scroll">
       <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT }}>
         <thead>
           <tr>
@@ -889,7 +889,7 @@ export default function WatchlistPage() {
 
       {/* Master–detail: sections table on the left (narrower), detail panel on the
           right. The panel is sticky so it stays in view while the table scrolls. */}
-      <div style={masterDetail}>
+      <div className="wl-master-detail">
         <div style={{ minWidth: 0 }}>
           {sections.map(s => (
             <SectionTable
@@ -918,12 +918,6 @@ export default function WatchlistPage() {
   );
 }
 
-const masterDetail = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(360px, 480px) minmax(0, 1fr)',
-  gap: 16,
-  alignItems: 'start',
-};
 const panelMsg = { color: 'var(--text-secondary)', fontSize: 13, margin: 0 };
 const statGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 14 };
 const qTh = {
