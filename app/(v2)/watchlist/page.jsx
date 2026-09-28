@@ -46,18 +46,24 @@ function fmtClock(ms) {
   return new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(ms));
 }
 
-function AsOf({ ms, marketOpen, now }) {
-  if (!ms) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
-  const ageMin = Math.floor(((now ?? ms) - ms) / 60000);
-  // "Stale" only flags a surprising gap while the market is open. A closed-market
-  // gap is expected (spec §4: a flat 0.00% is "market closed", not "nothing happening").
-  const stale = marketOpen && ageMin > 15;
-  const rel = ageMin <= 0 ? 'just now' : ageMin < 60 ? `${ageMin}m ago` : `${Math.floor(ageMin / 60)}h ago`;
-  return (
-    <span style={{ color: stale ? 'var(--warn)' : 'var(--text-muted)', fontSize: 11, whiteSpace: 'nowrap' }}>
-      {rel}{stale ? ' · stale' : ''}
-    </span>
-  );
+// A row's price is flagged "older than the rest" when its as-of trails the
+// section's freshest quote by more than 20 minutes (catches a stuck quote or a
+// stale prior-day close while every other symbol is current). Same close for
+// everyone → nothing flagged.
+const STALE_GAP_MS = 20 * 60 * 1000;
+
+// Section-level "as of" line shown once above each table.
+function asOfLabel(repAsOf, marketOpen) {
+  if (!repAsOf) return 'Prices unavailable';
+  if (marketOpen) return `Prices as of ${fmtClock(repAsOf)}, live`;
+  const d = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short' }).format(new Date(repAsOf));
+  return `Prices as of ${d}, close`;
+}
+
+// Full date+time for a stale row's tooltip, e.g. "24 Sep, 15:30".
+function fmtStaleTitle(ms) {
+  const d = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short' }).format(new Date(ms));
+  return `Priced ${d}, ${fmtClock(ms)} — older than the rest of this table`;
 }
 
 // vs-target: how far current price sits ABOVE the target, as a %. Negative = at or
@@ -75,9 +81,9 @@ function VsTarget({ price, target }) {
 
 // ── column sets by role (spec §3) ─────────────────────────────────────────────
 const COLUMNS = {
-  candidate: ['Symbol', 'Price', 'Chg%', 'Target', 'vs Tgt', 'As of'],
-  theme:     ['Symbol', 'Price', 'Chg%', 'Theme', 'Thesis', 'As of'],
-  macro:     ['Symbol', 'Price', 'Chg%', 'As of'],
+  candidate: ['Symbol', 'Price', 'Chg%', 'Target', 'vs Tgt'],
+  theme:     ['Symbol', 'Price', 'Chg%', 'Theme', 'Thesis'],
+  macro:     ['Symbol', 'Price', 'Chg%'],
 };
 
 // Fixed per-column widths (px) for table-layout: fixed — order matches COLUMNS with a
@@ -87,9 +93,9 @@ const COLUMNS = {
 // overflowX wrapper only engages below the summed width (min-content per role:
 // candidate 356, theme 382, macro 286).
 const COL_WIDTHS = {
-  candidate: [72, 54, 48, 52, 50, 50, 30], // Symbol Price Chg% Target vs-Tgt As-of ×
-  theme:     [68, 52, 46, 56, 84, 48, 28], // Symbol Price Chg% Theme Thesis As-of ×
-  macro:     [84, 60, 54, 56, 32],         // Symbol Price Chg% As-of ×
+  candidate: [72, 54, 48, 52, 50, 30], // Symbol Price Chg% Target vs-Tgt ×
+  theme:     [68, 52, 46, 56, 84, 28], // Symbol Price Chg% Theme Thesis ×
+  macro:     [84, 60, 54, 32],         // Symbol Price Chg% ×
 };
 
 const th = {
@@ -99,13 +105,17 @@ const th = {
 };
 const td = { padding: '8px 6px', fontSize: 13, borderBottom: '1px solid var(--border-color)', verticalAlign: 'top' };
 
-function SymbolCell({ item }) {
+function SymbolCell({ item, stale, staleTitle }) {
   const grey = !item.resolved;
   return (
     <td style={{ ...td, fontWeight: 600, color: grey ? 'var(--text-muted)' : 'var(--text-primary)' }}>
       {item.displaySymbol}
       {item.exchange && (
         <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 500, color: 'var(--text-muted)' }}>{item.exchange}</span>
+      )}
+      {stale && (
+        <span title={staleTitle} aria-label={staleTitle}
+          style={{ marginLeft: 5, fontSize: 11, color: 'var(--warn)', cursor: 'help' }}>⚠</span>
       )}
     </td>
   );
@@ -231,18 +241,16 @@ function EditableCell({ value, kind, assetClass, placeholder, onSave, styleExtra
   );
 }
 
-function Row({ item, role, marketOpen, now, onPatch, onRemove, selected, onSelect }) {
+function Row({ item, role, repAsOf, onPatch, onRemove, selected, onSelect }) {
   const q = item.quote;
-  const asOf = q.status === 'ok'
-    ? <AsOf ms={q.asOf} marketOpen={marketOpen} now={now} />
-    : <span style={{ color: 'var(--text-muted)' }}>—</span>;
+  const isStale = q.status === 'ok' && repAsOf && q.asOf && (repAsOf - q.asOf) > STALE_GAP_MS;
 
   // Row click selects the row for the detail panel. Clicks that land on an
   // editable cell still begin editing (both handlers fire on bubble) — selecting
   // the row you're editing is harmless. Highlight the active row.
   return (
     <tr
-      onClick={() => onSelect?.(item)}
+      onClick={(e) => onSelect?.(item, e.currentTarget)}
       aria-selected={selected || undefined}
       style={{
         cursor: 'pointer',
@@ -250,7 +258,7 @@ function Row({ item, role, marketOpen, now, onPatch, onRemove, selected, onSelec
         boxShadow: selected ? 'inset 3px 0 0 0 var(--accent)' : undefined,
       }}
     >
-      <SymbolCell item={item} />
+      <SymbolCell item={item} stale={isStale} staleTitle={isStale ? fmtStaleTitle(q.asOf) : undefined} />
       {/* price + change, or a colSpan={2} error/unresolved label (spec §2 step 3) */}
       {priceCells(item)}
       {role === 'candidate' && (
@@ -279,7 +287,6 @@ function Row({ item, role, marketOpen, now, onPatch, onRemove, selected, onSelec
         </>
       )}
       {/* macro: no extra columns */}
-      <td style={td}>{asOf}</td>
       <RemoveCell item={item} onRemove={onRemove} />
     </tr>
   );
@@ -462,12 +469,23 @@ function SectionTable({ section, markets, now, onPatch, onRemove, onAdd, selecte
     [section.items, sort],
   );
 
+  // Freshest quote in this section drives the single "as of" line and the
+  // per-row staleness flag (a row trailing this by >20m gets a ⚠).
+  const repAsOf = useMemo(() => {
+    const ts = section.items.map(i => (i.quote?.status === 'ok' ? i.quote.asOf : null)).filter(Boolean);
+    return ts.length ? Math.max(...ts) : null;
+  }, [section.items]);
+
   return (
     <Card title={section.name} eyebrow={role} style={{ marginBottom: 16 }} padding="0">
       {section.items.length === 0 ? (
         <p style={{ padding: 14, color: 'var(--text-muted)', fontSize: 13 }}>No symbols in this section.</p>
       ) : (
-        <div className="wl-table-scroll">
+        <>
+          <div style={{ padding: '4px 10px 8px', fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+            {asOfLabel(repAsOf, marketOpen)}
+          </div>
+          <div className="wl-table-scroll">
           <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontFamily: FONT }}>
             <colgroup>
               {COL_WIDTHS[role].map((w, i) => <col key={i} style={{ width: w }} />)}
@@ -498,10 +516,11 @@ function SectionTable({ section, markets, now, onPatch, onRemove, onAdd, selecte
               </tr>
             </thead>
             <tbody>
-              {items.map(it => <Row key={it.id} item={it} role={role} marketOpen={marketOpen} now={now} onPatch={onPatch} onRemove={onRemove} selected={it.id === selectedId} onSelect={onSelect} />)}
+              {items.map(it => <Row key={it.id} item={it} role={role} repAsOf={repAsOf} onPatch={onPatch} onRemove={onRemove} selected={it.id === selectedId} onSelect={onSelect} />)}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
       {section.id != null && <AddSymbolForm section={section} onAdd={onAdd} />}
     </Card>
@@ -682,7 +701,7 @@ function makeScreenItem(symbol) {
   };
 }
 
-function DetailPanel({ item }) {
+function DetailPanel({ item, onBack }) {
   if (!item) {
     return (
       <Card title="Detail" style={{ minHeight: 360 }}>
@@ -690,18 +709,29 @@ function DetailPanel({ item }) {
       </Card>
     );
   }
+  // Mobile-only "back to list" link (the panel stacks below the tables at ≤768px).
+  const backLink = onBack ? (
+    <button
+      onClick={onBack}
+      className="wl-mobile-only"
+      style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '2px 0 10px' }}
+    >← Back to list</button>
+  ) : null;
   // Unresolved (e.g. 6479): no data on this plan; skip both fetches entirely.
   if (!item.resolved) {
     return (
-      <Card title={item.displaySymbol} eyebrow={item.exchange || item.assetClass} style={{ minHeight: 360 }}>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic' }}>
-          No data on current plan{item.exchange ? ` (${item.exchange})` : ''}.
-        </p>
-      </Card>
+      <>
+        {backLink}
+        <Card title={item.displaySymbol} eyebrow={item.exchange || item.assetClass} style={{ minHeight: 360 }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic' }}>
+            No data on current plan{item.exchange ? ` (${item.exchange})` : ''}.
+          </p>
+        </Card>
+      </>
     );
   }
   // Remount per symbol → stable hook order + clean per-symbol fetch state.
-  return <ResolvedDetail key={item.id} item={item} />;
+  return <>{backLink}<ResolvedDetail key={item.id} item={item} /></>;
 }
 
 export default function WatchlistPage() {
@@ -717,6 +747,21 @@ export default function WatchlistPage() {
   // A screen row can also drive the detail panel. When set it takes precedence over the
   // watchlist selection; cleared whenever a watchlist row is clicked.
   const [screenSymbol, setScreenSymbol] = useState(null);
+
+  // Mobile (≤768px): the detail panel stacks below every section, so a tap must
+  // scroll it into view; "← Back to list" scrolls back to the tapped row.
+  const detailRef = useRef(null);
+  const lastRowElRef = useRef(null);
+  const isMobileView = () => typeof window !== 'undefined' && window.innerWidth <= 768;
+  function revealDetail(rowEl) {
+    if (rowEl) lastRowElRef.current = rowEl;
+    if (!isMobileView()) return;
+    // let the panel re-render for the new selection before scrolling
+    requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
+  function backToList() {
+    lastRowElRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 
   // Mount-gated clock, ticking each minute, so the "as of" relative labels stay live
   // without calling Date.now() during render (mirrors the Sidebar clock pattern).
@@ -901,16 +946,16 @@ export default function WatchlistPage() {
               onRemove={removeItem}
               onAdd={addItem}
               selectedId={screenSymbol ? null : effectiveId}
-              onSelect={it => { setScreenSymbol(null); setSelectedId(it.id); }}
+              onSelect={(it, rowEl) => { setScreenSymbol(null); setSelectedId(it.id); revealDetail(rowEl); }}
             />
           ))}
           {/* Screen — fills the space under the sections; clicking a row loads it into
               the detail panel on the right (same as a watchlist row). */}
-          <ScreenSection onSelect={selectScreenSymbol} selectedSymbol={screenSymbol} />
+          <ScreenSection onSelect={(sym, rowEl) => { selectScreenSymbol(sym); revealDetail(rowEl); }} selectedSymbol={screenSymbol} />
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ position: 'sticky', top: 20 }}>
-            <DetailPanel item={selectedItem} />
+          <div ref={detailRef} style={{ position: 'sticky', top: 20, scrollMarginTop: 70 }}>
+            <DetailPanel item={selectedItem} onBack={backToList} />
           </div>
         </div>
       </div>

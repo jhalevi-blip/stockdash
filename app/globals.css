@@ -27,15 +27,15 @@
   --accent-btn-hover: #1d4ed8;
   --brand-gold:       #c49a1a;
   --positive:         #16a34a;
-  --negative:         #e55c5c;
+  --negative:         #ef4444;
   --shadow-sm:        rgba(0,0,0,0.2);
   --bg-buy:           #14532d;
   --text-buy:         #4ade80;
   --bg-sell:          #450a0a;
-  --text-sell:        #f87171;
+  --text-sell:        #ef4444;
   /* Insider/transaction badge text — legible on the badge's tinted background */
   --badge-buy:        #17a94d;
-  --badge-sell:       #e55f5f;
+  --badge-sell:       #ef4444;
   --badge-award:      #5c8af0;
   --badge-option:     #a273f2;
   --badge-neutral:    #dd7906;
@@ -83,11 +83,11 @@
   --bg-buy:           #dcfce7;
   --text-buy:         #117f3a;
   --bg-sell:          #fee2e2;
-  --text-sell:        #c92020;
+  --text-sell:        #dc2626;
   --warn:             #d97706;
   /* Insider/transaction badge text — legible on the badge's tinted background */
   --badge-buy:        #107736;
-  --badge-sell:       #c11f1f;
+  --badge-sell:       #dc2626;
   --badge-award:      #1557e7;
   --badge-option:     #7834ec;
   --badge-neutral:    #9c5604;
@@ -559,6 +559,12 @@ body:has(.app-sidebar) { padding-left: 200px; }
 }
 @media (max-width: 768px) {
   .wl-master-detail { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Shown only on mobile (≤768px) — e.g. the watchlist "Back to list" link. */
+.wl-mobile-only { display: none; }
+@media (max-width: 768px) {
+  .wl-mobile-only { display: block; }
 }
 
 /* Watchlist quote tables: own horizontal scroller with the ticker (first)
