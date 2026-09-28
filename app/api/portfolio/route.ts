@@ -14,6 +14,25 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Retry the read ONCE, only for transient failures: network/timeout, a 5xx from
+// the data API, or the cold-start clock-skew "JWT issued at future". Never retry
+// auth/permission errors or PGRST116 (row-not-found). Reads only.
+function isTransientReadError(err: any): boolean {
+  if (!err) return false;
+  const msg = String(err.message ?? err).toLowerCase();
+  // clock skew at cold start (e.g. a host clock running slightly ahead) — retryable
+  if (msg.includes('issued at future')) return true;
+  // network failure / timeout thrown by the fetch layer
+  if (err.name === 'AbortError' || err.name === 'TypeError') return true;
+  if (/fetch failed|network|timeout|econnreset|socket hang|und_err/.test(msg)) return true;
+  // 5xx from the data API / gateway (string codes like PGRST116 → NaN, ignored)
+  const status = Number(err.status ?? err.statusCode);
+  if (status >= 500 && status <= 599) return true;
+  return false;
+}
+
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return Response.json({ signedIn: false, holdings: [] }, {
@@ -23,11 +42,28 @@ export async function GET() {
   const sb = getSupabaseAdmin();
   if (!sb) return Response.json({ error: 'Supabase not configured' }, { status: 500 });
 
-  const { data, error } = await sb
+  const runRead = () => sb
     .from('portfolios')
     .select('holdings, settings')
     .eq('user_id', userId)
     .single();
+
+  let res: Awaited<ReturnType<typeof runRead>>;
+  try {
+    res = await runRead();
+  } catch (e) {
+    res = { data: null, error: e } as any;
+  }
+  if (res.error && res.error.code !== 'PGRST116' && isTransientReadError(res.error)) {
+    console.warn('[portfolio] transient read error — retrying once after 300ms:', res.error?.message);
+    await sleep(300);
+    try {
+      res = await runRead();
+    } catch (e) {
+      res = { data: null, error: e } as any;
+    }
+  }
+  const { data, error } = res;
 
   // PGRST116 = row not found — first time user, return empty
   if (error && error.code !== 'PGRST116') {
