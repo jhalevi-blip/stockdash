@@ -1409,14 +1409,16 @@ function ValuationMetricsCard({ ticker, metrics, valHistory }) {
 // SUBSYSTEM 9 — INSIDER TRADING CARD
 // ─────────────────────────────────────────────────────────────
 
+// Badge text colours are theme-aware CSS vars (defined in globals.css) chosen to
+// clear WCAG AA against the badge's own tinted background in both themes.
 const INSIDER_CODES = {
-  P: { label: 'Purchase',        color: '#16a34a' },
-  S: { label: 'Sale',            color: '#dc2626' },
-  A: { label: 'Award',           color: '#2563eb' },
-  M: { label: 'Option Exercise', color: '#7c3aed' },
-  X: { label: 'Exercise',        color: '#7c3aed' },
-  F: { label: 'Tax Withhold',    color: '#d97706' },
-  D: { label: 'Disposition',     color: '#d97706' },
+  P: { label: 'Purchase',        var: '--badge-buy'     },
+  S: { label: 'Sale',            var: '--badge-sell'    },
+  A: { label: 'Award',           var: '--badge-award'   },
+  M: { label: 'Option Exercise', var: '--badge-option'  },
+  X: { label: 'Exercise',        var: '--badge-option'  },
+  F: { label: 'Tax Withhold',    var: '--badge-neutral' },
+  D: { label: 'Disposition',     var: '--badge-neutral' },
 };
 
 function InsiderTradingCard({ ticker }) {
@@ -1542,9 +1544,9 @@ function InsiderTradingCard({ ticker }) {
                   </td>
                   <td style={{ padding: '6px', textAlign: 'right' }}>
                     <span style={{
-                      background: (code?.color ?? '#6b7280') + '22',
-                      color:      code?.color ?? '#6b7280',
-                      border:     `1px solid ${(code?.color ?? '#6b7280')}55`,
+                      background: `color-mix(in srgb, var(${code?.var ?? '--text-muted'}) 14%, var(--bg-card))`,
+                      color:      `var(${code?.var ?? '--text-muted'})`,
+                      border:     `1px solid color-mix(in srgb, var(${code?.var ?? '--text-muted'}) 40%, var(--bg-card))`,
                       borderRadius: 3, padding: '1px 5px',
                       fontSize: 9, fontWeight: 700, whiteSpace: 'nowrap',
                     }}>

@@ -188,7 +188,10 @@ export default function NewsPage() {
   // Ranked (score desc) with unranked/fallback articles by time desc at the bottom.
   const sorted = useMemo(() => {
     if (!Array.isArray(articles)) return [];
-    const withScores = articles.map(a => {
+    // The feed can return the same article id more than once — keep the first.
+    const seen = new Set();
+    const unique = articles.filter(a => (seen.has(a.id) ? false : seen.add(a.id)));
+    const withScores = unique.map(a => {
       const r = (!rankError && rankMap) ? rankMap[String(a.id)] : null;
       return { ...a, score: r?.score ?? null, why: r?.why ?? null };
     });
