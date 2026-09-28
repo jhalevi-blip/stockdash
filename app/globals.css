@@ -17,18 +17,28 @@
   --bg-accent-subtle: #1e3a5f;
   --text-primary:     #e6edf3;
   --text-secondary:   #8b949e;
-  --text-muted:       #6e7681;
+  --text-muted:       #838b96;
+  --text-faint:       rgba(230,237,243,0.45);
   --border-color:     #21262d;
   --border-strong:    #30363d;
   --border-accent:    #2563eb;
   --accent:           #58a6ff;
+  --accent-btn:       #2563eb;
+  --accent-btn-hover: #1d4ed8;
+  --brand-gold:       #c49a1a;
   --positive:         #16a34a;
-  --negative:         #dc2626;
+  --negative:         #e55c5c;
   --shadow-sm:        rgba(0,0,0,0.2);
   --bg-buy:           #14532d;
   --text-buy:         #4ade80;
   --bg-sell:          #450a0a;
   --text-sell:        #f87171;
+  /* Insider/transaction badge text — legible on the badge's tinted background */
+  --badge-buy:        #17a94d;
+  --badge-sell:       #e55f5f;
+  --badge-award:      #5c8af0;
+  --badge-option:     #a273f2;
+  --badge-neutral:    #dd7906;
 }
 
 [data-theme="dark"] {
@@ -58,19 +68,29 @@
   --bg-accent-subtle: #eff6ff;
   --text-primary:     #111827;
   --text-secondary:   #6b7280;
-  --text-muted:       #9ca3af;
+  --text-muted:       #697281;
+  --text-faint:       rgba(17,24,39,0.55);
   --border-color:     #e5e7eb;
   --border-strong:    #d1d5db;
   --border-accent:    #bfdbfe;
   --accent:           #2563eb;
-  --positive:         #16a34a;
+  --accent-btn:       #2563eb;
+  --accent-btn-hover: #1d4ed8;
+  --brand-gold:       #b28c18;
+  --positive:         #12833b;
   --negative:         #dc2626;
   --shadow-sm:        rgba(0,0,0,0.04);
   --bg-buy:           #dcfce7;
-  --text-buy:         #16a34a;
+  --text-buy:         #117f3a;
   --bg-sell:          #fee2e2;
-  --text-sell:        #dc2626;
+  --text-sell:        #c92020;
   --warn:             #d97706;
+  /* Insider/transaction badge text — legible on the badge's tinted background */
+  --badge-buy:        #107736;
+  --badge-sell:       #c11f1f;
+  --badge-award:      #1557e7;
+  --badge-option:     #7834ec;
+  --badge-neutral:    #9c5604;
 }
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }

@@ -427,7 +427,7 @@ function AddSymbolForm({ section, onAdd }) {
             onClick={() => setAssetClass(ac)}
             style={{
               padding: '4px 10px', fontSize: 12, border: 'none', cursor: busy ? 'default' : 'pointer',
-              background: assetClass === ac ? 'var(--accent)' : 'transparent',
+              background: assetClass === ac ? 'var(--accent-btn)' : 'transparent',
               color: assetClass === ac ? '#fff' : 'var(--text-secondary)',
             }}
           >{ac === 'equity' ? 'Equity' : 'FX'}</button>

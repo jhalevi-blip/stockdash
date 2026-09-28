@@ -320,7 +320,7 @@ export default function PortfolioAISummary({ holdings, portfolioStats, initialSu
                   data-tour="portfolio-ai-summary-cta"
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
-                    background: 'var(--accent)', color: '#fff',
+                    background: 'var(--accent-btn)', color: '#fff',
                     border: 'none', borderRadius: 6,
                     padding: '6px 14px', fontSize: 12, fontWeight: 600,
                     cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
