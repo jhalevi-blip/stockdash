@@ -1,14 +1,16 @@
 'use client';
 
+import { useUser } from '@clerk/nextjs';
 import CorrelationPairList from '@/components/CorrelationPairList';
 
 // Reuses the existing CorrelationPairList component from the live
 // /dashboard. Component renders its own card chrome (bg-card, border,
 // border-radius 8) so we drop it directly into the page flow — no
-// (v2) Card wrapper. Passing isSignedIn={false} disables all API
-// calls; component renders the signup gate instead. Real auth wiring
-// lands in Phase H.
+// (v2) Card wrapper. isSignedIn drives the component: signed-in users get
+// their real correlation analysis (from /api/correlation); signed-out users
+// get the sign-up card.
 export default function CorrelationsPage() {
+  const { isSignedIn } = useUser();
   return (
     <div style={{
       padding: '18px 20px',
@@ -49,7 +51,7 @@ export default function CorrelationsPage() {
       </div>
 
       {/* Reused component — renders its own card chrome */}
-      <CorrelationPairList isSignedIn={false} />
+      <CorrelationPairList isSignedIn={!!isSignedIn} />
 
       {/* Footer disclaimer */}
       <div style={{

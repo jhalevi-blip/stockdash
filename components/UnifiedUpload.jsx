@@ -456,8 +456,8 @@ export default function UnifiedUpload({ onHoldings, onTransactions, startDate, o
               {worst && worst !== best && (
                 <div style={cardStyle}>
                   <div style={labelStyle}>Worst Trade</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#f85149' }}>{worst.symbol}</div>
-                  <div style={{ fontSize: 13, color: '#f85149' }}>-€{fmt(Math.abs(worst.pnl))}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--negative)' }}>{worst.symbol}</div>
+                  <div style={{ fontSize: 13, color: 'var(--negative)' }}>-€{fmt(Math.abs(worst.pnl))}</div>
                 </div>
               )}
             </div>

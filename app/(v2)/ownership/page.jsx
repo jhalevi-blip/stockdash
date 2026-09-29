@@ -409,7 +409,7 @@ export default function OwnershipV2Page() {
                   <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{activeFund.name}</span>
                   {activeFund.filingDate && <span>Latest 13F: {activeFund.filingDate}</span>}
                   {activeFund.totalValue && <span>Portfolio: {fmt(activeFund.totalValue)}</span>}
-                  {activeFund.holdings?.length === 0 && <span style={{ color: '#f85149' }}>No data available</span>}
+                  {activeFund.holdings?.length === 0 && <span style={{ color: 'var(--text-muted)' }}>No data available</span>}
                 </div>
 
                 {activeFund.holdings?.length > 0 && (
