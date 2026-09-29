@@ -48,7 +48,7 @@ function fmtYAxis(v) {
 
 function BeatChip({ letter, beat }) {
   if (beat === null) return null;
-  const bg    = beat ? 'var(--positive-soft)' : 'var(--negative-soft)';
+  const bg    = beat ? 'var(--positive-soft)' : 'var(--negative)';
   const color = '#0d1117';
   return (
     <div style={{
@@ -290,7 +290,7 @@ export default function PriceChart({
               </span>
             ))}
             {visibleEarnings.length > 0 && (
-              <span>Earnings markers: <span style={{ color: 'var(--positive-soft)' }}>■</span> beat &nbsp;<span style={{ color: 'var(--negative-soft)' }}>■</span> miss &nbsp;(R=Rev · E=EPS)</span>
+              <span>Earnings markers: <span style={{ color: 'var(--positive-soft)' }}>■</span> beat &nbsp;<span style={{ color: 'var(--negative)' }}>■</span> miss &nbsp;(R=Rev · E=EPS)</span>
             )}
           </div>
           {/* Test hook: // setOverlayPeers(['AMD', 'AVGO']) */}
