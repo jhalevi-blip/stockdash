@@ -184,7 +184,7 @@ tr:hover td { background: var(--bg-hover); cursor: pointer; }
 /* Earnings Calendar */
 .earnings-grid { display: flex; flex-wrap: wrap; gap: 12px; }
 .earnings-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px 18px; min-width: 160px; box-shadow: 0 1px 4px var(--shadow-sm); }
-.earnings-close { border-color: #dc2626; }
+.earnings-close { border-color: var(--negative); }
 .earnings-soon { border-color: #d97706; }
 .earnings-ticker { font-weight: 700; color: var(--accent); font-size: 15px; margin-bottom: 6px; }
 .earnings-date { color: var(--text-primary); font-size: 13px; margin-bottom: 4px; }

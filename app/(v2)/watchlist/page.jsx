@@ -927,8 +927,8 @@ export default function WatchlistPage() {
 
       {isEmpty && state.status !== 'error' && (
         <p style={msg}>
-          Your watchlist is empty. Import a TradingView export with{' '}
-          <code style={{ fontSize: 12 }}>scripts/import-watchlist.mjs</code>.
+          Your watchlist is empty. Add a ticker to start tracking stocks you’re
+          watching — or pick one from the screener below.
         </p>
       )}
 

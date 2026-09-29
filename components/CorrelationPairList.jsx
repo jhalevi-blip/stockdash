@@ -119,10 +119,10 @@ export default function CorrelationPairList({ isSignedIn }) {
           border:       '1px dashed rgba(88, 166, 255, 0.3)',
           borderRadius: 6,
         }}>
-          <p style={{ fontSize: 14, fontWeight: 600, color: '#c9d1d9', margin: '0 0 8px' }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px' }}>
             🔒 {L.signupTitle}
           </p>
-          <p style={{ fontSize: 12, color: '#8b949e', margin: '0 0 16px', lineHeight: 1.5 }}>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.5 }}>
             {L.signupBody}
           </p>
           <a href="/sign-up" style={{
@@ -182,15 +182,15 @@ export default function CorrelationPairList({ isSignedIn }) {
       justifyContent: 'space-between',
       alignItems:     'baseline',
       padding:        '8px 0',
-      borderBottom:   '1px solid #21262d',
+      borderBottom:   '1px solid var(--border-color)',
       fontSize:       13,
     }}>
-      <span style={{ color: '#c9d1d9', fontWeight: 500 }}>
+      <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
         {pair.a} × {pair.b}
       </span>
-      <span style={{ color: '#8b949e', fontVariantNumeric: 'tabular-nums' }}>
+      <span style={{ color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
         {pair.r.toFixed(2)}{' '}
-        <span style={{ color: '#6e7681', fontSize: 12 }}>({correlationLabel(pair.r)})</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>({correlationLabel(pair.r)})</span>
       </span>
     </div>
   );
@@ -198,7 +198,7 @@ export default function CorrelationPairList({ isSignedIn }) {
   return (
     <div style={cardStyle}>
       <h3 style={sectionLabelStyle}>{L.sectionTitle}</h3>
-      <p style={{ fontSize: 12, color: '#8b949e', margin: '0 0 20px', lineHeight: 1.5 }}>
+      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 20px', lineHeight: 1.5 }}>
         {L.intro} {correlationData.trading_days_used ?? '—'} {L.daysWord}.
       </p>
 
@@ -235,7 +235,7 @@ export default function CorrelationPairList({ isSignedIn }) {
               {takeaways.map((t, i) => (
                 <li key={i} style={{
                   fontSize:     13,
-                  color:        '#c9d1d9',
+                  color:        'var(--text-primary)',
                   lineHeight:   1.6,
                   marginBottom: i === takeaways.length - 1 ? 0 : 8,
                 }}>
@@ -250,7 +250,7 @@ export default function CorrelationPairList({ isSignedIn }) {
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 24 }}>
         {/* Strongest pairs */}
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 11, color: '#8b949e', fontWeight: 600, margin: '0 0 8px', letterSpacing: '0.02em' }}>
+          <p style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, margin: '0 0 8px', letterSpacing: '0.02em' }}>
             {L.strongestHeader}
           </p>
           <div>
@@ -260,7 +260,7 @@ export default function CorrelationPairList({ isSignedIn }) {
 
         {/* Lowest pairs */}
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 11, color: '#8b949e', fontWeight: 600, margin: '0 0 8px', letterSpacing: '0.02em' }}>
+          <p style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, margin: '0 0 8px', letterSpacing: '0.02em' }}>
             {L.lowestHeader}
           </p>
           <div>
@@ -269,7 +269,7 @@ export default function CorrelationPairList({ isSignedIn }) {
         </div>
       </div>
 
-      <p style={{ fontSize: 11, color: '#6e7681', textAlign: 'center', margin: '20px 0 0' }}>
+      <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', margin: '20px 0 0' }}>
         {L.dateRange} {correlationData.aligned_date_start} {L.dateRangeJoin} {correlationData.aligned_date_end}
       </p>
     </div>

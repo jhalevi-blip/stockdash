@@ -729,9 +729,10 @@ export default function PerformanceV2Page() {
 
               {!hasReconData ? (
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                  No <code>tradeLegs</code> / <code>cashEvents</code> data — re-upload your
-                  broker file to reconstruct your start value. Return falls back to
-                  manual starting cash.
+                  We couldn’t reconstruct your starting value from this import.
+                  Re-import your DEGIRO or Saxo account statement (full history)
+                  for an accurate time-weighted return — until then it’s based on
+                  your manually entered starting cash.
                 </div>
               ) : !reconStartDate ? (
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
@@ -764,7 +765,7 @@ export default function PerformanceV2Page() {
                       <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
                         {s.reconCashEur != null ? `€${fmt(s.reconCashEur)}` : '—'}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>cashEvents &lt; start</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>cash before start date</div>
                     </div>
                     <div>
                       <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Holdings</div>
