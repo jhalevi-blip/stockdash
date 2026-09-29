@@ -154,7 +154,7 @@ tr:hover td { background: var(--bg-hover); cursor: pointer; }
 .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; }
 .dot-live { background: #16a34a; animation: pulse 2s infinite; }
 .dot-loading { background: #d97706; animation: pulse .8s infinite; }
-.dot-error { background: #dc2626; }
+.dot-error { background: var(--negative); }
 .dot-idle { background: var(--text-muted); }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 

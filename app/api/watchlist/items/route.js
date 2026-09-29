@@ -2,7 +2,8 @@ import { auth } from '@clerk/nextjs/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { resolveSymbol } from '@/lib/watchlist/resolveSymbol';
 
-// POST /api/watchlist/items — add a symbol to an existing section.
+// POST /api/watchlist/items — add a symbol to a section (sectionId optional:
+// with none, files into the caller's first section or creates a default one).
 // Clerk auth + service-role Supabase, scoped to the caller's own rows.
 //
 // Add semantics (spec: revive-over-insert):
@@ -62,8 +63,31 @@ export async function POST(request) {
     return Response.json({ error: "assetClass must be 'equity' or 'fx'" }, { status: 400 });
   }
 
-  const sectionId = body.sectionId;
-  if (!sectionId) return Response.json({ error: 'sectionId is required' }, { status: 400 });
+  // sectionId is optional: an empty watchlist has no section yet. When omitted,
+  // file into the caller's first section, or create a default "Watchlist" one so
+  // the very first add always works (no orphaned "add points at nothing" state).
+  let sectionId = body.sectionId;
+  if (!sectionId) {
+    const first = await sb
+      .from('watchlist_sections')
+      .select('id')
+      .eq('user_id', userId)
+      .order('sort_order', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (first.error) return Response.json({ error: first.error.message }, { status: 500 });
+    if (first.data) {
+      sectionId = first.data.id;
+    } else {
+      const created = await sb
+        .from('watchlist_sections')
+        .insert({ user_id: userId, name: 'Watchlist', sort_order: 0 })
+        .select('id')
+        .single();
+      if (created.error) return Response.json({ error: created.error.message }, { status: 500 });
+      sectionId = created.data.id;
+    }
+  }
 
   const role = body.role === undefined ? 'candidate' : body.role;
   if (!ROLES.has(role)) {

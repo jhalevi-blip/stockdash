@@ -389,7 +389,7 @@ function RemoveCell({ item, onRemove }) {
 // the list) and 502 (resolution failed, retry) surface inline here.
 function AddSymbolForm({ section, onAdd }) {
   const [symbol, setSymbol] = useState('');
-  const [assetClass, setAssetClass] = useState(section.role === 'macro' ? 'fx' : 'equity');
+  const [assetClass, setAssetClass] = useState(section?.role === 'macro' ? 'fx' : 'equity');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -399,7 +399,8 @@ function AddSymbolForm({ section, onAdd }) {
     if (!sym || busy) return;
     setBusy(true); setError(null);
     try {
-      await onAdd({ displaySymbol: sym, assetClass, sectionId: section.id, role: section.role });
+      // No section (empty watchlist) → sectionId null; the API creates a default one.
+      await onAdd({ displaySymbol: sym, assetClass, sectionId: section?.id ?? null, role: section?.role ?? 'candidate' });
       setSymbol('');
     } catch (err) {
       setError(err?.message || 'Add failed');
@@ -417,7 +418,7 @@ function AddSymbolForm({ section, onAdd }) {
         onChange={e => setSymbol(e.target.value)}
         disabled={busy}
         placeholder="Add ticker…"
-        aria-label={`Add a symbol to ${section.name}`}
+        aria-label={`Add a symbol to ${section?.name ?? 'your watchlist'}`}
         style={{
           width: 130, padding: '4px 8px', fontSize: 13, fontFamily: FONT, borderRadius: 4, outline: 'none',
           background: 'var(--bg-page-deep)', color: 'var(--text-primary)',
@@ -926,10 +927,13 @@ export default function WatchlistPage() {
       )}
 
       {isEmpty && state.status !== 'error' && (
-        <p style={msg}>
-          Your watchlist is empty. Add a ticker to start tracking stocks you’re
-          watching — or pick one from the screener below.
-        </p>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 8, marginBottom: 16, overflow: 'hidden' }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: 0, padding: '14px 14px 12px' }}>
+            Your watchlist is empty. Add a ticker below to start tracking stocks
+            you’re watching — or pick one from the screener further down.
+          </p>
+          <AddSymbolForm section={null} onAdd={addItem} />
+        </div>
       )}
 
       {/* Master–detail: sections table on the left (narrower), detail panel on the
