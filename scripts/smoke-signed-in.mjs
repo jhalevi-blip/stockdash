@@ -59,7 +59,12 @@ const ERROR_PATTERNS = [
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 fs.mkdirSync(OUT_DIR, { recursive: true });
-const routes = NAV_ITEMS.map((n) => ({ id: n.id, label: n.label, href: n.href }));
+const routes = [
+  ...NAV_ITEMS.map((n) => ({ id: n.id, label: n.label, href: n.href })),
+  // Folded pages: verify the old URLs still resolve (they 307 → Stock Research tab).
+  { id: 'redirect-filings', label: 'Financial Filings (→ Research)', href: '/financial-filings' },
+  { id: 'redirect-peers',   label: 'Peers (→ Research)',             href: '/peers' },
+];
 
 let bucket = { console: [], api: [], rateLimited: 0 };
 const isOwnApi = (url) => url.startsWith(origin) && url.includes('/api/');

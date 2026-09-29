@@ -13,6 +13,8 @@ import InfoTooltip from '@/components/InfoTooltip';
 import { fmtCurrency, fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
 import { loadUserHoldings, saveUserHoldings } from '@/lib/holdingsStorage';
 import { calcDCF } from './_lib/dcf';
+import PeersPanel from './_components/PeersPanel';
+import FilingsPanel from './_components/FilingsPanel';
 
 // ─────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -2067,6 +2069,28 @@ function ResearchPageInner() {
   const [analystRatings, setAnalystRatings] = useState(null);
   const [valHistory,   setValHistory]   = useState(null);
 
+  // Tabs: Overview | Peers | Filings. Peers & Filings are the folded-in
+  // /peers and /financial-filings pages; the URL hash drives the tab so
+  // /research#peers / #filings (and the two redirects) land on the right tab.
+  const [activeTab, setActiveTab] = useState('overview');
+  useEffect(() => {
+    const norm = (t) => (t === 'peers' || t === 'filings' ? t : 'overview');
+    const readHash = () => (typeof window !== 'undefined' ? window.location.hash : '').replace('#', '');
+    // ?tab=peers|filings (used by the /peers and /financial-filings redirects)
+    // takes precedence, then the #hash (shareable links + in-page tab clicks).
+    setActiveTab(norm(searchParams.get('tab') || readHash()));
+    const onHash = () => setActiveTab(norm(readHash()));
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, [searchParams]);
+  const selectTab = (tab) => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      const base = window.location.pathname + window.location.search;
+      window.history.replaceState(null, '', tab === 'overview' ? base : `${base}#${tab}`);
+    }
+  };
+
   // DCF scenarios: use new three-scenario shape; promote legacy dcfInputs to consensus-only
   const aiScenarios = useMemo(() => {
     if (!thesis) return null;
@@ -2294,10 +2318,7 @@ function ResearchPageInner() {
           <ActionBtn onClick={() => setWatched(w => !w)}>{watched ? '★' : '☆'} Watch</ActionBtn>
           <ActionBtn onClick={openModal}>+ Add to Portfolio</ActionBtn>
           <ActionBtn onClick={() => alert('Coming soon')}>🔔 Set Alert</ActionBtn>
-          <ActionBtn onClick={() => {
-            const el = document.getElementById('section-peers');
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
-          }}>⇄ Compare</ActionBtn>
+          <ActionBtn onClick={() => selectTab('peers')}>⇄ Compare</ActionBtn>
           <ActionBtn onClick={() => {
             if (navigator.share) {
               navigator.share({ title: `${ticker} — Research`, url: window.location.href }).catch(() => {});
@@ -2308,62 +2329,82 @@ function ResearchPageInner() {
         </div>
       </Card>
 
-      {/* 1. PRICE CHART */}
-      <PriceChart
-        ticker={ticker}
-        overlayPeers={overlayPeers}
-        setOverlayPeers={setOverlayPeers}
-        earningsHistory={earningsHistory}
-      />
-
-      {/* 2. AI THESIS */}
-      <ThesisHero
-        ticker={ticker}
-        quote={quote}
-        metrics={metrics}
-        isSignedIn={!!isSignedIn}
-        userId={user?.id}
-        savedHoldings={savedHoldings}
-        savedCash={savedCash}
-        thesis={thesis}
-        setThesis={setThesis}
-        resolvedRevenue={resolvedRevenue}
-        priorAnnualRevenue={priorAnnualRevenue}
-      />
-
-      {/* 3–4. Analyst Ratings | Earnings */}
-      <div className="res-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <AnalystRatingsCard ticker={ticker} data={analystRatings} currentPrice={quote?.price} />
-        <EarningsCard ticker={ticker} />
+      {/* Tabs: Overview | Peers | Filings. Peers & Filings are the folded-in
+          /peers and /financial-filings pages (hash-driven). */}
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border-color)', marginTop: 4 }}>
+        {[['overview', 'Overview'], ['peers', 'Peers'], ['filings', 'Filings']].map(([key, label]) => (
+          <button key={key} onClick={() => selectTab(key)} aria-current={activeTab === key ? 'page' : undefined} style={{
+            background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            padding: '8px 14px', fontSize: 13, fontWeight: activeTab === key ? 700 : 500,
+            color: activeTab === key ? 'var(--text-primary)' : 'var(--text-secondary)',
+            borderBottom: activeTab === key ? '2px solid var(--accent)' : '2px solid transparent',
+            marginBottom: -1,
+          }}>{label}</button>
+        ))}
       </div>
 
-      {/* 5–6. Financial Statements | Valuation Metrics */}
-      <div className="res-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <FinancialStatementsCard ticker={ticker} financials={financials} />
-        <ValuationMetricsCard ticker={ticker} metrics={metrics} valHistory={valHistory} />
-      </div>
+      {activeTab === 'overview' && (
+        <>
+          {/* 1. PRICE CHART */}
+          <PriceChart
+            ticker={ticker}
+            overlayPeers={overlayPeers}
+            setOverlayPeers={setOverlayPeers}
+            earningsHistory={earningsHistory}
+          />
 
-      {/* DCF CALCULATOR (between Valuation Metrics and Insider) */}
-      <DCFCalculator ticker={ticker} financials={financials} metrics={metrics} quote={quote} aiScenarios={aiScenarios} resolvedRevenue={resolvedRevenue} />
+          {/* 2. AI THESIS */}
+          <ThesisHero
+            ticker={ticker}
+            quote={quote}
+            metrics={metrics}
+            isSignedIn={!!isSignedIn}
+            userId={user?.id}
+            savedHoldings={savedHoldings}
+            savedCash={savedCash}
+            thesis={thesis}
+            setThesis={setThesis}
+            resolvedRevenue={resolvedRevenue}
+            priorAnnualRevenue={priorAnnualRevenue}
+          />
 
-      {/* 7–8–9. Insider | Institutional | Short Interest */}
-      <div className="res-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-        <InsiderTradingCard         ticker={ticker} />
-        <InstitutionalOwnershipCard ticker={ticker} />
-        <ShortInterestCard          ticker={ticker} />
-      </div>
+          {/* 3–4. Analyst Ratings | Earnings */}
+          <div className="res-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <AnalystRatingsCard ticker={ticker} data={analystRatings} currentPrice={quote?.price} />
+            <EarningsCard ticker={ticker} />
+          </div>
 
-      {/* 10. Peer Comparison */}
-      <div id="section-peers">
-        <PeerComparisonCard
-          ticker={ticker}
-          overlayPeers={overlayPeers}
-          setOverlayPeers={setOverlayPeers}
-        />
-      </div>
+          {/* 5–6. Financial Statements | Valuation Metrics */}
+          <div className="res-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <FinancialStatementsCard ticker={ticker} financials={financials} />
+            <ValuationMetricsCard ticker={ticker} metrics={metrics} valHistory={valHistory} />
+          </div>
 
-      {/* 11. SEC Filings */}
-      <SECFilingsCard ticker={ticker} />
+          {/* DCF CALCULATOR (between Valuation Metrics and Insider) */}
+          <DCFCalculator ticker={ticker} financials={financials} metrics={metrics} quote={quote} aiScenarios={aiScenarios} resolvedRevenue={resolvedRevenue} />
+
+          {/* 7–8–9. Insider | Institutional | Short Interest */}
+          <div className="res-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+            <InsiderTradingCard         ticker={ticker} />
+            <InstitutionalOwnershipCard ticker={ticker} />
+            <ShortInterestCard          ticker={ticker} />
+          </div>
+        </>
+      )}
+
+      {/* Peers tab — folded-in /peers (full Finnhub metric set) */}
+      {activeTab === 'peers' && (
+        <div id="section-peers" style={{ marginTop: 14 }}>
+          <PeersPanel ticker={ticker} />
+        </div>
+      )}
+
+      {/* Filings tab — folded-in /financial-filings (filings + news + transcripts) */}
+      {activeTab === 'filings' && (
+        <div style={{ marginTop: 14 }}>
+          <FilingsPanel ticker={ticker} />
+        </div>
+      )}
 
       {/* Portfolio modal */}
       {modalOpen && (
