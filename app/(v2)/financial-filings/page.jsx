@@ -7,7 +7,7 @@ import { getCachedHoldings } from '@/lib/holdingsStorage';
 
 /* ─── Filing type badge colors (identical to V1) ────────────────────────── */
 const FILING_TYPES = {
-  '10-K': '#2563eb', '10-Q': '#16a34a', '8-K': '#d97706', 'DEF 14A': '#7c3aed',
+  '10-K': '#2563eb', '10-Q': 'var(--positive)', '8-K': '#d97706', 'DEF 14A': '#7c3aed',
 };
 
 /* ─── Shared button base style ──────────────────────────────────────────── */
@@ -204,7 +204,7 @@ export default function FinancialFilingsV2Page() {
                       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; }}
                     >
                       <span style={{
-                        background:   `${FILING_TYPES[f.type] || 'var(--text-muted)'}18`,
+                        background:   `color-mix(in srgb, ${FILING_TYPES[f.type] || 'var(--text-muted)'} 12%, var(--bg-card))`,
                         border:       `1px solid ${FILING_TYPES[f.type] || 'var(--border-color)'}`,
                         color:        FILING_TYPES[f.type] || 'var(--text-muted)',
                         borderRadius: 3, padding: '2px 8px', fontSize: 11,

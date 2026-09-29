@@ -27,15 +27,15 @@
   --accent-btn-hover: #1d4ed8;
   --brand-gold:       #c49a1a;
   --positive:         #16a34a;
-  --negative:         #e55c5c;
+  --negative:         #ef4444;
   --shadow-sm:        rgba(0,0,0,0.2);
   --bg-buy:           #14532d;
   --text-buy:         #4ade80;
   --bg-sell:          #450a0a;
-  --text-sell:        #f87171;
+  --text-sell:        #ef4444;
   /* Insider/transaction badge text — legible on the badge's tinted background */
   --badge-buy:        #17a94d;
-  --badge-sell:       #e55f5f;
+  --badge-sell:       #ef4444;
   --badge-award:      #5c8af0;
   --badge-option:     #a273f2;
   --badge-neutral:    #dd7906;
@@ -83,11 +83,11 @@
   --bg-buy:           #dcfce7;
   --text-buy:         #117f3a;
   --bg-sell:          #fee2e2;
-  --text-sell:        #c92020;
+  --text-sell:        #dc2626;
   --warn:             #d97706;
   /* Insider/transaction badge text — legible on the badge's tinted background */
   --badge-buy:        #107736;
-  --badge-sell:       #c11f1f;
+  --badge-sell:       #dc2626;
   --badge-award:      #1557e7;
   --badge-option:     #7834ec;
   --badge-neutral:    #9c5604;
@@ -515,6 +515,22 @@ body:has(.app-sidebar) { padding-left: 200px; }
   }
 }
 
+/* Dashboard market-index strip: reflow the 6 cards to a 2-col grid under 480px
+   so each has room for value + sparkline (no cramped single scrolling row). */
+@media (max-width: 480px) {
+  .dv2-macro-scroll { overflow-x: visible; }
+  .dv2-macro-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+  }
+}
+
+/* Marketing tap targets: guarantee ≥44px-tall touch targets on mobile without
+   changing desktop layout (nav links, logo, Trade, Open Dashboard, Read more). */
+@media (max-width: 768px) {
+  .tap44 { min-height: 44px; display: inline-flex; align-items: center; }
+}
+
 /* Valuation table: horizontal scroll + sticky ticker column on mobile */
 .dv2-valuation-scroll {
   overflow-x: auto;
@@ -531,4 +547,41 @@ body:has(.app-sidebar) { padding-left: 200px; }
   .dv2-valuation-scroll th:first-child { background: var(--bg-secondary); }
   .dv2-valuation-scroll td:first-child { background: var(--bg-card); }
   .dv2-valuation-scroll tr:hover td:first-child { background: var(--bg-hover); }
+}
+
+/* Watchlist master/detail: the detail panel forces a 360px min column that
+   overflowed the page at 390px — stack it under a single column on mobile. */
+.wl-master-detail {
+  display: grid;
+  grid-template-columns: minmax(360px, 480px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 768px) {
+  .wl-master-detail { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Shown only on mobile (≤768px) — e.g. the watchlist "Back to list" link. */
+.wl-mobile-only { display: none; }
+@media (max-width: 768px) {
+  .wl-mobile-only { display: block; }
+}
+
+/* Watchlist quote tables: own horizontal scroller with the ticker (first)
+   column frozen, so a wide table never scrolls the whole page sideways. */
+.wl-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+@media (max-width: 768px) {
+  .wl-table-scroll th:first-child,
+  .wl-table-scroll td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+  }
+  .wl-table-scroll th:first-child { background: var(--bg-secondary); }
+  .wl-table-scroll td:first-child { background: var(--bg-card); }
+  .wl-table-scroll tr:hover td:first-child { background: var(--bg-hover); }
 }

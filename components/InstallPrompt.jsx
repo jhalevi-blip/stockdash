@@ -41,13 +41,20 @@ export default function InstallPrompt() {
       navigator.standalone === true; // iOS-specific
     if (standalone) return; // already installed
     if (localStorage.getItem('install_prompt_dismissed_' + user.id)) return;
+    // Show at most once per browser session (survives SPA nav; resets on a new
+    // session). Permanent dismissal above still wins across sessions.
+    if (sessionStorage.getItem('install_prompt_seen_session')) return;
 
     if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
       setPlatform('ios');
+      sessionStorage.setItem('install_prompt_seen_session', '1');
       setVisible(true); // manual instructions, no event needed
     } else {
       setPlatform('chromium');
-      if (promptReady) setVisible(true); // only once an install event exists
+      if (promptReady) {
+        sessionStorage.setItem('install_prompt_seen_session', '1');
+        setVisible(true); // only once an install event exists
+      }
     }
   }, [isLoaded, isSignedIn, user?.id, promptReady]);
 
@@ -74,12 +81,13 @@ export default function InstallPrompt() {
     <div style={{
       background: '#78350f',
       borderBottom: '1px solid #92400e',
-      padding: '8px 24px',
+      padding: '4px 14px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 16,
-      fontSize: 13,
+      gap: 10,
+      fontSize: 12,
+      lineHeight: 1.2,
       color: '#fde68a',
     }}>
       {platform === 'ios' ? (
@@ -94,10 +102,10 @@ export default function InstallPrompt() {
               border: 'none',
               borderRadius: 5,
               color: '#1c1917',
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: 700,
               cursor: 'pointer',
-              padding: '4px 14px',
+              padding: '3px 12px',
               whiteSpace: 'nowrap',
             }}
           >
@@ -112,7 +120,7 @@ export default function InstallPrompt() {
           background: 'none',
           border: 'none',
           color: '#fde68a',
-          fontSize: 18,
+          fontSize: 16,
           lineHeight: 1,
           cursor: 'pointer',
           padding: '0 4px',

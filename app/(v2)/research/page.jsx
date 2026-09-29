@@ -120,7 +120,7 @@ function PriceBar({ bear, base, bull, current, label = 'Current' }) {
   const pct   = v => Math.max(0, Math.min(100, ((v - xMin) / range) * 100));
 
   const markers = [
-    { v: bear,    color: 'var(--negative-soft)', label: `Bear ${fmtDollars(bear)}` },
+    { v: bear,    color: 'var(--negative)',      label: `Bear ${fmtDollars(bear)}` },
     { v: base,    color: 'var(--accent)',         label: `Base ${fmtDollars(base)}` },
     { v: bull,    color: 'var(--positive-soft)',  label: `Bull ${fmtDollars(bull)}` },
   ];
@@ -256,7 +256,7 @@ function PlaceholderBody({ label, height = 100 }) {
 
 function BeatChip({ letter, beat }) {
   if (beat === null) return null;
-  const bg    = beat ? 'var(--positive-soft)' : 'var(--negative-soft)';
+  const bg    = beat ? 'var(--positive-soft)' : 'var(--negative)';
   const color = '#0d1117';
   return (
     <div style={{
@@ -718,9 +718,9 @@ function BeatPill({ actual, estimate, label }) {
     <span style={{
       fontSize: 9, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
       padding: '2px 7px', borderRadius: 20,
-      background: beat ? 'var(--positive-soft)22' : 'var(--negative-soft)22',
-      color:      beat ? 'var(--positive-soft)'   : 'var(--negative-soft)',
-      border:     '1px solid ' + (beat ? 'var(--positive-soft)55' : 'var(--negative-soft)55'),
+      background: beat ? 'color-mix(in srgb, var(--positive-soft) 13%, transparent)' : 'color-mix(in srgb, var(--negative-soft) 13%, transparent)',
+      color:      beat ? 'var(--positive-soft)'   : 'var(--negative)',
+      border:     '1px solid ' + (beat ? 'color-mix(in srgb, var(--positive-soft) 45%, transparent)' : 'color-mix(in srgb, var(--negative) 45%, transparent)'),
     }}>
       {beat ? 'BEAT' : 'MISS'}
     </span>
@@ -1093,22 +1093,22 @@ function AnalystRatingsCard({ ticker, data, currentPrice }) {
           </div>
           <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden' }}>
             {[
-              { v: consensus.strongBuy,  bg: '#16a34a' },
+              { v: consensus.strongBuy,  bg: 'var(--positive)' },
               { v: consensus.buy,        bg: '#4ade80' },
               { v: consensus.hold,       bg: '#fbbf24' },
               { v: consensus.sell,       bg: '#f87171' },
-              { v: consensus.strongSell, bg: '#dc2626' },
+              { v: consensus.strongSell, bg: 'var(--negative)' },
             ].map((seg, i) => seg.v > 0 && (
               <div key={i} style={{ flex: pct(seg.v), background: seg.bg, minWidth: 2 }} />
             ))}
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 5, flexWrap: 'wrap', fontSize: 10 }}>
             {[
-              { label: 'S.Buy', v: consensus.strongBuy,  color: '#16a34a' },
+              { label: 'S.Buy', v: consensus.strongBuy,  color: 'var(--positive)' },
               { label: 'Buy',   v: consensus.buy,        color: '#4ade80' },
               { label: 'Hold',  v: consensus.hold,       color: '#fbbf24' },
               { label: 'Sell',  v: consensus.sell,       color: '#f87171' },
-              { label: 'S.Sell',v: consensus.strongSell, color: '#dc2626' },
+              { label: 'S.Sell',v: consensus.strongSell, color: 'var(--negative)' },
             ].map(s => (
               <span key={s.label} style={{ color: s.color, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                 {s.v} {s.label}

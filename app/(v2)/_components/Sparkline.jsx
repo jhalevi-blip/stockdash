@@ -24,8 +24,8 @@ export default function Sparkline({
   const last = data[data.length - 1];
   const first = data[0];
   const dir = last >= first ? 1 : -1;
-  const c = stroke || (dir > 0 ? '#16a34a' : '#dc2626');
-  const f = fill || (dir > 0 ? 'rgba(22,163,74,.10)' : 'rgba(220,38,38,.10)');
+  const c = stroke || (dir > 0 ? 'var(--positive)' : 'var(--negative)');
+  const f = fill || (dir > 0 ? 'color-mix(in srgb, var(--positive) 10%, transparent)' : 'color-mix(in srgb, var(--negative) 10%, transparent)');
   const areaPath = `${path} L ${width},${height} L 0,${height} Z`;
   const gradId = `spark-grad-${uid}`;
   return (

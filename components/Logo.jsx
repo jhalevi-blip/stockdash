@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function Logo({ href = '/dashboard' }) {
   return (
-    <Link href={href} style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+    <Link href={href} className="tap44" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
       <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0, color: 'var(--brand-gold)' }}>
         <rect x="1"  y="14" width="4" height="6" rx="0.5" fill="currentColor" />
         <rect x="8"  y="9"  width="4" height="11" rx="0.5" fill="currentColor" />
