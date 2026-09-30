@@ -4,6 +4,7 @@
 // "Peers" tab. Unions all Finnhub metrics (valuation multiples + financial
 // metrics) so nothing from the standalone page is lost.
 import { useState, useEffect } from 'react';
+import InfoTip from '@/components/InfoTip';
 
 // Same three overlay slot colours the price chart uses, so a peer's toggle
 // matches its line on the Overview chart.
@@ -26,7 +27,7 @@ const VALUATION_METRICS = [
   { key: 'psRatio',   label: 'P/S',         fmt: n => fmtNum(n, 1)+'x', lowerIsBetter: true  },
   { key: 'pbRatio',   label: 'P/B',         fmt: n => fmtNum(n, 1)+'x', lowerIsBetter: true  },
   { key: 'evEbitda',  label: 'EV/EBITDA',   fmt: n => fmtNum(n, 1)+'x', lowerIsBetter: true  },
-  { key: 'beta',      label: 'Beta',        fmt: n => fmtNum(n, 2),     lowerIsBetter: true  },
+  { key: 'beta',      label: 'Beta',        fmt: n => fmtNum(n, 2),     lowerIsBetter: true, tip: 'beta' },
 ];
 
 const FINANCIAL_METRICS = [
@@ -46,7 +47,7 @@ function getBestIdx(peers, key, lowerIsBetter) {
   return vals.findIndex(v => v === best);
 }
 
-function MetricRow({ label, peers, metricKey, fmt, lowerIsBetter }) {
+function MetricRow({ label, peers, metricKey, fmt, lowerIsBetter, tipId }) {
   const bestIdx = getBestIdx(peers, metricKey, lowerIsBetter);
   return (
     <tr
@@ -55,7 +56,7 @@ function MetricRow({ label, peers, metricKey, fmt, lowerIsBetter }) {
       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
     >
       <td style={{ padding: '9px 16px', color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap', background: 'var(--bg-card)' }}>
-        {label}
+        {label}{tipId && <InfoTip id={tipId} />}
       </td>
       {peers.map((p, i) => {
         const val = p[metricKey];
@@ -185,7 +186,7 @@ export default function PeersPanel({ ticker, overlayPeers = [], setOverlayPeers 
           </thead>
           <tbody>
             {metrics.map(m => (
-              <MetricRow key={m.key} label={m.label} peers={data} metricKey={m.key} fmt={m.fmt} lowerIsBetter={m.lowerIsBetter} />
+              <MetricRow key={m.key} label={m.label} peers={data} metricKey={m.key} fmt={m.fmt} lowerIsBetter={m.lowerIsBetter} tipId={m.tip} />
             ))}
           </tbody>
         </table>
