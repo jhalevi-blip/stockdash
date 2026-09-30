@@ -27,6 +27,38 @@ export function toDisplay(amount, fromCcy, rates, displayCcy) {
   return (amount * from) / to;
 }
 
+/**
+ * Currency impact (in `displayCcy`) of FX moves on the CURRENT holdings: for each
+ * position, today's display value of its current local-currency value minus that same
+ * local value converted at the START-date FX. Positions already in `displayCcy`
+ * contribute zero. For a EUR investor, USD strengthening (EUR/USD falling → fewer USD
+ * per EUR) makes each USD holding worth more euros, so the impact is POSITIVE.
+ *
+ * @param {{nativeCcy:string, mktNative:number|null}[]} positions  priced positions
+ * @param {Record<string,number>} ratesNow    buildFxRates(eurUsdNow,   gbpUsdNow)
+ * @param {Record<string,number>} ratesStart  buildFxRates(eurUsdStart, gbpUsdStart)
+ * @param {string} displayCcy
+ * @returns {{impact:number|null, available:boolean}} impact is null (available:false)
+ *   when a non-display-currency position can't be converted at BOTH now and start FX
+ *   (missing rate) — the caller should render "—" rather than a partial, misleading sum.
+ *   A portfolio with no foreign positions returns { impact: 0, available: true }.
+ */
+export function currencyImpact(positions, ratesNow, ratesStart, displayCcy) {
+  let impact = 0, foreign = 0, inconvertible = 0;
+  for (const p of positions) {
+    if (!p || p.mktNative == null) continue;
+    if (normCcy(p.nativeCcy) === normCcy(displayCcy)) continue;   // display-ccy leg → zero FX impact
+    foreign++;
+    const now   = toDisplay(p.mktNative, p.nativeCcy, ratesNow,   displayCcy);
+    const start = toDisplay(p.mktNative, p.nativeCcy, ratesStart, displayCcy);
+    if (now == null || start == null) { inconvertible++; continue; }
+    impact += now - start;
+  }
+  if (foreign === 0)      return { impact: 0,    available: true  };
+  if (inconvertible > 0)  return { impact: null, available: false };
+  return { impact, available: true };
+}
+
 /** Resolve a quote's currency: prefer an explicit `currency`, else derive from `exchange`. */
 export function quoteCurrency(quote) {
   if (!quote) return null;
