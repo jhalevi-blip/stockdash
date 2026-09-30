@@ -167,6 +167,36 @@ export default function FilingsPanel({ ticker }) {
           </div>
         )
       )}
+
+      {/* Earnings-call transcript links (external, free) for the current ticker.
+          Kept from the old /financial-filings page so nothing is dropped. */}
+      {ticker && (
+        <div style={{ marginTop: 12, borderTop: '1px solid var(--border-color)', paddingTop: 18 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>
+            Earnings-call transcripts — external
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+            Opens the transcript on an external site — free to read
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {[
+              { label: 'Motley Fool',   href: `https://www.fool.com/earnings-call-transcripts/?search=${ticker}` },
+              { label: 'Seeking Alpha', href: `https://seekingalpha.com/symbol/${ticker}/earnings/transcripts` },
+              { label: 'Rev.com',       href: 'https://www.rev.com/blog/transcript-category/earnings-call-transcripts' },
+            ].map(({ label, href }) => (
+              <a key={label} href={href} target="_blank" rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 4, textDecoration: 'none', border: '1px solid var(--border-color)', color: 'var(--text-secondary)', background: 'transparent', transition: 'border-color .15s, color .15s' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}>
+                {label}
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0 }}>
+                  <path d="M1 9L9 1M9 1H4M9 1V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

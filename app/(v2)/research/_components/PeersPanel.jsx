@@ -5,6 +5,11 @@
 // metrics) so nothing from the standalone page is lost.
 import { useState, useEffect } from 'react';
 
+// Same three overlay slot colours the price chart uses, so a peer's toggle
+// matches its line on the Overview chart.
+const PEER_COLORS = ['var(--accent-cyan)', 'var(--warn)', 'var(--positive-soft)'];
+const MAX_OVERLAYS = 3;
+
 const fmtNum = (n, d = 2) => (n != null ? n.toFixed(d) : '—');
 const fmtPct = (n) => (n != null ? (n >= 0 ? '+' : '') + n.toFixed(1) + '%' : '—');
 const fmtCap = (n) => {
@@ -73,7 +78,7 @@ function MetricRow({ label, peers, metricKey, fmt, lowerIsBetter }) {
   );
 }
 
-export default function PeersPanel({ ticker }) {
+export default function PeersPanel({ ticker, overlayPeers = [], setOverlayPeers }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -130,23 +135,52 @@ export default function PeersPanel({ ticker }) {
         ))}
       </div>
 
+      {setOverlayPeers && (
+        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+          Tap <span style={{ color: 'var(--accent)', fontWeight: 600 }}>+ Overlay</span> on a peer to plot it on the Overview price chart (up to 3).
+        </div>
+      )}
+
       <div className="dv2-valuation-scroll">
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
               <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap', background: 'var(--bg-secondary)' }}>Metric</th>
-              {data.map((p, i) => (
-                <th key={i} style={{
-                  padding: '10px 12px', textAlign: 'right', fontSize: 12, fontWeight: p.isBase ? 700 : 600,
-                  color: p.isBase ? 'var(--accent-cyan)' : 'var(--text-secondary)',
-                  background: p.isBase ? 'rgba(31,111,235,0.06)' : 'transparent', whiteSpace: 'nowrap',
-                }}>
-                  {p.ticker}
-                  <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 400, marginTop: 2 }}>
-                    {p.name?.split(' ').slice(0, 2).join(' ')}
-                  </div>
-                </th>
-              ))}
+              {data.map((p, i) => {
+                const pt = p.ticker;
+                const isOverlay = overlayPeers.includes(pt);
+                const slotColor = isOverlay ? PEER_COLORS[overlayPeers.indexOf(pt)] : 'var(--accent)';
+                const canToggle = isOverlay || overlayPeers.length < MAX_OVERLAYS;
+                return (
+                  <th key={i} style={{
+                    padding: '10px 12px', textAlign: 'right', fontSize: 12, fontWeight: p.isBase ? 700 : 600,
+                    color: p.isBase ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                    background: p.isBase ? 'rgba(31,111,235,0.06)' : 'transparent', whiteSpace: 'nowrap',
+                  }}>
+                    {pt}
+                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 400, marginTop: 2 }}>
+                      {p.name?.split(' ').slice(0, 2).join(' ')}
+                    </div>
+                    {!p.isBase && setOverlayPeers && (
+                      <button
+                        onClick={() => setOverlayPeers(prev =>
+                          prev.includes(pt) ? prev.filter(t => t !== pt)
+                          : prev.length >= MAX_OVERLAYS ? prev : [...prev, pt]
+                        )}
+                        disabled={!canToggle}
+                        title={isOverlay ? 'Remove from the price chart' : canToggle ? 'Overlay on the Overview price chart' : 'Up to 3 overlays'}
+                        style={{
+                          display: 'inline-block', marginTop: 5, fontSize: 9, fontWeight: 600, lineHeight: 1.4,
+                          padding: '1px 6px', borderRadius: 4, border: `1px solid ${slotColor}`,
+                          background: isOverlay ? slotColor : 'transparent',
+                          color: isOverlay ? '#fff' : slotColor,
+                          cursor: canToggle ? 'pointer' : 'not-allowed', opacity: canToggle ? 1 : 0.4, whiteSpace: 'nowrap',
+                        }}
+                      >{isOverlay ? '✕ Overlay' : '+ Overlay'}</button>
+                    )}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>

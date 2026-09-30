@@ -120,6 +120,13 @@ export default function PriceChart({
 
   useEffect(() => { doFetch(fetchYears ?? 1); }, [ticker]); // reset on ticker change
 
+  // Overlay peers are toggled from the Peers tab (shared overlayPeers state). When
+  // a newly-overlaid peer has no prices yet, fetch it so its line appears at once
+  // (previously the line only showed after a range change).
+  useEffect(() => {
+    if (overlayPeers.some(p => !allPrices?.[p])) doFetch(yearsLoaded || (fetchYears ?? 1));
+  }, [overlayPeers]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // When user picks 5Y/ALL, re-fetch 5 years if not already loaded. Skipped when
   // fetchYears prefetched a fixed window (panel: 5Y once) — we slice client-side.
   function handleRange(r) {
