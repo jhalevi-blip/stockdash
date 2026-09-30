@@ -59,14 +59,24 @@ function ctx(over: Partial<Parameters<typeof decideGate>[1]> = {}): Parameters<t
 }
 
 describe('decideGate', () => {
-  it('excludes any ticker with a confirmed-empty FMP series, on every broker', () => {
+  it('keeps (never excludes) a ticker with a confirmed-empty FMP series, reporting it as coverage-unverified on every broker', () => {
     const g = decideGate(
       [pair('degiro', 'ADYEN'), pair('saxo', 'ADYEN')],
       ctx({ figiNameFor: () => 'Adyen NV' }), // covered empty, no probe failure → confirmed empty
     );
-    expect(g.excludedKeys.has('degiro__ADYEN')).toBe(true);
-    expect(g.excludedKeys.has('saxo__ADYEN')).toBe(true);
-    expect(g.exclusions.every((e) => e.reason === 'coverage')).toBe(true);
+    // Coverage no longer drops unpriceable positions: an uncovered ticker is KEPT and
+    // surfaced as "no price" on the dashboard rather than silently vanishing from a
+    // saved portfolio (the EU-ETF loss). Only a confirmed identity mismatch excludes.
+    expect(g.excludedKeys.has('degiro__ADYEN')).toBe(false);
+    expect(g.excludedKeys.has('saxo__ADYEN')).toBe(false);
+    expect(g.exclusions).toHaveLength(0);
+    // Both broker/ticker pairs are reported as coverage-unverified instead.
+    expect(g.coverageUnverified).toEqual(
+      expect.arrayContaining([
+        { broker: 'degiro', ticker: 'ADYEN' },
+        { broker: 'saxo', ticker: 'ADYEN' },
+      ]),
+    );
   });
 
   it('excludes an ISIN-resolved ticker whose OpenFIGI name disagrees with FMP', () => {
