@@ -513,10 +513,24 @@ export async function POST(request: Request) {
     // date. Sign is derived from action, not the raw shares field, because parsers
     // differ (Saxo stores positive shares; DeGiro stores signed shares). Options
     // and expiries were already excluded at parse time.
+    //
+    // ADDITIVE per-trade fields let the /performance Currency Impact card attribute FX
+    // per lot with the broker's own execution price + recorded rate:
+    //   price/currency → local execution price (sold-lot proceeds, pence-aware)
+    //   fx             → broker's per-order rate (local units per EUR; DeGiro orderFx)
+    //   amountEur      → broker-booked EUR value (transparency; NOT used to derive fx,
+    //                    since a booking amount can include commission)
+    // All optional: older data + existing readers (ledger.js reads only t/d/s) are
+    // unaffected, and the card falls back to daily-close FX when they're absent.
     const tradeLegs = [...gatedTradesByBroker.values()].flat().map((t) => ({
       t: t.ticker,
       d: t.date,
       s: t.action === 'sell' ? -Math.abs(t.shares) : Math.abs(t.shares),
+      // Additive — omitted keys simply fall back to daily-close attribution.
+      ...(t.price     != null ? { price:     t.price }     : {}),
+      ...(t.currency  != null ? { currency:  t.currency }  : {}),
+      ...(t.fx        != null ? { fx:        t.fx }        : {}),
+      ...(t.amountEur != null ? { amountEur: t.amountEur } : {}),
     }));
 
     // Reconstructed current cash (EUR). amountEur sums only the brokers that
