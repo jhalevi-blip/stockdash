@@ -10,6 +10,10 @@ import { parseSaxo } from '../saxo';
 
 const HEADERS         = ['Type', 'Transactiedatum', 'Instrumentsymbool', 'Acties'];
 const HEADERS_VALUTA  = ['Type', 'Transactiedatum', 'Instrumentsymbool', 'Acties', 'Instrumentvaluta'];
+// Boekingsbedrag is the account-currency (EUR) signed booking amount. Non-trade rows
+// (dividends, deposits) carry their cash impact here — the parser routes it to the
+// income / deposit / cash-event totals, so a test asserting that needs the column.
+const HEADERS_BOEKING = ['Type', 'Transactiedatum', 'Instrumentsymbool', 'Acties', 'Boekingsbedrag'];
 
 function makeWorkbook(dataRows: unknown[][], headers = HEADERS): XLSX.WorkBook {
   const sheet = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
@@ -74,22 +78,34 @@ describe('parseSaxo — Acties parsing', () => {
     expect(skipSummary.optionsSkipped).toBe(1);
   });
 
-  it('skips dividend rows (type = corporate action)', () => {
-    const wb = makeWorkbook([
-      ['Corporate Action', '01-01-2024', 'AAPL:xnas', 'Dividend'],
-    ]);
-    const { trades, skipSummary } = parseSaxo(wb);
+  it('treats a Dividend corporate-action row as income, not a trade', () => {
+    // A "Dividend" corporate action is dividend income (Boekingsbedrag credited),
+    // NOT a trade and NOT an unparseable/skipped row: it must land in the dividends
+    // total (and the raw cash track) and produce no trade.
+    const wb = makeWorkbook(
+      [['Corporate Action', '01-01-2024', 'AAPL:xnas', 'Dividend', 12.34]],
+      HEADERS_BOEKING,
+    );
+    const { trades, dividends, cashEvents, skipSummary } = parseSaxo(wb);
     expect(trades).toHaveLength(0);
-    expect(skipSummary.dividendsSkipped).toBe(1);
+    expect(dividends).toEqual([{ date: '2024-01-01', amountEur: 12.34 }]);
+    expect(cashEvents).toContainEqual({ date: '2024-01-01', amountEur: 12.34 });
+    expect(skipSummary.dividendsSkipped).toBe(0);
   });
 
-  it('skips cash transfer rows (type = geldoverboeking)', () => {
-    const wb = makeWorkbook([
-      ['Geldoverboeking', '01-01-2024', '', 'Storting'],
-    ]);
-    const { trades, skipSummary } = parseSaxo(wb);
+  it('treats a Storting (Geldoverboeking) row as a cash deposit, not a trade', () => {
+    // "Storting" is an external cash deposit (Geldoverboeking), NOT a trade: it must
+    // land in the deposits total (external cash flow) and the raw cash track, produce
+    // no trade, and not be counted as a skipped cash transfer.
+    const wb = makeWorkbook(
+      [['Geldoverboeking', '01-01-2024', '', 'Storting', 1000]],
+      HEADERS_BOEKING,
+    );
+    const { trades, deposits, cashEvents, skipSummary } = parseSaxo(wb);
     expect(trades).toHaveLength(0);
-    expect(skipSummary.cashTransfersSkipped).toBe(1);
+    expect(deposits).toEqual([{ date: '2024-01-01', amountEur: 1000 }]);
+    expect(cashEvents).toContainEqual({ date: '2024-01-01', amountEur: 1000 });
+    expect(skipSummary.cashTransfersSkipped).toBe(0);
   });
 
   it('strips exchange suffix from ticker (CELH:xnas → CELH)', () => {
