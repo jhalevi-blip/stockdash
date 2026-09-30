@@ -8,7 +8,7 @@ import UnifiedUpload from '@/components/UnifiedUpload';
 import { useHoldings } from '@/lib/useHoldings';
 import InfoTip from '@/components/InfoTip';
 import { usePerformanceLedger } from '@/lib/performance/usePerformanceLedger';
-import { buildFxRates, toDisplay as toDisplayCcy, valuePosition } from '../_lib/positionValue';
+import { buildFxRates, toDisplay as toDisplayCcy, valuePosition, currencyImpact as currencyImpactEur } from '../_lib/positionValue';
 
 // recharts loads in an async chunk (after paint), off the route's critical path.
 // PortTooltip / EurTooltip moved into this module (used only by these charts).
@@ -22,7 +22,9 @@ const EurUsdChart = dynamic(
 );
 
 /* ─── Formatters ─────────────────────────────────────────────────────────── */
-const fmt  = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
+// Renders any non-finite input (NaN / Infinity / null / undefined) as an em dash, so
+// a bad upstream value can never surface as "NaN" on a card.
+const fmt  = (n, d = 2) => (n == null || !Number.isFinite(n)) ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const fmtD = (n, d = 2) => (n == null ? '—' : (n >= 0 ? '+' : '') + fmt(n, d) + '%');
 const clr  = (n) => n == null ? 'var(--text-secondary)' : n >= 0 ? 'var(--positive)' : 'var(--negative)';
 
@@ -227,7 +229,8 @@ export default function PerformanceV2Page() {
 
         const spyCandles    = spyRes.candles ?? [];
         const eurCandles    = eurRes.candles ?? [];
-        const gbpUsd        = (gbpRes.candles ?? []).at(-1)?.close ?? null;
+        const gbpCandles    = gbpRes.candles ?? [];
+        const gbpUsd        = gbpCandles.at(-1)?.close ?? null;
         const valArr        = Array.isArray(valRes) ? valRes : [];
         const tickerCandles = {};
         tickers.forEach((t, i) => { tickerCandles[t] = tickerChartRes[i]?.candles ?? []; });
@@ -256,7 +259,7 @@ export default function PerformanceV2Page() {
         const optionBDate = earliestExplicit ?? candleIdxToDate(spyCandles, optionBIdx);
 
         if (!cancelled) {
-          setRawData({ spyCandles, eurCandles, gbpUsd, valArr, tickerCandles, livePrices });
+          setRawData({ spyCandles, eurCandles, gbpCandles, gbpUsd, valArr, tickerCandles, livePrices });
           setEstimatedDate(optionBDate);
           setDateInput(d => d || optionBDate);
           setDataLoading(false);
@@ -374,7 +377,7 @@ export default function PerformanceV2Page() {
   const { eurData, stats } = useMemo(() => {
     if (!rawData || !holdings?.length) return { eurData: [], stats: null };
 
-    const { spyCandles, eurCandles, gbpUsd, valArr, tickerCandles, livePrices = {} } = rawData;
+    const { spyCandles, eurCandles, gbpCandles = [], gbpUsd, valArr, tickerCandles, livePrices = {} } = rawData;
     const spyLen = spyCandles.length;
     if (!spyLen) return { eurData: [], stats: null };
 
@@ -451,24 +454,13 @@ export default function PerformanceV2Page() {
       : manualCashUSD;
     const adjustedCostBasis = Math.max(0, totalCostBasis - startingCashUSD);
 
-    // Current portfolio value — live Finnhub prices, fallback to last candle close
-    // __CASH__ positions excluded (not invested capital)
-    let portNow = 0;
-    holdings.forEach(h => {
-      if (h.t === '__CASH__') return;
-      const price = livePrices[h.t] ?? tickerCandles[h.t]?.[tickerCandles[h.t].length - 1]?.close;
-      if (price != null) portNow += h.s * price;
-    });
-
     // EUR/USD series for the EUR chart (Phase 9B). eurStartIdx + eurStart are
     // computed in the hoisted block above; reused here for the chart + FX deltas.
     const eurData      = eurCandles.slice(eurStartIdx).map(c => ({ date: c.date, label: c.label, rate: c.close }));
     const eurNow       = eurCandles[eurCandles.length - 1]?.close ?? null;
     const eurChangePct = eurStart && eurNow ? ((eurNow - eurStart) / eurStart) * 100 : null;
-    let currencyImpact = null;
-    if (eurStart && eurNow && eurStart > 0 && eurNow > 0) {
-      currencyImpact = portNow * (1 / eurNow - 1 / eurStart);
-    }
+    // currencyImpact is computed per-position below (see the valuation loop) — the
+    // legacy whole-portfolio USD formula is gone.
 
     // Display values (EUR) — reconStartValueUSD / holdingsValueUSD computed in
     // the hoisted block above startingCashUSD.
@@ -492,18 +484,29 @@ export default function PerformanceV2Page() {
     // a position whose quote currency doesn't match (no pricing off another listing)
     // or has no quote is "no price": excluded from value/P&L, never dropped.
     const rates = buildFxRates(eurUsd, gbpUsd);
+    // Start-date FX (USD-per-unit), same shape as `rates`, for the currency-impact
+    // isolation below. GBP start close mirrors the eurStart lookup.
+    const gbpStartIdx = Math.min(startIdx, gbpCandles.length - 1);
+    const gbpStart    = gbpCandles[gbpStartIdx]?.close ?? null;
+    const ratesStart  = buildFxRates(eurStart, gbpStart);
+
     let holdingsValueEur = 0, unrealizedEur = 0;
     const unpricedNames = [];
+    const pricedPositions = [];      // { nativeCcy, mktNative } — feeds currencyImpact()
     for (const h of holdings) {
       if (h.t === '__CASH__') continue;
       const v = valuePosition(h, livePrices[h.t], rates, 'EUR');
       if (v.priced) {
         holdingsValueEur += v.valueDisplay ?? 0;
         unrealizedEur    += v.plDisplay ?? 0;
+        pricedPositions.push({ nativeCcy: v.nativeCcy, mktNative: v.mktNative });
       } else {
         unpricedNames.push(h.unresolved ? (h.name || h.isin || h.t) : h.t);
       }
     }
+    // Currency impact of FX moves on the current (non-EUR) holdings. null when a
+    // foreign position can't be converted at both now + start FX → card shows "—".
+    const { impact: currencyImpact } = currencyImpactEur(pricedPositions, rates, ratesStart, 'EUR');
     const currentCashEur   = toDisplayCcy(cashData?.amount ?? 0, cashData?.currency ?? 'EUR', rates, 'EUR') ?? 0;
     const portfolioValueEur = holdingsValueEur + currentCashEur;     // holdings + cash — equals dashboard headline
     const realizedEur       = realizedData?.totalPnl ?? 0;           // already EUR
@@ -512,7 +515,7 @@ export default function PerformanceV2Page() {
     return {
       eurData,
       stats: {
-        portNow, adjustedCostBasis, portfolioBeta,
+        adjustedCostBasis, portfolioBeta,
         eurNow, eurStart, eurChangePct, currencyImpact,
         // Stage 2b reconstructed start value + display fields.
         // reconStartDate is intentionally NOT returned here — the render reads the
@@ -969,11 +972,12 @@ export default function PerformanceV2Page() {
                 label="Currency Impact"
                 value={s?.currencyImpact != null ? `€${fmt(Math.abs(s.currencyImpact))}` : '—'}
                 sub={
-                  s?.currencyImpact == null ? 'No EUR/USD data' :
-                  s.currencyImpact >= 0     ? 'Tailwind (USD weakened)' :
-                                              'Headwind (USD strengthened)'
+                  s?.currencyImpact == null ? 'Not available' :
+                  s.currencyImpact > 0      ? 'Tailwind (USD strengthened)' :
+                  s.currencyImpact < 0      ? 'Headwind (USD weakened)' :
+                                              'No currency exposure'
                 }
-                valueColor={s?.currencyImpact != null ? clr(s.currencyImpact) : undefined}
+                valueColor={s?.currencyImpact ? clr(s.currencyImpact) : undefined}
               />
               {realizedData && (() => {
                 const { positions = [], partialPositions = [], totalPnl } = realizedData;
