@@ -2,6 +2,7 @@
 
 import { useUser } from '@clerk/nextjs';
 import CorrelationPairList from '@/components/CorrelationPairList';
+import InfoTip from '@/components/InfoTip';
 
 // Reuses the existing CorrelationPairList component from the live
 // /dashboard. Component renders its own card chrome (bg-card, border,
@@ -35,8 +36,10 @@ export default function CorrelationsPage() {
           fontWeight: 700,
           margin: 0,
           color: 'var(--text-primary)',
+          display: 'inline-flex',
+          alignItems: 'center',
         }}>
-          Correlation analysis
+          Correlation analysis<InfoTip id="correlation" size={17} />
         </h1>
         <p style={{
           fontSize: 13,

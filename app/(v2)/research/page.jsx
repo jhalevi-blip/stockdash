@@ -10,6 +10,7 @@ import Card from '@/app/(v2)/_components/Card';
 import { FLAGSHIP_LABEL } from '@/lib/aiModels';
 import PortfolioModal from '@/components/PortfolioModal';
 import InfoTooltip from '@/components/InfoTooltip';
+import InfoTip from '@/components/InfoTip';
 import { fmtCurrency, fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
 import { loadUserHoldings, saveUserHoldings } from '@/lib/holdingsStorage';
 import { calcDCF } from './_lib/dcf';
@@ -984,18 +985,8 @@ function DCFCalculator({ ticker, financials, metrics, quote, aiScenarios, resolv
                 ✨ {aiScenarios[activePreset].rationale}
               </p>
             )}
-            <Slider label="WACC"               value={wacc}           min={4}  max={18} step={0.5}  onChange={handleSlider(setWacc)} help={
-              <>
-                <div style={{ fontWeight: 600, marginBottom: 8 }}>WACC (Weighted Average Cost of Capital)</div>
-                <div>The yearly return a company must earn to satisfy both its lenders and shareholders. In a DCF it's the discount rate — it shrinks future cash to what it's worth today. A riskier company has a higher WACC, which lowers the valuation.</div>
-              </>
-            } />
-            <Slider label="Terminal Growth"    value={terminalGrowth} min={1}  max={5}  step={0.25} onChange={handleSlider(setTerminalGrowth)} help={
-              <>
-                <div style={{ fontWeight: 600, marginBottom: 8 }}>Terminal Growth</div>
-                <div>The slow, steady rate you assume the company grows at forever, after the detailed forecast ends. Usually kept near long-run economic growth (about 2–3%), since nothing outgrows the economy indefinitely. Small changes here move the valuation a lot.</div>
-              </>
-            } />
+            <Slider label={<span style={{ display: 'inline-flex', alignItems: 'center' }}>WACC<InfoTip id="wacc" /></span>}            value={wacc}           min={4}  max={18} step={0.5}  onChange={handleSlider(setWacc)} />
+            <Slider label={<span style={{ display: 'inline-flex', alignItems: 'center' }}>Terminal Growth<InfoTip id="terminalGrowth" /></span>} value={terminalGrowth} min={1}  max={5}  step={0.25} onChange={handleSlider(setTerminalGrowth)} />
             <Slider label="Revenue CAGR"       value={revenueCagr}    min={0}  max={60} step={1}    onChange={handleSlider(setRevenueCagr)} help={
               <>
                 <div style={{ fontWeight: 600, marginBottom: 8 }}>Revenue CAGR</div>
@@ -1015,8 +1006,8 @@ function DCFCalculator({ ticker, financials, metrics, quote, aiScenarios, resolv
             {dcf ? (
               <>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4 }}>
-                    DCF Fair Value
+                  <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 4, display: 'inline-flex', alignItems: 'center' }}>
+                    DCF Fair Value<InfoTip id="dcf" />
                   </div>
                   <div style={{
                     fontSize: 36, fontWeight: 800, color: 'var(--accent)',

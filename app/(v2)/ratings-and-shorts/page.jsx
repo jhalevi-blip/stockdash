@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { DEMO_FALLBACK } from '@/lib/startDemo';
 import { getCachedHoldings } from '@/lib/holdingsStorage';
+import InfoTip from '@/components/InfoTip';
 
 /* ─── Formatter ─────────────────────────────────────────────────────────── */
 const fmt = (n, d = 2) => n?.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) ?? '—';
@@ -239,6 +240,7 @@ export default function RatingsAndShortsV2Page() {
                         }}
                       >
                         {c.label} {active ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
+                        {c.key === 'shortPct' && <InfoTip id="shortInterest" />}
                       </th>
                     );
                   })}

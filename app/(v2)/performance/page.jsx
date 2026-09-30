@@ -6,7 +6,7 @@ import SignupGate from '@/components/SignupGate';
 import DemoPrompt from '@/components/DemoPrompt';
 import UnifiedUpload from '@/components/UnifiedUpload';
 import { useHoldings } from '@/lib/useHoldings';
-import InfoTooltip from '@/components/InfoTooltip';
+import InfoTip from '@/components/InfoTip';
 import { usePerformanceLedger } from '@/lib/performance/usePerformanceLedger';
 import { buildFxRates, toDisplay as toDisplayCcy, valuePosition } from '../_lib/positionValue';
 
@@ -889,26 +889,12 @@ export default function PerformanceV2Page() {
                 valueColor={perf.ready ? clr(perf.vsSpyPct) : undefined}
               />
               {perf.ready && perf.mwrPct != null && (
-                <InfoTooltip text={
-                  <>
-                    <div style={{ fontWeight: 600, marginBottom: 8 }}>
-                      Money-Weighted Return (XIRR)
-                    </div>
-                    <div style={{ marginBottom: 8 }}>
-                      Your actual return on the money you invested, accounting for how much you added and when. The chart shows time-weighted return (removes deposit timing, comparable to the index); this includes it.
-                    </div>
-                    <div style={{ fontStyle: 'italic', color: 'var(--text-secondary)', fontSize: 12 }}>
-                      MWR above the chart's TWR means your deposit timing helped; below means it hurt.
-                    </div>
-                  </>
-                }>
-                  <StatCard
-                    label="Your return (MWR)"
-                    value={(perf.mwrPct >= 0 ? '+' : '') + perf.mwrPct.toFixed(1) + '%'}
-                    sub="Money-weighted (XIRR) — includes deposit timing"
-                    valueColor={clr(perf.mwrPct)}
-                  />
-                </InfoTooltip>
+                <StatCard
+                  label={<span style={{ display: 'inline-flex', alignItems: 'center' }}>Your return (MWR)<InfoTip id="mwr" /></span>}
+                  value={(perf.mwrPct >= 0 ? '+' : '') + perf.mwrPct.toFixed(1) + '%'}
+                  sub="Money-weighted (XIRR) — includes deposit timing"
+                  valueColor={clr(perf.mwrPct)}
+                />
               )}
             </div>
 
@@ -922,7 +908,7 @@ export default function PerformanceV2Page() {
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 10, padding: '20px 24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Invested holdings vs SPY
+                  Invested holdings vs SPY<InfoTip id="twr" />
                   <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 8 }}>time-weighted · total return · cash excluded</span>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -965,7 +951,7 @@ export default function PerformanceV2Page() {
             {/* ── Metric cards: Beta, EUR/USD Rate, Currency Impact, Outperformance ── */}
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <MetricCard
-                label="Portfolio Beta"
+                label={<span style={{ display: 'inline-flex', alignItems: 'center' }}>Portfolio Beta<InfoTip id="beta" /></span>}
                 value={s?.portfolioBeta != null ? fmt(s.portfolioBeta, 2) : '—'}
                 sub={
                   s?.portfolioBeta == null ? 'Not available' :
