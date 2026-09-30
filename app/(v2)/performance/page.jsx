@@ -8,7 +8,7 @@ import UnifiedUpload from '@/components/UnifiedUpload';
 import { useHoldings } from '@/lib/useHoldings';
 import InfoTip from '@/components/InfoTip';
 import { usePerformanceLedger } from '@/lib/performance/usePerformanceLedger';
-import { buildFxRates, toDisplay as toDisplayCcy, valuePosition, currencyImpact as currencyImpactEur } from '../_lib/positionValue';
+import { buildFxRates, toDisplay as toDisplayCcy, valuePosition } from '../_lib/positionValue';
 
 // recharts loads in an async chunk (after paint), off the route's critical path.
 // PortTooltip / EurTooltip moved into this module (used only by these charts).
@@ -129,10 +129,22 @@ export default function PerformanceV2Page() {
   // Single-model daily-ledger performance (chart + vs-SPY + MWR + € mirror).
   // All math is in lib/performance/ledger.js; this hook fetches daily closes and
   // builds the ledger. The legacy weekly-candle chart + its endpoint pins are gone.
+  // Single current-FX source for the whole page: the SAME eurUsd/gbpUsd behind the
+  // EUR/USD Rate card and the portfolio value (chart last-close). Passed to the hook so
+  // the Currency Impact "now" rate can't diverge from them. Memoised for stable identity.
+  const pageFxNow = useMemo(
+    () => (rawData ? { eurUsd: rawData.eurCandles?.at(-1)?.close ?? null, gbpUsd: rawData.gbpUsd ?? null } : null),
+    [rawData],
+  );
   const perf = usePerformanceLedger({
     realizedData,
     currentCashEur: realizedData?.currentCash?.amountEur ?? 0,
     defaultStart: startDate ?? estimatedDate,
+    // Current quotes (price + currency) + holdings drive the per-lot Currency Impact
+    // attribution inside the hook (it already has the daily FX + daily closes).
+    quotes: rawData?.livePrices ?? null,
+    holdings,
+    fxNow: pageFxNow,
   });
 
   /* ── Hydrate date/cash config from portfolios.settings (Supabase) ─────────
@@ -377,7 +389,7 @@ export default function PerformanceV2Page() {
   const { eurData, stats } = useMemo(() => {
     if (!rawData || !holdings?.length) return { eurData: [], stats: null };
 
-    const { spyCandles, eurCandles, gbpCandles = [], gbpUsd, valArr, tickerCandles, livePrices = {} } = rawData;
+    const { spyCandles, eurCandles, gbpUsd, valArr, tickerCandles, livePrices = {} } = rawData;
     const spyLen = spyCandles.length;
     if (!spyLen) return { eurData: [], stats: null };
 
@@ -484,29 +496,20 @@ export default function PerformanceV2Page() {
     // a position whose quote currency doesn't match (no pricing off another listing)
     // or has no quote is "no price": excluded from value/P&L, never dropped.
     const rates = buildFxRates(eurUsd, gbpUsd);
-    // Start-date FX (USD-per-unit), same shape as `rates`, for the currency-impact
-    // isolation below. GBP start close mirrors the eurStart lookup.
-    const gbpStartIdx = Math.min(startIdx, gbpCandles.length - 1);
-    const gbpStart    = gbpCandles[gbpStartIdx]?.close ?? null;
-    const ratesStart  = buildFxRates(eurStart, gbpStart);
-
     let holdingsValueEur = 0, unrealizedEur = 0;
     const unpricedNames = [];
-    const pricedPositions = [];      // { nativeCcy, mktNative } — feeds currencyImpact()
     for (const h of holdings) {
       if (h.t === '__CASH__') continue;
       const v = valuePosition(h, livePrices[h.t], rates, 'EUR');
       if (v.priced) {
         holdingsValueEur += v.valueDisplay ?? 0;
         unrealizedEur    += v.plDisplay ?? 0;
-        pricedPositions.push({ nativeCcy: v.nativeCcy, mktNative: v.mktNative });
       } else {
         unpricedNames.push(h.unresolved ? (h.name || h.isin || h.t) : h.t);
       }
     }
-    // Currency impact of FX moves on the current (non-EUR) holdings. null when a
-    // foreign position can't be converted at both now + start FX → card shows "—".
-    const { impact: currencyImpact } = currencyImpactEur(pricedPositions, rates, ratesStart, 'EUR');
+    // NB: Currency Impact now comes from the per-lot attribution in usePerformanceLedger
+    // (perf.currencyImpact), not from this stats memo.
     const currentCashEur   = toDisplayCcy(cashData?.amount ?? 0, cashData?.currency ?? 'EUR', rates, 'EUR') ?? 0;
     const portfolioValueEur = holdingsValueEur + currentCashEur;     // holdings + cash — equals dashboard headline
     const realizedEur       = realizedData?.totalPnl ?? 0;           // already EUR
@@ -516,7 +519,7 @@ export default function PerformanceV2Page() {
       eurData,
       stats: {
         adjustedCostBasis, portfolioBeta,
-        eurNow, eurStart, eurChangePct, currencyImpact,
+        eurNow, eurStart, eurChangePct,
         // Stage 2b reconstructed start value + display fields.
         // reconStartDate is intentionally NOT returned here — the render reads the
         // top-level reconStartDate const so this memo need not depend on it.
@@ -968,17 +971,32 @@ export default function PerformanceV2Page() {
                 value={s?.eurNow != null ? s.eurNow.toFixed(4) : '—'}
                 sub={s?.eurChangePct != null ? `${fmtD(s.eurChangePct, 2)} since start` : s?.eurStart != null ? `At start: ${s.eurStart.toFixed(4)}` : null}
               />
-              <MetricCard
-                label="Currency Impact"
-                value={s?.currencyImpact != null ? `€${fmt(Math.abs(s.currencyImpact))}` : '—'}
-                sub={
-                  s?.currencyImpact == null ? 'Not available' :
-                  s.currencyImpact > 0      ? 'Tailwind (USD strengthened)' :
-                  s.currencyImpact < 0      ? 'Headwind (USD weakened)' :
-                                              'No currency exposure'
-                }
-                valueColor={s?.currencyImpact ? clr(s.currencyImpact) : undefined}
-              />
+              {(() => {
+                // Per-lot currency attribution from usePerformanceLedger (follows the
+                // window toggle). total = open + realised + estimated; null = not available.
+                const ci = perf.currencyImpact;
+                const total = ci?.total ?? null;
+                const label =
+                  total == null ? 'Not available' :
+                  total > 0     ? 'Tailwind (USD strengthened)' :
+                  total < 0     ? 'Headwind (USD weakened)' :
+                                  'No currency exposure';
+                const value = !perf.ready ? '…' : total == null ? '—' : `€${fmt(Math.abs(total))}`;
+                const split = ci && total != null ? (
+                  <div style={{ marginTop: 2, color: 'var(--text-muted)', fontSize: 11 }}>
+                    open €{fmt(Math.abs(ci.open))} · realised €{fmt(Math.abs(ci.realised))}
+                    {ci.estimatedEur ? ` · €${fmt(Math.abs(ci.estimatedEur))} estimated` : ''}
+                  </div>
+                ) : null;
+                return (
+                  <MetricCard
+                    label="Currency Impact"
+                    value={value}
+                    sub={!perf.ready ? null : <>{label}{split}</>}
+                    valueColor={total ? clr(total) : undefined}
+                  />
+                );
+              })()}
               {realizedData && (() => {
                 const { positions = [], partialPositions = [], totalPnl } = realizedData;
                 const allRealized = [...positions, ...partialPositions];

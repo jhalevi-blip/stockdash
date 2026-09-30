@@ -12,6 +12,11 @@ export interface BrokerTrade {
    *  and DeGiro (native value ÷ FX). Undefined for brokers that don't provide it —
    *  calcFIFO then falls back to native price × shares. */
   amountEur?: number;
+  /** Broker's per-order FX rate (local currency units per EUR), when the export
+   *  records one (DeGiro's orderFx). Used directly for per-lot currency attribution,
+   *  never derived from amountEur (which can include commission). Undefined otherwise
+   *  (e.g. EUR orders, or brokers without an FX column → daily-close fallback). */
+  fx?: number;
   /** Instrument ISIN when the source carries one (DeGiro). Optional. */
   isin?: string;
 }

@@ -329,6 +329,10 @@ async function parseRekeningoverzicht(wb: XLSX.WorkBook): Promise<DeGiroParseRes
       date,
       action: action!,
       amountEur,
+      // Broker's per-order FX (local units per EUR) — the export's own rate, used
+      // directly for per-lot currency attribution (never derived from amountEur,
+      // which is fee-adjacent). EUR orders carry no FX.
+      fx: currency !== 'EUR' && orderFx != null ? orderFx : undefined,
       isin: isin || undefined,
     });
   }
