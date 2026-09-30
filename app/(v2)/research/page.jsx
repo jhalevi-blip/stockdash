@@ -13,6 +13,8 @@ import InfoTooltip from '@/components/InfoTooltip';
 import { fmtCurrency, fmtPct, colorForChange } from '@/app/(v2)/_lib/format';
 import { loadUserHoldings, saveUserHoldings } from '@/lib/holdingsStorage';
 import { calcDCF } from './_lib/dcf';
+import PeersPanel from './_components/PeersPanel';
+import FilingsPanel from './_components/FilingsPanel';
 
 // ─────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -34,7 +36,6 @@ const SECTOR_COLOR = {
 };
 
 // Peer overlay color slots
-const PEER_COLORS = ['var(--accent-cyan)', 'var(--warn)', 'var(--positive-soft)'];
 
 // Rate-limit constants
 const THESIS_LIMIT_SIGNED  = 5;
@@ -1764,285 +1765,6 @@ function ShortInterestCard({ ticker }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// SUBSYSTEM 12 — PEER COMPARISON CARD
-// ─────────────────────────────────────────────────────────────
-
-const PEER_METRICS = [
-  { key: 'marketCap',     label: 'Market Cap',  fmt: v => fmtCap(v),                                lowerIsBetter: false },
-  { key: 'revenueGrowth', label: 'Rev Growth',  fmt: v => v == null ? '—' : v.toFixed(1) + '%',    lowerIsBetter: false },
-  { key: 'peRatio',       label: 'P/E TTM',     fmt: v => fmtRatio(v),                              lowerIsBetter: true  },
-  { key: 'psRatio',       label: 'P/S',         fmt: v => fmtRatio(v),                              lowerIsBetter: true  },
-  { key: 'netMargin',     label: 'Net Margin',  fmt: v => v == null ? '—' : v.toFixed(1) + '%',    lowerIsBetter: false },
-  { key: 'roe',           label: 'ROE',         fmt: v => v == null ? '—' : v.toFixed(1) + '%',    lowerIsBetter: false },
-];
-
-function PeerComparisonCard({ ticker, overlayPeers, setOverlayPeers }) {
-  const router = useRouter();
-  const [peers, setPeers] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    if (!ticker) return;
-    setPeers(null);
-    setLoading(true);
-    setError(false);
-    fetch(`/api/peers?ticker=${ticker}`)
-      .then(r => r.json())
-      .then(data => setPeers(Array.isArray(data) && data.length ? data : null))
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, [ticker]);
-
-  if (loading) return <Card title="Peer Comparison" eyebrow={ticker}><PlaceholderBody label="Loading peer data…" /></Card>;
-  if (error)   return <Card title="Peer Comparison" eyebrow={ticker}><PlaceholderBody label="Peer data unavailable." /></Card>;
-  if (!peers)  return <Card title="Peer Comparison" eyebrow={ticker}><PlaceholderBody label={`No peer data found for ${ticker}.`} /></Card>;
-
-  const base  = peers.find(p => p.isBase) ?? peers[0];
-  const peerList = peers.filter(p => !p.isBase).slice(0, 5);
-  const allCols  = [base, ...peerList];
-
-  // Best-in-class index per metric (across all columns)
-  function getBestIdx(metric) {
-    const vals = allCols.map(p => p[metric.key]);
-    const valid = vals.filter(v => v != null && isFinite(v) && v > 0);
-    if (!valid.length) return -1;
-    const best = metric.lowerIsBetter ? Math.min(...valid) : Math.max(...valid);
-    return vals.findIndex(v => v === best);
-  }
-
-  return (
-    <Card
-      title="Peer Comparison"
-      eyebrow={ticker}
-      footer={<a href="/peers" style={{ color: 'var(--accent)', fontSize: 12 }}>View full peer matrix →</a>}
-    >
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--text-muted)', fontWeight: 500, width: 100 }}>Metric</th>
-              {allCols.map((p, ci) => {
-                const isBase    = p.isBase;
-                const peerTick  = p.ticker;
-                const isOverlay = overlayPeers.includes(peerTick);
-                const slotIdx   = overlayPeers.indexOf(peerTick);
-                const slotColor = isOverlay ? PEER_COLORS[slotIdx] : 'var(--accent)';
-                const canToggle = isOverlay || overlayPeers.length < 3;
-                return (
-                  <th
-                    key={peerTick}
-                    style={{
-                      textAlign: 'right',
-                      padding: '6px 8px',
-                      background: isBase ? 'color-mix(in srgb, var(--accent) 11%, transparent)' : undefined,
-                      borderBottom: isBase ? '2px solid var(--accent)' : '2px solid var(--border-color)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
-                      <span
-                        style={{ color: isBase ? 'var(--accent)' : 'var(--text-primary)', fontWeight: 600, cursor: isBase ? 'default' : 'pointer' }}
-                        onClick={() => !isBase && router.push(`/research?ticker=${peerTick}`)}
-                      >
-                        {peerTick}
-                      </span>
-                      {!isBase && (
-                        <button
-                          onClick={() => setOverlayPeers(prev =>
-                            prev.includes(peerTick)
-                              ? prev.filter(t => t !== peerTick)
-                              : prev.length >= 3 ? prev : [...prev, peerTick]
-                          )}
-                          disabled={!canToggle}
-                          style={{
-                            fontSize: 10,
-                            padding: '1px 5px',
-                            borderRadius: 4,
-                            border: `1px solid ${slotColor}`,
-                            background: isOverlay ? slotColor : 'transparent',
-                            color: isOverlay ? '#fff' : slotColor,
-                            cursor: canToggle ? 'pointer' : 'not-allowed',
-                            opacity: canToggle ? 1 : 0.4,
-                            lineHeight: 1.4,
-                          }}
-                        >
-                          {isOverlay ? '✕ Overlay' : '+ Overlay'}
-                        </button>
-                      )}
-                    </div>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {PEER_METRICS.map(metric => {
-              const bestIdx = getBestIdx(metric);
-              return (
-                <tr key={metric.key} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <td style={{ padding: '7px 8px', color: 'var(--text-secondary)', fontWeight: 500 }}>{metric.label}</td>
-                  {allCols.map((p, ci) => {
-                    const isBest   = ci === bestIdx;
-                    const isBase   = p.isBase;
-                    const val      = p[metric.key];
-                    return (
-                      <td
-                        key={p.ticker}
-                        style={{
-                          textAlign: 'right',
-                          padding: '7px 8px',
-                          fontVariantNumeric: 'tabular-nums',
-                          fontWeight: isBest ? 700 : 400,
-                          color: isBest ? 'var(--positive)' : isBase ? 'var(--text-primary)' : 'var(--text-secondary)',
-                          background: isBest
-                            ? 'color-mix(in srgb, var(--positive) 12%, transparent)'
-                            : isBase ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : undefined,
-                        }}
-                      >
-                        {metric.fmt(val)}
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// SUBSYSTEM 13 — SEC FILINGS CARD
-// ─────────────────────────────────────────────────────────────
-
-const FILING_BADGE_COLORS = {
-  '10-K':    'var(--accent)',
-  '10-Q':    'var(--positive)',
-  '8-K':     'var(--warn)',
-  'DEF 14A': '#7c3aed',
-};
-
-const SHOWN_TYPES = ['10-K', '10-Q', '8-K', 'DEF 14A'];
-
-function fmtFilingDate(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function SECFilingsCard({ ticker }) {
-  const [filings, setFilings]     = useState(null);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(false);
-  const [filterType, setFilterType] = useState('all');
-
-  useEffect(() => {
-    if (!ticker) return;
-    setFilings(null);
-    setLoading(true);
-    setError(false);
-    setFilterType('all');
-    fetch(`/api/research?symbol=${ticker}&type=filings`)
-      .then(r => r.json())
-      .then(data => setFilings(Array.isArray(data) ? data.filter(f => SHOWN_TYPES.includes(f.type)) : null))
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, [ticker]);
-
-  if (loading) return <Card title="SEC Filings" eyebrow={ticker}><PlaceholderBody label="Loading filings…" /></Card>;
-  if (error)   return <Card title="SEC Filings" eyebrow={ticker}><PlaceholderBody label="Filing data unavailable." /></Card>;
-  if (!filings || !filings.length) return <Card title="SEC Filings" eyebrow={ticker}><PlaceholderBody label={`No filings found for ${ticker}.`} /></Card>;
-
-  const typeCounts = {};
-  SHOWN_TYPES.forEach(t => { typeCounts[t] = filings.filter(f => f.type === t).length; });
-
-  const filtered = filterType === 'all' ? filings : filings.filter(f => f.type === filterType);
-  const visible  = filtered.slice(0, 8);
-
-  return (
-    <Card title="SEC Filings" eyebrow={ticker}>
-      {/* Filter chips */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-        {[{ key: 'all', label: 'All', count: filings.length }, ...SHOWN_TYPES.map(t => ({ key: t, label: t, count: typeCounts[t] }))].map(chip => {
-          if (chip.key !== 'all' && chip.count === 0) return null;
-          const active = filterType === chip.key;
-          return (
-            <button
-              key={chip.key}
-              onClick={() => setFilterType(chip.key)}
-              style={{
-                fontSize: 11,
-                padding: '3px 10px',
-                borderRadius: 99,
-                border: `1px solid ${active ? 'var(--accent)' : 'var(--border-color)'}`,
-                background: active ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent',
-                color: active ? 'var(--accent)' : 'var(--text-secondary)',
-                cursor: 'pointer',
-              }}
-            >
-              {chip.label}
-              <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }}>{chip.count}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Filing rows */}
-      <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {visible.map((f, i) => {
-          const color = FILING_BADGE_COLORS[f.type] ?? 'var(--text-muted)';
-          const label = `${f.type} — ${fmtFilingDate(f.date)}`;
-          return (
-            <a
-              key={i}
-              href={f.finalLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '7px 10px',
-                borderRadius: 6,
-                textDecoration: 'none',
-                color: 'var(--text-primary)',
-                background: 'transparent',
-                transition: 'background 0.15s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            >
-              <span style={{
-                fontSize: 10,
-                fontWeight: 700,
-                padding: '2px 6px',
-                borderRadius: 4,
-                background: `color-mix(in srgb, ${color} 18%, transparent)`,
-                color,
-                minWidth: 48,
-                textAlign: 'center',
-              }}>
-                {f.type}
-              </span>
-              <span style={{ flex: 1, fontSize: 12 }}>{label}</span>
-              <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>→</span>
-            </a>
-          );
-        })}
-      </div>
-
-      {/* Footer */}
-      {filtered.length > 8 && (
-        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
-          Showing 8 of {filtered.length}
-        </div>
-      )}
-    </Card>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────
 // MAIN PAGE
@@ -2066,6 +1788,30 @@ function ResearchPageInner() {
   const [thesis,       setThesis]       = useState(null); // lifted from ThesisHero for DCF wiring
   const [analystRatings, setAnalystRatings] = useState(null);
   const [valHistory,   setValHistory]   = useState(null);
+
+  // Tabs: Overview | Peers | Filings. Peers & Filings are the folded-in
+  // /peers and /financial-filings pages; the URL hash drives the tab so
+  // /research#peers / #filings (and the two redirects) land on the right tab.
+  const [activeTab, setActiveTab] = useState('overview');
+  // Initial tab from ?tab=peers|filings (the /peers, /financial-filings
+  // redirects) or the #hash — read ONCE on mount so a later tab click isn't reset
+  // back to it. After mount, clicks + hashchange drive the tab.
+  useEffect(() => {
+    const norm = (t) => (t === 'peers' || t === 'filings' ? t : 'overview');
+    const readHash = () => (typeof window !== 'undefined' ? window.location.hash : '').replace('#', '');
+    const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+    setActiveTab(norm(params.get('tab') || readHash()));
+    const onHash = () => setActiveTab(norm(readHash()));
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const selectTab = (tab) => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      const base = window.location.pathname + window.location.search;
+      window.history.replaceState(null, '', tab === 'overview' ? base : `${base}#${tab}`);
+    }
+  };
 
   // DCF scenarios: use new three-scenario shape; promote legacy dcfInputs to consensus-only
   const aiScenarios = useMemo(() => {
@@ -2294,10 +2040,7 @@ function ResearchPageInner() {
           <ActionBtn onClick={() => setWatched(w => !w)}>{watched ? '★' : '☆'} Watch</ActionBtn>
           <ActionBtn onClick={openModal}>+ Add to Portfolio</ActionBtn>
           <ActionBtn onClick={() => alert('Coming soon')}>🔔 Set Alert</ActionBtn>
-          <ActionBtn onClick={() => {
-            const el = document.getElementById('section-peers');
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
-          }}>⇄ Compare</ActionBtn>
+          <ActionBtn onClick={() => selectTab('peers')}>⇄ Compare</ActionBtn>
           <ActionBtn onClick={() => {
             if (navigator.share) {
               navigator.share({ title: `${ticker} — Research`, url: window.location.href }).catch(() => {});
@@ -2308,62 +2051,82 @@ function ResearchPageInner() {
         </div>
       </Card>
 
-      {/* 1. PRICE CHART */}
-      <PriceChart
-        ticker={ticker}
-        overlayPeers={overlayPeers}
-        setOverlayPeers={setOverlayPeers}
-        earningsHistory={earningsHistory}
-      />
-
-      {/* 2. AI THESIS */}
-      <ThesisHero
-        ticker={ticker}
-        quote={quote}
-        metrics={metrics}
-        isSignedIn={!!isSignedIn}
-        userId={user?.id}
-        savedHoldings={savedHoldings}
-        savedCash={savedCash}
-        thesis={thesis}
-        setThesis={setThesis}
-        resolvedRevenue={resolvedRevenue}
-        priorAnnualRevenue={priorAnnualRevenue}
-      />
-
-      {/* 3–4. Analyst Ratings | Earnings */}
-      <div className="res-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <AnalystRatingsCard ticker={ticker} data={analystRatings} currentPrice={quote?.price} />
-        <EarningsCard ticker={ticker} />
+      {/* Tabs: Overview | Peers | Filings. Peers & Filings are the folded-in
+          /peers and /financial-filings pages (hash-driven). */}
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border-color)', marginTop: 4 }}>
+        {[['overview', 'Overview'], ['peers', 'Peers'], ['filings', 'Filings']].map(([key, label]) => (
+          <button key={key} onClick={() => selectTab(key)} aria-current={activeTab === key ? 'page' : undefined} style={{
+            background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            padding: '8px 14px', fontSize: 13, fontWeight: activeTab === key ? 700 : 500,
+            color: activeTab === key ? 'var(--text-primary)' : 'var(--text-secondary)',
+            borderBottom: activeTab === key ? '2px solid var(--accent)' : '2px solid transparent',
+            marginBottom: -1,
+          }}>{label}</button>
+        ))}
       </div>
 
-      {/* 5–6. Financial Statements | Valuation Metrics */}
-      <div className="res-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <FinancialStatementsCard ticker={ticker} financials={financials} />
-        <ValuationMetricsCard ticker={ticker} metrics={metrics} valHistory={valHistory} />
-      </div>
+      {activeTab === 'overview' && (
+        <>
+          {/* 1. PRICE CHART */}
+          <PriceChart
+            ticker={ticker}
+            overlayPeers={overlayPeers}
+            setOverlayPeers={setOverlayPeers}
+            earningsHistory={earningsHistory}
+          />
 
-      {/* DCF CALCULATOR (between Valuation Metrics and Insider) */}
-      <DCFCalculator ticker={ticker} financials={financials} metrics={metrics} quote={quote} aiScenarios={aiScenarios} resolvedRevenue={resolvedRevenue} />
+          {/* 2. AI THESIS */}
+          <ThesisHero
+            ticker={ticker}
+            quote={quote}
+            metrics={metrics}
+            isSignedIn={!!isSignedIn}
+            userId={user?.id}
+            savedHoldings={savedHoldings}
+            savedCash={savedCash}
+            thesis={thesis}
+            setThesis={setThesis}
+            resolvedRevenue={resolvedRevenue}
+            priorAnnualRevenue={priorAnnualRevenue}
+          />
 
-      {/* 7–8–9. Insider | Institutional | Short Interest */}
-      <div className="res-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
-        <InsiderTradingCard         ticker={ticker} />
-        <InstitutionalOwnershipCard ticker={ticker} />
-        <ShortInterestCard          ticker={ticker} />
-      </div>
+          {/* 3–4. Analyst Ratings | Earnings */}
+          <div className="res-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <AnalystRatingsCard ticker={ticker} data={analystRatings} currentPrice={quote?.price} />
+            <EarningsCard ticker={ticker} />
+          </div>
 
-      {/* 10. Peer Comparison */}
-      <div id="section-peers">
-        <PeerComparisonCard
-          ticker={ticker}
-          overlayPeers={overlayPeers}
-          setOverlayPeers={setOverlayPeers}
-        />
-      </div>
+          {/* 5–6. Financial Statements | Valuation Metrics */}
+          <div className="res-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <FinancialStatementsCard ticker={ticker} financials={financials} />
+            <ValuationMetricsCard ticker={ticker} metrics={metrics} valHistory={valHistory} />
+          </div>
 
-      {/* 11. SEC Filings */}
-      <SECFilingsCard ticker={ticker} />
+          {/* DCF CALCULATOR (between Valuation Metrics and Insider) */}
+          <DCFCalculator ticker={ticker} financials={financials} metrics={metrics} quote={quote} aiScenarios={aiScenarios} resolvedRevenue={resolvedRevenue} />
+
+          {/* 7–8–9. Insider | Institutional | Short Interest */}
+          <div className="res-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+            <InsiderTradingCard         ticker={ticker} />
+            <InstitutionalOwnershipCard ticker={ticker} />
+            <ShortInterestCard          ticker={ticker} />
+          </div>
+        </>
+      )}
+
+      {/* Peers tab — folded-in /peers (full Finnhub metric set) */}
+      {activeTab === 'peers' && (
+        <div id="section-peers" style={{ marginTop: 14 }}>
+          <PeersPanel ticker={ticker} overlayPeers={overlayPeers} setOverlayPeers={setOverlayPeers} />
+        </div>
+      )}
+
+      {/* Filings tab — folded-in /financial-filings (filings + news + transcripts) */}
+      {activeTab === 'filings' && (
+        <div style={{ marginTop: 14 }}>
+          <FilingsPanel ticker={ticker} />
+        </div>
+      )}
 
       {/* Portfolio modal */}
       {modalOpen && (

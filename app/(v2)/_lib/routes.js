@@ -30,24 +30,55 @@ export const ROUTES = {
   valuationFor: (t) => `/valuation?ticker=${t}`,
 };
 
-export const NAV_ITEMS = [
-  { id: 'dashboard',   label: 'Dashboard',       emoji: '📊', href: ROUTES.dashboard },
-  { id: 'watchlist',   label: 'Watchlist',       emoji: '👁', href: ROUTES.watchlist },
-  { id: 'stock-research', label: 'Stock Research',    emoji: '📑', href: ROUTES.researchPage },
-  { id: 'themes',         label: 'Theme Research',    emoji: '🧭', href: ROUTES.themes },
-  { id: 'news',           label: 'News',              emoji: '📰', href: ROUTES.news },
-  { id: 'performance', label: 'Performance',     emoji: '📈', href: ROUTES.performance },
-  { id: 'macro',       label: 'Macro',           emoji: '🌏', href: ROUTES.macro },
-  { id: 'insider',     label: 'Insider',         emoji: '🔎', href: ROUTES.insider },
-  { id: 'ownership',   label: 'Ownership',       emoji: '🏛', href: ROUTES.ownership },
-  { id: 'peers',        label: 'Peers',            emoji: '📋', href: ROUTES.peers },
-  { id: 'correlations', label: 'Correlations',   emoji: '🔗', href: ROUTES.correlations },
-  { id: 'research',       label: 'Financial Filings', emoji: '📑', href: ROUTES.research },
-  { id: 'valuation',      label: 'Valuation',         emoji: '📐', href: ROUTES.valuation },
-  { id: 'earnings',    label: 'Earnings',        emoji: '📅', href: ROUTES.earnings },
-  { id: 'ratingsAndShorts', label: 'Analyst & Shorts', emoji: '🎯', href: ROUTES.ratingsAndShorts },
-  { id: 'blog',        label: 'Blog',            emoji: '📝', href: ROUTES.blog },
+// Grouped navigation (desktop sidebar + mobile drawer render group headers).
+// Financial Filings and Peers are NOT here — they are folded into Stock Research
+// as tabs (/research#filings, /research#peers); their old routes redirect there.
+// Icons are keyed by `id` in NavIcon; labels drive the visible text + tooltips.
+export const NAV_GROUPS = [
+  {
+    label: 'My Portfolio',
+    items: [
+      { id: 'dashboard',        label: 'Dashboard',        href: ROUTES.dashboard },
+      { id: 'performance',      label: 'Performance',      href: ROUTES.performance },
+      { id: 'correlations',     label: 'Correlations',     href: ROUTES.correlations },
+    ],
+  },
+  {
+    label: 'Scan My Holdings',
+    items: [
+      { id: 'valuation',        label: 'Valuation',        href: ROUTES.valuation },
+      { id: 'earnings',         label: 'Earnings',         href: ROUTES.earnings },
+      { id: 'insider',          label: 'Insider',          href: ROUTES.insider },
+      { id: 'ownership',        label: 'Ownership',        href: ROUTES.ownership },
+      { id: 'ratingsAndShorts', label: 'Analyst & Shorts', href: ROUTES.ratingsAndShorts },
+    ],
+  },
+  {
+    label: 'Research & Ideas',
+    items: [
+      { id: 'stock-research',   label: 'Stock Research',     href: ROUTES.researchPage },
+      { id: 'watchlist',        label: 'Watchlist & Screen', href: ROUTES.watchlist },
+      { id: 'themes',           label: 'Theme Research',     href: ROUTES.themes },
+    ],
+  },
+  {
+    label: 'Markets',
+    items: [
+      { id: 'macro',            label: 'Macro',            href: ROUTES.macro },
+      { id: 'news',             label: 'News',             href: ROUTES.news },
+    ],
+  },
+  {
+    label: 'Learn',
+    items: [
+      { id: 'blog',             label: 'Blog',             href: ROUTES.blog },
+    ],
+  },
 ];
+
+// Flat list (used by the smoke test + visual-QA route walkers). Derived from the
+// groups so it always matches the visible nav.
+export const NAV_ITEMS = NAV_GROUPS.flatMap(g => g.items);
 
 export function resolveRoute(target) {
   if (!target) return '/dashboard';

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { NAV_ITEMS } from '../_lib/routes';
+import { NAV_GROUPS } from '../_lib/routes';
 import Logo from './Logo';
 import NavIcon from './NavIcon';
 
@@ -44,36 +44,44 @@ export default function MobileNavDrawer() {
           <Logo size={22} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', padding: '10px 8px', gap: 1 }}>
-          {NAV_ITEMS.map(item => {
-            const isActive = item.id === 'dashboard'
-              ? pathname === '/dashboard'
-              : pathname === item.href || pathname.startsWith(item.href + '/');
-            return (
-              <Link
-                key={item.id}
-                href={item.id === 'dashboard' ? '/dashboard' : item.href}
-                onClick={close}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  minHeight: 44,
-                  padding: '8px 12px',
-                  borderRadius: 6,
-                  textDecoration: 'none',
-                  color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  background: isActive ? 'var(--bg-hover)' : 'transparent',
-                  fontSize: 14,
-                  fontWeight: isActive ? 600 : 500,
-                  borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
-                  transition: 'background .2s, color .2s',
-                }}
-              >
-                <NavIcon id={item.id} size={18} />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+          {NAV_GROUPS.map((group, gi) => (
+            <div key={group.label} style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <div style={{
+                fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+                color: 'var(--text-muted)', padding: gi === 0 ? '2px 12px 6px' : '14px 12px 6px',
+              }}>{group.label}</div>
+              {group.items.map(item => {
+                const isActive = item.id === 'dashboard'
+                  ? pathname === '/dashboard'
+                  : pathname === item.href || pathname.startsWith(item.href + '/');
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.id === 'dashboard' ? '/dashboard' : item.href}
+                    onClick={close}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      minHeight: 44,
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      textDecoration: 'none',
+                      color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                      background: isActive ? 'var(--bg-hover)' : 'transparent',
+                      fontSize: 14,
+                      fontWeight: isActive ? 600 : 500,
+                      borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+                      transition: 'background .2s, color .2s',
+                    }}
+                  >
+                    <NavIcon id={item.id} size={18} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </nav>
     </>

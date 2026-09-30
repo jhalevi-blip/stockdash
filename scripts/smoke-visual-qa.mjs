@@ -318,6 +318,9 @@ const baseline = new Set(
 
 const pages = [
   ...NAV_ITEMS.map(n => ({ href: n.href, label: n.label })),
+  // Folded Stock Research tabs (Peers + Filings) so the moved content stays covered.
+  { href: '/research?tab=peers',   label: 'Research · Peers tab' },
+  { href: '/research?tab=filings', label: 'Research · Filings tab' },
   { href: '/', label: 'Homepage (public)' },
 ];
 

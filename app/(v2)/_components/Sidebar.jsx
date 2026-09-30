@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import Logo from './Logo';
 import Dot from './Dot';
 import NavIcon from './NavIcon';
-import { NAV_ITEMS } from '../_lib/routes';
+import { NAV_GROUPS } from '../_lib/routes';
 import { getMarketStatus } from '@/lib/marketStatus';
 import { FLAGSHIP_LABEL } from '@/lib/aiModels';
 
@@ -82,35 +82,48 @@ export default function Sidebar() {
         >{collapsed ? '»' : '«'}</button>
       </div>
       <nav style={{ display: 'flex', flexDirection: 'column', padding: collapsed ? '10px 6px' : '10px 8px', gap: 1 }}>
-        {NAV_ITEMS.map(item => {
-          // /dashboard should be the active item when we're on /dashboard itself
-          const isActive = item.id === 'dashboard'
-            ? pathname === '/dashboard'
-            : pathname === item.href || pathname.startsWith(item.href + '/');
-          return (
-            <Link key={item.id} href={item.id === 'dashboard' ? '/dashboard' : item.href}
-              title={collapsed ? item.label : undefined}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: collapsed ? 'center' : 'flex-start',
-                gap: collapsed ? 0 : 10,
-                padding: collapsed ? '8px 0' : '8px 10px',
-                borderRadius: 6,
-                textDecoration: 'none',
-                color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-                background: isActive ? 'var(--bg-hover)' : 'transparent',
-                fontSize: 13,
-                fontWeight: isActive ? 600 : 500,
-                borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
-                whiteSpace: 'nowrap',
-                transition: 'background .2s, color .2s',
-              }}>
-              <NavIcon id={item.id} size={18} />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
+        {NAV_GROUPS.map((group, gi) => (
+          <div key={group.label} style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {/* Group header when expanded; a thin divider between groups when collapsed */}
+            {collapsed ? (
+              gi > 0 && <div aria-hidden="true" style={{ height: 1, background: 'var(--border-color)', margin: '7px 6px' }} />
+            ) : (
+              <div style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+                color: 'var(--text-muted)', padding: gi === 0 ? '2px 12px 5px' : '12px 12px 5px',
+              }}>{group.label}</div>
+            )}
+            {group.items.map(item => {
+              // /dashboard should be the active item when we're on /dashboard itself
+              const isActive = item.id === 'dashboard'
+                ? pathname === '/dashboard'
+                : pathname === item.href || pathname.startsWith(item.href + '/');
+              return (
+                <Link key={item.id} href={item.id === 'dashboard' ? '/dashboard' : item.href}
+                  title={collapsed ? item.label : undefined}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: collapsed ? 'center' : 'flex-start',
+                    gap: collapsed ? 0 : 10,
+                    padding: collapsed ? '8px 0' : '8px 10px',
+                    borderRadius: 6,
+                    textDecoration: 'none',
+                    color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    background: isActive ? 'var(--bg-hover)' : 'transparent',
+                    fontSize: 13,
+                    fontWeight: isActive ? 600 : 500,
+                    borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+                    whiteSpace: 'nowrap',
+                    transition: 'background .2s, color .2s',
+                  }}>
+                  <NavIcon id={item.id} size={18} />
+                  {!collapsed && <span>{item.label}</span>}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
       <div style={{
         marginTop: 'auto',
